@@ -57,11 +57,17 @@ jobs:
       - name: Run mypy type check
         run: mypy src/
 
+      - name: Audit package licenses
+        run: python3 scripts/inventory_licenses.py
+
       - name: Run pytest test suite with coverage
         run: pytest --cov=src/raglab --cov-report=term-missing tests/
 
-      - name: Run CLI smoke test
-        run: raglab smoke
+      - name: Run CLI smoke test (deterministic backend)
+        run: raglab smoke --backend deterministic
+
+      - name: Run CLI smoke test (LlamaIndex backend)
+        run: raglab smoke --backend llamaindex
 
   structure-check:
     runs-on: ubuntu-latest
@@ -76,6 +82,8 @@ jobs:
             "reference/v6_1_reference.ipynb"
             "scripts/verify_reference.py"
             "scripts/scan_secrets.py"
+            "scripts/inventory_licenses.py"
+            "scripts/inventory_workspace_pdfs.py"
             ".agents/rules/authorization.md"
             ".gitignore"
             "README.md"
@@ -93,12 +101,16 @@ jobs:
             "src/raglab/application/ports/checkpoints.py"
             "src/raglab/infrastructure/config/settings.py"
             "src/raglab/infrastructure/retrieval/baseline_adapter.py"
+            "src/raglab/infrastructure/retrieval/llamaindex_adapter.py"
             "src/raglab/infrastructure/persistence/checkpoint_store.py"
             "src/raglab/interfaces/cli/main.py"
             "data/tiny_corpus/corpus.json"
             "data/tiny_corpus/manifest.json"
             "requirements.lock"
             "sbom.cyclonedx.json"
+            "sbom.product.cyclonedx.json"
+            "licenses.json"
+            "docs/workspace_pdf_inventory.json"
             "docs/security/threat_model.md"
             "docs/supply_chain.md"
           )
