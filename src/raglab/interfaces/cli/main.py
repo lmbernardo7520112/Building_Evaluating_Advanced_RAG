@@ -108,10 +108,22 @@ def _run_smoke(args: argparse.Namespace) -> int:
     chunks, corpus_data = load_tiny_corpus(str(corpus_path))
     _check("corpus_loaded", len(chunks) > 0, f"{len(chunks)} chunks")
 
-    # 3. Build baseline index
-    adapter = InMemoryBaselineAdapter()
+    # 3. Build baseline index according to selected backend
+    backend = getattr(args, "backend", "deterministic")
+    if backend == "llamaindex":
+        from raglab.infrastructure.retrieval.llamaindex_adapter import (
+            LlamaIndexBaselineAdapter,
+        )
+        adapter: Any = LlamaIndexBaselineAdapter()
+    else:
+        adapter = InMemoryBaselineAdapter()
+
     adapter.index_chunks(chunks)
-    _check("index_built", True, f"{len(chunks)} chunks indexed")
+    _check(
+        "index_built",
+        True,
+        f"{len(chunks)} chunks indexed (backend={backend})",
+    )
 
     # 4. Retrieve and evaluate
     questions = corpus_data.get("questions", [])
@@ -372,6 +384,12 @@ def main() -> int:
     smoke_parser = subparsers.add_parser(
         "smoke",
         help="Run deterministic smoke test with tiny corpus",
+    )
+    smoke_parser.add_argument(
+        "--backend",
+        choices=["deterministic", "llamaindex"],
+        default="deterministic",
+        help="Retrieval backend adapter to use (default: deterministic)",
     )
     smoke_parser.set_defaults(func=_run_smoke)
 

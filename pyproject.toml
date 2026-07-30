@@ -10,10 +10,11 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 
-# Runtime dependencies will be added in Slice 2+ when adapter
-# implementations require LlamaIndex, google-generativeai, etc.
-# Domain and application layers are stdlib-only by design.
-dependencies = []
+# Runtime dependencies — domain and application layers remain stdlib-only by design.
+# Infrastructure adapters integrate third-party libraries (e.g. LlamaIndex).
+dependencies = [
+    "llama-index-core>=0.10.0,<0.13",
+]
 
 [project.scripts]
 raglab = "raglab.interfaces.cli.main:main"
@@ -33,14 +34,14 @@ dev = [
 where = ["src"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "SIM"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 
 [tool.pytest.ini_options]
