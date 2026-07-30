@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Sequence
 
 from raglab.domain.enums import DatasetSplit, PipelineStrategy, QuestionState
 from raglab.domain.errors import (

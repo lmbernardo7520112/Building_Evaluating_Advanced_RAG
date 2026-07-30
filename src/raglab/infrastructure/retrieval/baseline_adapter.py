@@ -21,8 +21,9 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from typing import Any, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from raglab.domain.entities import Chunk, RetrievedEvidence
 from raglab.domain.value_objects import ChunkId
