@@ -300,7 +300,7 @@
     },
     {
       "name": "llama-index-core",
-      "version": "0.12.52.post1",
+      "version": "0.13.6",
       "license": "MIT",
       "status": "APPROVED"
     },

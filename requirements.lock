@@ -545,9 +545,9 @@ joblib==1.5.3 \
     --hash=sha256:5fc3c5039fc5ca8c0276333a188bbd59d6b7ab37fe6632daa76bc7f9ec18e713 \
     --hash=sha256:8561a3269e6801106863fd0d6d84bb737be9e7631e33aaed3fb9ce5953688da3
     # via nltk
-llama-index-core==0.12.52.post1 \
-    --hash=sha256:3e28d65d238bad8ec5ce372659ae0a3878851c6ba9c9447d6ddb4de138694b1f \
-    --hash=sha256:ac6f447271e5ac4c12e1901373ec4b5ac7814ea33bd1ad3c3c8e9ac9771834ab
+llama-index-core==0.13.6 \
+    --hash=sha256:67bec3c06a8105cd82d83db0f8c3122f4e4d8a4b9c7a2768cced6a2686ddb331 \
+    --hash=sha256:80315a6bd1f9804f48c1870eff1a0315bf9fe5a413747d53eb88a8ebb2602b97
     # via raglab (pyproject.toml)
 llama-index-instrumentation==0.5.0 \
     --hash=sha256:aaab83cddd9dd434278891012d8995f47a3bc7ed1736a371db90965348c56a21 \

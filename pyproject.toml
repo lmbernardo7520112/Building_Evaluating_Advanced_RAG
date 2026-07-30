@@ -13,7 +13,7 @@ license = {text = "MIT"}
 # Runtime dependencies — domain and application layers remain stdlib-only by design.
 # Infrastructure adapters integrate third-party libraries (e.g. LlamaIndex).
 dependencies = [
-    "llama-index-core>=0.10.0,<0.13",
+    "llama-index-core>=0.13.0,<0.14",
 ]
 
 [project.scripts]

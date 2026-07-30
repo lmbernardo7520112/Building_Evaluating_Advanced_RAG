@@ -2,7 +2,7 @@
   "components": [
     {
       "bom-ref": "requirements-L1",
-      "description": "requirements line 1: llama-index-core>=0.10.0,<0.13",
+      "description": "requirements line 1: llama-index-core>=0.13.0,<0.14",
       "externalReferences": [
         {
           "comment": "implicit dist url",
@@ -21,7 +21,7 @@
     }
   ],
   "metadata": {
-    "timestamp": "2026-07-30T22:41:36.133043+00:00",
+    "timestamp": "2026-07-30T22:46:48.127525+00:00",
     "tools": {
       "components": [
         {
@@ -125,7 +125,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:8f745849-e705-4f1e-8d92-b10d74b048c9",
+  "serialNumber": "urn:uuid:cdf9026d-0545-44d1-877c-7340942b0df3",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
