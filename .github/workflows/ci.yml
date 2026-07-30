@@ -1,4 +1,4 @@
-name: RAGLab CI — Preservation Gate
+name: RAGLab CI — Preservation + Domain Gate
 
 on:
   push:
@@ -36,6 +36,21 @@ jobs:
       - name: Scan for secrets
         run: python3 scripts/scan_secrets.py
 
+  domain-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run domain and architecture tests (stdlib unittest)
+        run: python3 -m unittest discover -s tests -p "test_*.py" -v
+        env:
+          PYTHONPATH: src
+
   structure-check:
     runs-on: ubuntu-latest
     steps:
@@ -52,6 +67,20 @@ jobs:
             ".agents/rules/authorization.md"
             ".gitignore"
             "README.md"
+            "src/raglab/__init__.py"
+            "src/raglab/domain/entities.py"
+            "src/raglab/domain/value_objects.py"
+            "src/raglab/domain/enums.py"
+            "src/raglab/domain/errors.py"
+            "src/raglab/domain/policies.py"
+            "src/raglab/application/ports/corpus.py"
+            "src/raglab/application/ports/retrieval.py"
+            "src/raglab/application/ports/generation.py"
+            "src/raglab/application/ports/evaluation.py"
+            "src/raglab/application/ports/checkpoints.py"
+            "src/raglab/infrastructure/config/settings.py"
+            "docs/security/threat_model.md"
+            "docs/supply_chain.md"
           )
           all_ok=true
           for f in "${required_files[@]}"; do
