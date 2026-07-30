@@ -28,26 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Scan for secrets
-        run: |
-          echo "Scanning for potential secrets..."
-          # Check for common secret patterns
-          if grep -rn "GEMINI_API_KEY\s*=" --include="*.py" --include="*.yaml" --include="*.yml" --include="*.json" . \
-             | grep -v ".gitignore" \
-             | grep -v "os.environ" \
-             | grep -v "userdata.get" \
-             | grep -v "#" \
-             | grep -v "verify_reference.py" \
-             | grep -v "\.example"; then
-            echo "ERROR: Potential hardcoded secret found"
-            exit 1
-          fi
-          # Check for private keys
-          if find . -name "*.pem" -o -name "*.key" -o -name "*.p12" | grep -v ".gitignore"; then
-            echo "ERROR: Private key file found"
-            exit 1
-          fi
-          echo "No secrets detected"
+        run: python3 scripts/scan_secrets.py
 
   structure-check:
     runs-on: ubuntu-latest
@@ -61,6 +48,8 @@ jobs:
             "reference/source_manifest.json"
             "reference/v6_1_reference.ipynb"
             "scripts/verify_reference.py"
+            "scripts/scan_secrets.py"
+            ".agents/rules/authorization.md"
             ".gitignore"
             "README.md"
           )
