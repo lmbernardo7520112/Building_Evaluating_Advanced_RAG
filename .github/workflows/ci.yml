@@ -1,4 +1,4 @@
-name: RAGLab CI — Preservation + Domain Gate
+name: RAGLab CI — Preservation + Quality Gate 1
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Verify v6.1 reference integrity
         run: python3 scripts/verify_reference.py
@@ -31,12 +31,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Scan for secrets
         run: python3 scripts/scan_secrets.py
 
-  domain-tests:
+  quality-gate-1:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,12 +44,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
-      - name: Run domain and architecture tests (stdlib unittest)
-        run: python3 -m unittest discover -s tests -p "test_*.py" -v
-        env:
-          PYTHONPATH: src
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run ruff lint
+        run: ruff check src/ tests/
+
+      - name: Run mypy type check
+        run: mypy src/
+
+      - name: Run pytest test suite with coverage
+        run: pytest --cov=src/raglab --cov-report=term-missing tests/
+
+      - name: Run CLI smoke test
+        run: raglab smoke
 
   structure-check:
     runs-on: ubuntu-latest
@@ -73,12 +85,20 @@ jobs:
             "src/raglab/domain/enums.py"
             "src/raglab/domain/errors.py"
             "src/raglab/domain/policies.py"
+            "src/raglab/domain/metrics.py"
             "src/raglab/application/ports/corpus.py"
             "src/raglab/application/ports/retrieval.py"
             "src/raglab/application/ports/generation.py"
             "src/raglab/application/ports/evaluation.py"
             "src/raglab/application/ports/checkpoints.py"
             "src/raglab/infrastructure/config/settings.py"
+            "src/raglab/infrastructure/retrieval/baseline_adapter.py"
+            "src/raglab/infrastructure/persistence/checkpoint_store.py"
+            "src/raglab/interfaces/cli/main.py"
+            "data/tiny_corpus/corpus.json"
+            "data/tiny_corpus/manifest.json"
+            "requirements.lock"
+            "sbom.cyclonedx.json"
             "docs/security/threat_model.md"
             "docs/supply_chain.md"
           )

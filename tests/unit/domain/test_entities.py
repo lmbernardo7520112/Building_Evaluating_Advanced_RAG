@@ -1,31 +1,27 @@
 """Tests for domain entities — invariants and construction."""
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
 from raglab.domain.entities import (
-    ArtifactManifest,
     Checkpoint,
     Chunk,
     Corpus,
-    Document,
-    EvaluationResult,
     ExperimentRun,
     GeneratedAnswer,
     Query,
     QuestionSet,
-    RetrievalResult,
     RetrievedEvidence,
 )
-from raglab.domain.enums import DatasetSplit, PipelineStrategy, QuestionState
+from raglab.domain.enums import DatasetSplit, PipelineStrategy
 from raglab.domain.errors import (
     InvalidIdentifierError,
     MissingProvenanceError,
 )
-from raglab.domain.value_objects import ChunkId, IntegrityDigest, MetricResult, RunId
+from raglab.domain.value_objects import ChunkId, IntegrityDigest, RunId
 
 VALID_HASH = "c11c323e9d5362d4706c3fbbe4b11a107e7c4648407399186aef64fc1fb14db3"
 

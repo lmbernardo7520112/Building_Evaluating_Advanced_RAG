@@ -1,14 +1,13 @@
 """Tests for configuration validation."""
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
 from raglab.domain.errors import ConfigurationError
 from raglab.infrastructure.config.settings import (
-    CheckpointConfig,
     EmbeddingConfig,
     ExperimentConfig,
     ModelConfig,
@@ -18,7 +17,9 @@ from raglab.infrastructure.config.settings import (
 )
 
 
-def _make_model(provider: str = "gemini", model_id: str = "gemini-1.5-flash") -> ModelConfig:
+def _make_model(
+    provider: str = "gemini", model_id: str = "gemini-1.5-flash"
+) -> ModelConfig:
     return ModelConfig(provider=provider, model_id=model_id)
 
 

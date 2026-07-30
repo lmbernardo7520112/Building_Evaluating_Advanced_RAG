@@ -1,17 +1,22 @@
 """Tests for domain value objects — invariants and edge cases."""
 
-import math
-import unittest
+import os
 
 # These tests use unittest (stdlib) to avoid requiring pytest installation.
 # When pytest is authorized (Slice 1 supply chain), migrate to pytest style.
-
 import sys
-import os
+import unittest
 
 # Add src to path for direct execution
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
+from raglab.domain.errors import (
+    InvalidFingerprintError,
+    InvalidIdentifierError,
+    InvalidScoreError,
+    NegativePositionError,
+    NormalizedScoreOutOfRangeError,
+)
 from raglab.domain.value_objects import (
     ChunkId,
     Citation,
@@ -19,13 +24,6 @@ from raglab.domain.value_objects import (
     IntegrityDigest,
     MetricResult,
     RunId,
-)
-from raglab.domain.errors import (
-    InvalidFingerprintError,
-    InvalidIdentifierError,
-    InvalidScoreError,
-    NegativePositionError,
-    NormalizedScoreOutOfRangeError,
 )
 
 

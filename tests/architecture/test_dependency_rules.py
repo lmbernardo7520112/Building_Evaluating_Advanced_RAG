@@ -6,8 +6,8 @@ infrastructure, frameworks, or external providers.
 
 import ast
 import os
-import unittest
 import sys
+import unittest
 
 REPO_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "src", "raglab")
 
@@ -29,7 +29,7 @@ DOMAIN_DIR = os.path.join(REPO_ROOT, "domain")
 
 def _collect_imports(filepath: str) -> set[str]:
     """Parse a Python file and collect all import module names."""
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         try:
             tree = ast.parse(f.read(), filename=filepath)
         except SyntaxError:
@@ -40,9 +40,8 @@ def _collect_imports(filepath: str) -> set[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.add(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.add(node.module)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.add(node.module)
     return imports
 
 
@@ -85,7 +84,8 @@ class TestDomainDependencyRules(unittest.TestCase):
 
         allowed_prefixes = {"raglab.domain"}
         # Standard library modules are allowed implicitly
-        stdlib_modules = set(sys.stdlib_module_names) if hasattr(sys, "stdlib_module_names") else set()
+        has_stdlib = hasattr(sys, "stdlib_module_names")
+        stdlib_modules = set(sys.stdlib_module_names) if has_stdlib else set()
 
         for root, _dirs, files in os.walk(DOMAIN_DIR):
             for fname in files:

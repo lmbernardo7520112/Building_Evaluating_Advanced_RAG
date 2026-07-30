@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Sequence
+from collections.abc import Sequence
+from typing import Protocol
 
-from raglab.domain.entities import Chunk, Corpus, Document, DocumentPage
-from raglab.domain.value_objects import IntegrityDigest
+from raglab.domain.entities import Chunk, Corpus, Document
+from raglab.domain.value_objects import DocumentPage, IntegrityDigest
 
 
 class CorpusReaderPort(Protocol):

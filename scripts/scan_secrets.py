@@ -50,7 +50,7 @@ SAFE_LINE_PATTERNS = [
 FORBIDDEN_EXTENSIONS = {".pem", ".key", ".p12", ".pfx", ".jks"}
 
 # Directories to skip
-SKIP_DIRS = {".git", "__pycache__", ".mypy_cache", ".ruff_cache"}
+SKIP_DIRS = {".git", "__pycache__", ".mypy_cache", ".ruff_cache", ".venv", "node_modules"}
 
 # File extensions to scan
 SCANNABLE_EXTENSIONS = {

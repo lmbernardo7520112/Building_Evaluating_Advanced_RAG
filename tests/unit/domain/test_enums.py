@@ -1,12 +1,12 @@
 """Tests for domain enums."""
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
-from raglab.domain.enums import DatasetSplit, MetricName, PipelineStrategy, QuestionState
+from raglab.domain.enums import DatasetSplit, PipelineStrategy, QuestionState
 
 
 class TestPipelineStrategy(unittest.TestCase):

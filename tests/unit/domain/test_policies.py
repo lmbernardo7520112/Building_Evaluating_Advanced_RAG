@@ -1,9 +1,8 @@
 """Tests for domain policies — holdout protection and abstention."""
 
-import logging
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
@@ -55,9 +54,11 @@ class TestHoldoutPolicy(unittest.TestCase):
 
     def test_holdout_denial_produces_warning(self) -> None:
         policy = HoldoutPolicy.development_only()
-        with self.assertLogs("raglab.domain.policies", level="WARNING") as cm:
-            with self.assertRaises(HoldoutAccessViolationError):
-                policy.check_access(DatasetSplit.QUERY_HOLDOUT)
+        with (
+            self.assertLogs("raglab.domain.policies", level="WARNING") as cm,
+            self.assertRaises(HoldoutAccessViolationError),
+        ):
+            policy.check_access(DatasetSplit.QUERY_HOLDOUT)
         self.assertTrue(any("HOLDOUT_ACCESS_DENIED" in msg for msg in cm.output))
 
 
