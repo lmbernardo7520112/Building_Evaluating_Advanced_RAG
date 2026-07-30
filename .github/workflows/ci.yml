@@ -1,0 +1,79 @@
+name: RAGLab CI — Preservation Gate
+
+on:
+  push:
+    branches: ['feat/raglab-v7-evolution']
+  pull_request:
+    branches: ['main', 'feat/raglab-v7-evolution']
+
+permissions:
+  contents: read
+
+jobs:
+  preservation-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify v6.1 reference integrity
+        run: python3 scripts/verify_reference.py
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for secrets
+        run: |
+          echo "Scanning for potential secrets..."
+          # Check for common secret patterns
+          if grep -rn "GEMINI_API_KEY\s*=" --include="*.py" --include="*.yaml" --include="*.yml" --include="*.json" . \
+             | grep -v ".gitignore" \
+             | grep -v "os.environ" \
+             | grep -v "userdata.get" \
+             | grep -v "#" \
+             | grep -v "verify_reference.py" \
+             | grep -v "\.example"; then
+            echo "ERROR: Potential hardcoded secret found"
+            exit 1
+          fi
+          # Check for private keys
+          if find . -name "*.pem" -o -name "*.key" -o -name "*.p12" | grep -v ".gitignore"; then
+            echo "ERROR: Private key file found"
+            exit 1
+          fi
+          echo "No secrets detected"
+
+  structure-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify minimum structure
+        run: |
+          echo "Checking required files..."
+          required_files=(
+            "reference/source_manifest.json"
+            "reference/v6_1_reference.ipynb"
+            "scripts/verify_reference.py"
+            ".gitignore"
+            "README.md"
+          )
+          all_ok=true
+          for f in "${required_files[@]}"; do
+            if [ -f "$f" ]; then
+              echo "  OK: $f"
+            else
+              echo "  MISSING: $f"
+              all_ok=false
+            fi
+          done
+          if [ "$all_ok" = false ]; then
+            exit 1
+          fi
+          echo "All required files present"
