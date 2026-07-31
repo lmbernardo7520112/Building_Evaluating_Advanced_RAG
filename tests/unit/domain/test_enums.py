@@ -11,11 +11,17 @@ from raglab.domain.enums import DatasetSplit, PipelineStrategy, QuestionState
 
 class TestPipelineStrategy(unittest.TestCase):
     def test_three_strategies(self) -> None:
+        # Slice 3 expanded to 7 strategies (F0/S0/W0/W1/H0/H1/H2)
         strategies = list(PipelineStrategy)
-        self.assertEqual(len(strategies), 3)
+        self.assertEqual(len(strategies), 7)
         self.assertIn(PipelineStrategy.BASELINE, strategies)
+        self.assertIn(PipelineStrategy.SENTENCE_ANCHOR, strategies)
         self.assertIn(PipelineStrategy.SENTENCE_WINDOW, strategies)
+        self.assertIn(PipelineStrategy.SENTENCE_WINDOW_RERANK, strategies)
+        self.assertIn(PipelineStrategy.HIERARCHICAL_LEAF, strategies)
         self.assertIn(PipelineStrategy.AUTO_MERGING, strategies)
+        self.assertIn(PipelineStrategy.AUTO_MERGING_RERANK, strategies)
+
 
     def test_values_are_strings(self) -> None:
         for s in PipelineStrategy:
