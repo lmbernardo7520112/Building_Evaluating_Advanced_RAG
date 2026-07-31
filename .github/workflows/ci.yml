@@ -1,4 +1,4 @@
-name: RAGLab CI — Preservation + Quality Gate 1
+name: RAGLab CI — Preservation + Quality Gate 1 & 2
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
       - name: Scan for secrets
         run: python3 scripts/scan_secrets.py
 
-  quality-gate-1:
+  quality-gate-1-and-2:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +84,7 @@ jobs:
             "scripts/scan_secrets.py"
             "scripts/inventory_licenses.py"
             "scripts/inventory_workspace_pdfs.py"
+            "scripts/audit_pdf.py"
             ".agents/rules/authorization.md"
             ".gitignore"
             "README.md"
@@ -99,11 +100,17 @@ jobs:
             "src/raglab/application/ports/generation.py"
             "src/raglab/application/ports/evaluation.py"
             "src/raglab/application/ports/checkpoints.py"
+            "src/raglab/application/use_cases/run_controlled_experiment.py"
             "src/raglab/infrastructure/config/settings.py"
+            "src/raglab/infrastructure/pdf_parsers/pdf_parser_adapter.py"
+            "src/raglab/infrastructure/embeddings/fastembed_adapter.py"
             "src/raglab/infrastructure/retrieval/baseline_adapter.py"
             "src/raglab/infrastructure/retrieval/llamaindex_adapter.py"
+            "src/raglab/infrastructure/retrieval/sentence_window_adapter.py"
+            "src/raglab/infrastructure/retrieval/reranker_adapter.py"
             "src/raglab/infrastructure/persistence/checkpoint_store.py"
             "src/raglab/interfaces/cli/main.py"
+            "benchmarks/questions/controlled_chapter2.json"
             "data/tiny_corpus/corpus.json"
             "data/tiny_corpus/manifest.json"
             "requirements.lock"
@@ -111,8 +118,11 @@ jobs:
             "sbom.product.cyclonedx.json"
             "licenses.json"
             "docs/workspace_pdf_inventory.json"
+            "docs/pdf_audit_report.json"
             "docs/security/threat_model.md"
             "docs/supply_chain.md"
+            "gate1_report.md"
+            "gate2_report.md"
           )
           all_ok=true
           for f in "${required_files[@]}"; do

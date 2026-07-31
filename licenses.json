@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "total_packages": 114,
+  "total_packages": 125,
   "overall": "PASSED",
   "allowed_license_terms": [
     "apache",
@@ -161,6 +161,12 @@
       "status": "APPROVED"
     },
     {
+      "name": "fastembed",
+      "version": "0.8.0",
+      "license": "Apache License",
+      "status": "APPROVED"
+    },
+    {
       "name": "filelock",
       "version": "3.32.2",
       "license": "MIT",
@@ -170,6 +176,12 @@
       "name": "filetype",
       "version": "1.2.0",
       "license": "MIT",
+      "status": "APPROVED"
+    },
+    {
+      "name": "flatbuffers",
+      "version": "25.12.19",
+      "license": "Apache 2.0",
       "status": "APPROVED"
     },
     {
@@ -221,6 +233,12 @@
       "status": "APPROVED"
     },
     {
+      "name": "hf-xet",
+      "version": "1.5.2",
+      "license": "Apache-2.0",
+      "status": "APPROVED"
+    },
+    {
       "name": "httpcore",
       "version": "1.0.9",
       "license": "BSD-3-Clause",
@@ -230,6 +248,12 @@
       "name": "httpx",
       "version": "0.28.1",
       "license": "BSD-3-Clause",
+      "status": "APPROVED"
+    },
+    {
+      "name": "huggingface_hub",
+      "version": "1.26.0",
+      "license": "Apache-2.0",
       "status": "APPROVED"
     },
     {
@@ -317,6 +341,12 @@
       "status": "APPROVED"
     },
     {
+      "name": "loguru",
+      "version": "0.7.3",
+      "license": "MIT License",
+      "status": "APPROVED"
+    },
+    {
       "name": "lxml",
       "version": "6.1.1",
       "license": "BSD-3-Clause",
@@ -343,6 +373,12 @@
     {
       "name": "mdurl",
       "version": "0.1.2",
+      "license": "MIT License",
+      "status": "APPROVED"
+    },
+    {
+      "name": "mmh3",
+      "version": "5.2.1",
       "license": "MIT License",
       "status": "APPROVED"
     },
@@ -392,6 +428,12 @@
       "name": "numpy",
       "version": "2.5.1",
       "license": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "status": "APPROVED"
+    },
+    {
+      "name": "onnxruntime",
+      "version": "1.28.0",
+      "license": "MIT License",
       "status": "APPROVED"
     },
     {
@@ -467,9 +509,21 @@
       "status": "APPROVED"
     },
     {
+      "name": "protobuf",
+      "version": "7.35.1",
+      "license": "3-Clause BSD License",
+      "status": "APPROVED"
+    },
+    {
       "name": "py-serializable",
       "version": "2.1.0",
       "license": "Apache-2.0",
+      "status": "APPROVED"
+    },
+    {
+      "name": "py_rust_stemmers",
+      "version": "0.1.8",
+      "license": "MIT OR Apache-2.0",
       "status": "APPROVED"
     },
     {
@@ -494,6 +548,12 @@
       "name": "pyparsing",
       "version": "3.3.2",
       "license": "MIT",
+      "status": "APPROVED"
+    },
+    {
+      "name": "pypdf",
+      "version": "4.3.1",
+      "license": "BSD License",
       "status": "APPROVED"
     },
     {
@@ -620,6 +680,12 @@
       "name": "tiktoken",
       "version": "0.13.0",
       "license": "MIT License",
+      "status": "APPROVED"
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.23.1",
+      "license": "Apache Software License",
       "status": "APPROVED"
     },
     {

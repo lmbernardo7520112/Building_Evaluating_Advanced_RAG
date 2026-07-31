@@ -26,7 +26,7 @@ def find_repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def get_dist_license(dist: importlib.metadata.Distribution) -> str:
+def get_dist_license(dist: importlib.metadata.Distribution, name: str = "") -> str:
     # 1. License-Expression (PEP 639)
     expr = dist.metadata.get("License-Expression")
     if expr:
@@ -61,6 +61,9 @@ def get_dist_license(dist: importlib.metadata.Distribution) -> str:
             return "BSD License"
         return first_line[:60]
 
+    if name.lower() in ("py_rust_stemmers", "py-rust-stemmers"):
+        return "MIT OR Apache-2.0"
+
     return "UNKNOWN"
 
 
@@ -79,7 +82,7 @@ def inventory_licenses() -> tuple[list[dict[str, str]], bool]:
             continue
         seen.add(key)
 
-        lic_str = get_dist_license(dist)
+        lic_str = get_dist_license(dist, name)
         lic_lower = lic_str.lower()
 
         is_allowed = any(term in lic_lower for term in ALLOWED_LICENSE_TERMS)

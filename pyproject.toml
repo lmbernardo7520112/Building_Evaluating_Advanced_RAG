@@ -14,6 +14,8 @@ license = {text = "MIT"}
 # Infrastructure adapters integrate third-party libraries (e.g. LlamaIndex).
 dependencies = [
     "llama-index-core>=0.13.0,<0.14",
+    "pypdf>=4.0.0,<5.0.0",
+    "fastembed>=0.3.0,<1.0.0",
 ]
 
 [project.scripts]

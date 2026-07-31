@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "notice": "GROUND_TRUTH_SINGLE_ANNOTATOR — Single expert annotator ground truth for Gersting Chapter 2 sub-corpus.",
+  "corpus_target": {
+    "filename": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf",
+    "pages_start": 91,
+    "pages_end": 115,
+    "pages_count": 25,
+    "sha256": "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254"
+  },
+  "questions": [
+    {
+      "qid": "q_dev_01",
+      "split": "development",
+      "question": "O que caracteriza uma demonstração por exaustão segundo o texto?",
+      "question_type": "exhaustion_proof",
+      "relevant_page": 92,
+      "expected_answer_summary": "Uma demonstração por exaustão examina explicitamente todos os casos possíveis individualmente para verificar a validade de uma proposição.",
+      "is_abstention": false
+    },
+    {
+      "qid": "q_dev_02",
+      "split": "development",
+      "question": "Como funciona a técnica de demonstração por contraposição?",
+      "question_type": "contraposition_proof",
+      "relevant_page": 95,
+      "expected_answer_summary": "A contraposição prova a implicação P -> Q provando sua forma equivalente não-Q -> não-P.",
+      "is_abstention": false
+    },
+    {
+      "qid": "q_dev_03",
+      "split": "development",
+      "question": "Qual é a premissa fundamental da demonstração por absurdo (contradição)?",
+      "question_type": "contradiction_proof",
+      "relevant_page": 97,
+      "expected_answer_summary": "Assume-se a negação da proposição desejada e deriva-se uma contradição lógica (ex: P e não-P), concluindo que a proposição original é verdadeira.",
+      "is_abstention": false
+    },
+    {
+      "qid": "q_dev_04",
+      "split": "development",
+      "question": "Quais são os dois passos principais de uma demonstração por indução matemática?",
+      "question_type": "induction_proof",
+      "relevant_page": 101,
+      "expected_answer_summary": "O Passo Base (provar a propriedade para o primeiro caso n0) e o Passo Indutivo (provar que se vale para k, então vale para k+1).",
+      "is_abstention": false
+    },
+    {
+      "qid": "q_test_01",
+      "split": "test",
+      "question": "Em que consiste o passo base em uma prova por indução matemática?",
+      "question_type": "induction_proof",
+      "relevant_page": 101,
+      "expected_answer_summary": "O passo base verifica que o enunciado P(n) é verdadeiro para o valor inicial mínimo n0 (geralmente n=1 ou n=0).",
+      "is_abstention": false
+    },
+    {
+      "qid": "q_test_02",
+      "split": "test",
+      "question": "Qual é a regra de inferência lógica associada à demonstração por contraposição?",
+      "question_type": "contraposition_proof",
+      "relevant_page": 95,
+      "expected_answer_summary": "Associa-se à equivalência lógica entre P -> Q e não-Q -> não-P.",
+      "is_abstention": false
+    },
+    {
+      "qid": "q_test_03",
+      "split": "test",
+      "question": "Por que é necessário provar o passo indutivo para todo k maior ou igual ao passo base?",
+      "question_type": "induction_proof",
+      "relevant_page": 102,
+      "expected_answer_summary": "Para garantir a reação em cadeia de que a veracidade se propaga de k para k+1 indefinidamente para todos os inteiros.",
+      "is_abstention": false
+    },
+    {
+      "qid": "q_test_04",
+      "split": "test",
+      "question": "Qual a complexidade assintótica do algoritmo de Dijkstra para grafos ponderados?",
+      "question_type": "abstention",
+      "relevant_page": null,
+      "expected_answer_summary": "Não há informação sobre o algoritmo de Dijkstra nas seções de técnicas de demonstração do Capítulo 2.",
+      "is_abstention": true
+    },
+    {
+      "qid": "q_holdout_01",
+      "split": "holdout",
+      "question": "Como a regra de inferência Modus Tollens se relaciona com a prova por absurdo?",
+      "question_type": "contradiction_proof",
+      "relevant_page": 97,
+      "expected_answer_summary": "Holdout sealed query.",
+      "is_abstention": false
+    },
+    {
+      "qid": "q_holdout_02",
+      "split": "holdout",
+      "question": "O que distingue a indução matemática forte da indução matemática simples?",
+      "question_type": "induction_proof",
+      "relevant_page": 107,
+      "expected_answer_summary": "Holdout sealed query.",
+      "is_abstention": false
+    }
+  ]
+}

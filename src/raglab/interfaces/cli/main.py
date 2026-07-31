@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -367,6 +368,42 @@ def _run_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_controlled(args: argparse.Namespace) -> int:
+    """Run the controlled experiment evaluation over sub-corpus."""
+    from raglab.application.use_cases.run_controlled_experiment import (
+        RunControlledExperimentUseCase,
+    )
+
+    project_root = _find_project_root()
+    pdf_path = getattr(args, "pdf_path", None) or os.getenv("RAGLAB_PDF_PATH")
+    if not pdf_path:
+        filename = (
+            "Fundamentos matemáticos para a ciência da computação "
+            "Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
+        )
+        default_pdf = project_root.parent / filename
+        pdf_path = str(default_pdf)
+
+    questions_path = getattr(args, "questions_path", None) or str(
+        project_root / "benchmarks" / "questions" / "controlled_chapter2.json"
+    )
+    checkpoint_dir = str(project_root / "checkpoints")
+
+    use_case = RunControlledExperimentUseCase(
+        pdf_path=pdf_path,
+        questions_path=questions_path,
+        checkpoint_dir=checkpoint_dir,
+        page_start=getattr(args, "page_start", 91),
+        page_end=getattr(args, "page_end", 115),
+    )
+
+    summary = use_case.run()
+    print("\nSummary")
+    print("-" * 50)
+    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    return 0
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -392,6 +429,34 @@ def main() -> int:
         help="Retrieval backend adapter to use (default: deterministic)",
     )
     smoke_parser.set_defaults(func=_run_smoke)
+
+    controlled_parser = subparsers.add_parser(
+        "controlled",
+        help="Run controlled experiment over audited textbook sub-corpus",
+    )
+    controlled_parser.add_argument(
+        "--pdf-path",
+        type=str,
+        help="Path to textbook PDF file (or set via RAGLAB_PDF_PATH)",
+    )
+    controlled_parser.add_argument(
+        "--questions-path",
+        type=str,
+        help="Path to controlled questions benchmark JSON file",
+    )
+    controlled_parser.add_argument(
+        "--page-start",
+        type=int,
+        default=91,
+        help="Sub-corpus start page (default: 91)",
+    )
+    controlled_parser.add_argument(
+        "--page-end",
+        type=int,
+        default=115,
+        help="Sub-corpus end page (default: 115)",
+    )
+    controlled_parser.set_defaults(func=_run_controlled)
 
     doctor_parser = subparsers.add_parser(
         "doctor",
