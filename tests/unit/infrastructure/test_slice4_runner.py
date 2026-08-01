@@ -220,6 +220,10 @@ class TestSmokeMode:
         monkeypatch.setattr(runner, "run_benchmark", _fake_run_benchmark)
         monkeypatch.setattr(runner, "check_credential", lambda logger: None)
         monkeypatch.setattr(runner, "verify_pdf", lambda path, logger: None)
+        monkeypatch.setattr(
+            runner, "validate_smoke_result",
+            lambda data, strategy, qid, is_abstention, logger: "SMOKE_OK",
+        )
 
         args = runner.build_parser().parse_args([
             "--mode", "smoke",
@@ -267,6 +271,10 @@ class TestSmokeMode:
         monkeypatch.setattr(runner, "run_benchmark", _fake_run_benchmark)
         monkeypatch.setattr(runner, "check_credential", lambda logger: None)
         monkeypatch.setattr(runner, "verify_pdf", lambda path, logger: None)
+        monkeypatch.setattr(
+            runner, "validate_smoke_result",
+            lambda data, strategy, qid, is_abstention, logger: "SMOKE_OK",
+        )
 
         args = runner.build_parser().parse_args(["--mode", "smoke"])
 
@@ -422,19 +430,35 @@ class TestNoCredentialLeak:
         fake_retriever = MagicMock()
         fake_retriever.retrieve.return_value = fake_evidence
 
+        fake_manifest = {
+            "model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            "cache_tree_sha256": "abc123",
+        }
+        monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
         monkeypatch.setattr(runner, "build_retrievers", lambda pages, embed, strategies=None: {
             "F0_baseline": fake_retriever
         })
+        monkeypatch.setattr(runner, "verify_embedding_parity",
+                            lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "abc123"}})
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
         monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path)
 
-        # Mock Gemini imports
-        with patch.dict("sys.modules", {
-            "raglab.infrastructure.gemini.gemini_generator_adapter": MagicMock(),
-            "raglab.infrastructure.gemini.gemini_judge_adapter": MagicMock(),
-        }), pytest.raises(SystemExit) as exc_info:
+        # Mock Gemini adapters so no real API connection is made
+        fake_gen = MagicMock()
+        fake_gen.model_id = "gemini-test"
+        fake_judge = MagicMock()
+        monkeypatch.setattr(
+            "raglab.infrastructure.gemini.gemini_generator_adapter.GeminiGeneratorAdapter",
+            lambda **kw: fake_gen,
+        )
+        monkeypatch.setattr(
+            "raglab.infrastructure.gemini.gemini_judge_adapter.GeminiJudgeAdapter",
+            lambda **kw: fake_judge,
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
             runner.run_benchmark(
                 run_id="test_holdout_guard",
                 questions=[holdout_q],
