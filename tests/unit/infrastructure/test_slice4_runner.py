@@ -150,9 +150,10 @@ class TestCLIHelp:
         assert result.returncode == 0, f"--help returned {result.returncode}"
 
     def test_help_shows_modes(self):
-        """--help must document smoke, full, resume modes."""
+        """--help must document preflight, smoke, full, resume modes."""
         result = _run_runner("--help")
         combined = result.stdout + result.stderr
+        assert "preflight" in combined
         assert "smoke" in combined
         assert "full" in combined
         assert "resume" in combined

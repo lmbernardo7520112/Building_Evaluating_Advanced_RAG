@@ -12,24 +12,70 @@
 
 ---
 
-## Pré-requisitos
+## Protocolo de Duas Fases
 
-```bash
-# Verificar que virtualenv está disponível
-ls raglab-v7/.venv/bin/python
-
-# Verificar PDF
-export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
-sha256sum "$RAGLAB_PDF_PATH"
-# Esperado: 33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254
-
-# Verificar help (sem chave, sem PDF carregado, sem modelo)
-.venv/bin/python benchmarks/run_slice4_benchmark.py --help
-```
+> **FASE A** e **FASE B** são executadas em sessões separadas.
+> **Nunca misture provisionamento de modelo e chave Gemini na mesma execução.**
 
 ---
 
-## Protocolo de segurança de credencial
+## FASE A — Provisionamento (SEM Gemini)
+
+### A.1 — Limpar credenciais
+
+```bash
+# Garantir que Gemini NÃO está no ambiente
+unset GEMINI_API_KEY GOOGLE_API_KEY
+echo "CREDENTIALS_CLEARED"
+```
+
+### A.2 — Configurar cache persistente
+
+```bash
+cd raglab-v7/
+
+# Opção 1: usar cache padrão (.model_cache/ na raiz do repo)
+# Nada a fazer — o adapter usa .model_cache/ por padrão
+
+# Opção 2: cache personalizado (recomendado para ambientes de produção)
+export RAGLAB_MODEL_CACHE="/caminho/persistente/controlado"
+```
+
+### A.3 — Provisionar embedding (rede permitida)
+
+```bash
+# Este comando baixa o modelo ONNX para o cache persistente
+# Rejeita GEMINI_API_KEY se presente — aborta antes de baixar
+.venv/bin/python scripts/provision_embedding_model.py
+
+# Saída esperada: PROVISION_OK
+```
+
+### A.4 — Desabilitar rede (opcional mas recomendado)
+
+```bash
+export HF_HUB_OFFLINE=1
+export HF_HUB_DISABLE_TELEMETRY=1
+export HF_HUB_DISABLE_IMPLICIT_TOKEN=1
+```
+
+### A.5 — Preflight offline
+
+```bash
+export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
+
+.venv/bin/python benchmarks/run_slice4_benchmark.py --mode preflight
+
+# Saída esperada: EMBEDDING_OFFLINE_READY
+```
+
+> **Somente prossiga para a FASE B se `EMBEDDING_OFFLINE_READY` for exibido.**
+
+---
+
+## FASE B — Execução com Gemini (credenciais temporárias)
+
+### B.1 — Protocolo de segurança de credencial
 
 > **Este bloco é executado exclusivamente pelo operador humano em terminal externo ao Antigravity.**
 > O Antigravity não pode e não deve invocar `systemd-creds`, `credstore`, nem nenhum
@@ -61,39 +107,22 @@ export GEMINI_API_KEY="$(
 echo "KEY_PRESENT"
 ```
 
----
-
-## Preflight: verificar CLI sem credenciais
+### B.2 — Variáveis de ambiente obrigatórias
 
 ```bash
 cd raglab-v7/
 
-# Confirmar que --help funciona sem chave, PDF ou modelo
-.venv/bin/python benchmarks/run_slice4_benchmark.py --help
-
-# Confirmar que execução sem --mode falha fechada (exit != 0)
-.venv/bin/python benchmarks/run_slice4_benchmark.py && echo "FAIL: deveria ter falhado" || echo "OK: falhou como esperado"
-```
-
----
-
-## Gate de smoke test (obrigatório antes do benchmark completo)
-
-Execute este gate antes de autorizar o benchmark completo.
-Ele valida geração + julgamento + sanitização com **exatamente 1 estratégia × 1 pergunta**.
-
-```bash
-cd raglab-v7/
-
-# Variáveis de ambiente obrigatórias
 export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
 export HF_HUB_OFFLINE=1
 export HF_HUB_DISABLE_TELEMETRY=1
 export HF_HUB_DISABLE_IMPLICIT_TOKEN=1
 export LANGCHAIN_TRACING_V2=false
 export LANGSMITH_ENDPOINT=""
+```
 
-# Executar smoke test: 1 estratégia × 1 pergunta
+### B.3 — Smoke test (obrigatório antes do benchmark completo)
+
+```bash
 .venv/bin/python benchmarks/run_slice4_benchmark.py \
     --mode smoke \
     --smoke-strategy F0_baseline \
@@ -112,28 +141,20 @@ print('SMOKE_OK: schema válido, sem credenciais')
 
 > Somente prossiga para o benchmark completo se `SMOKE_OK` for exibido.
 
----
-
-## Execução do benchmark completo
-
-> **Requer flag explícita `--confirm-full-benchmark`.**
-> Sem esse flag, o runner falha antes de ler a chave.
+### B.4 — Benchmark completo
 
 ```bash
-cd raglab-v7/
-
-# Variáveis de ambiente obrigatórias (reutilizar se smoke já foi configurado)
-export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
-export HF_HUB_OFFLINE=1
-export HF_HUB_DISABLE_TELEMETRY=1
-export HF_HUB_DISABLE_IMPLICIT_TOKEN=1
-export LANGCHAIN_TRACING_V2=false
-export LANGSMITH_ENDPOINT=""
-
-# Executar benchmark Slice 4 (7 estratégias × 8 perguntas)
 .venv/bin/python benchmarks/run_slice4_benchmark.py \
     --mode full \
     --confirm-full-benchmark
+```
+
+### B.5 — Remover credencial IMEDIATAMENTE
+
+```bash
+unset GEMINI_API_KEY
+unset GOOGLE_API_KEY
+echo "CREDENTIAL_REMOVED"
 ```
 
 ---
@@ -146,23 +167,7 @@ cd raglab-v7/
 # Listar checkpoints disponíveis
 ls checkpoints/slice4_gen_checkpoint_*.json
 
-# Inspecionar progresso de um checkpoint específico (selecione o RUN_ID correto)
 RUN_ID="raglab_v7_slice4_v1_20260731T1230UTC"    # ajuste ao RUN_ID real
-CKPT_FILE="checkpoints/slice4_gen_checkpoint_${RUN_ID}.json"
-
-python3 - <<'EOF'
-import json, os, sys
-ckpt = os.environ.get("CKPT_FILE", "")
-if not ckpt or not os.path.exists(ckpt):
-    print("CKPT_FILE não encontrado — defina RUN_ID corretamente")
-    sys.exit(1)
-d = json.load(open(ckpt))
-completed = d.get("completed", {})
-print(f"Run ID:    {d.get('run_id')}")
-print(f"Completed: {len(completed)} pares")
-for k in sorted(completed)[:10]:
-    print(f"  {k}")
-EOF
 
 # Re-executar com --mode resume + RUN_ID explícito
 .venv/bin/python benchmarks/run_slice4_benchmark.py \
@@ -175,77 +180,28 @@ EOF
 ## Após execução
 
 ```bash
-# 1. Remover credencial IMEDIATAMENTE (trap já faz isso ao sair, mas execute agora)
-unset GEMINI_API_KEY
-unset GOOGLE_API_KEY
-echo "CREDENTIAL_REMOVED"
-
-# 2. Scanner autoritativo de segredos (usa scan_secrets.py, não grep de conteúdo)
+# 1. Scanner autoritativo de segredos
 .venv/bin/python scripts/scan_secrets.py
 # Saída esperada: "findings_count": 0
 
-# 3. (Complementar, somente nomes de arquivos — sem imprimir conteúdo)
+# 2. Complementar (somente nomes de arquivos)
 grep -rl "GEMINI_API_KEY\|sk-\|AIzaSy" benchmarks/results/ 2>/dev/null \
   && echo "WARNING: verifique os arquivos listados acima" \
   || echo "GREP_COMPLEMENT_OK"
 
-# 4. Verificar arquivos de resultado
-ls -la benchmarks/results/slice4_results_*.json
-
-# 5. Validar JSON e schema antes do commit
-python3 -c "
-import json, glob, sys
-files = glob.glob('benchmarks/results/slice4_results_*.json')
-for f in files:
-    d = json.load(open(f))
-    assert 'experiment_id' in d, f'schema inválido: {f}'
-    assert 'results' in d, f'campo results ausente: {f}'
-    assert 'GEMINI_API_KEY' not in json.dumps(d), f'CREDENTIAL LEAKED: {f}'
-    print(f'JSON_OK: {f}')
-"
-
-# 6. Verificar holdout lacrado
+# 3. Verificar holdout lacrado
 grep -rl "q_holdout" benchmarks/results/ 2>/dev/null \
   && { echo "HOLDOUT_LEAK_DETECTED — NÃO COMMITAR"; exit 1; } \
   || echo "HOLDOUT_SEALED"
 
-# 7. Verificar que nenhum checkpoint está staged (checkpoints são estado local, não versionados)
-git diff --cached -- checkpoints/ | grep -q "." \
-  && { echo "ERROR: checkpoints staged — remova com: git restore --staged checkpoints/"; exit 1; } \
-  || echo "CHECKPOINTS_NOT_STAGED_OK"
-
-# 8. Revisar diff antes de commitar
+# 4. Verificar diff
 git diff --check
-git diff --cached
 
-# 9. CONFIRMAÇÃO HUMANA: revisar o diff acima antes de prosseguir
-```
-
-### Commit dos resultados (somente resultados sanitizados — sem checkpoints)
-
-> **Checkpoints (`checkpoints/*.json`) são estado operacional local.**
-> Eles devem permanecer ignorados pelo Git (já listados no `.gitignore`).
-> **Nunca** execute `git add checkpoints/`.
-
-```bash
-# Adicionar somente resultados sanitizados
+# 5. Commit somente resultados sanitizados
 git add benchmarks/results/slice4_results_*.json
-
-# Commitar
 git commit -m "test(slice4): record RAG Triad benchmark results"
 
 # NUNCA executar git push
-```
-
----
-
-## Verificação de holdout
-
-```bash
-# Confirmar que holdout NÃO foi executado
-grep -rl "q_holdout" benchmarks/results/ 2>/dev/null \
-  && echo "HOLDOUT_LEAK_DETECTED" \
-  || echo "HOLDOUT_SEALED"
 ```
 
 ---
@@ -254,15 +210,14 @@ grep -rl "q_holdout" benchmarks/results/ 2>/dev/null \
 
 | Erro | Ação |
 |---|---|
-| `--mode` ausente → exit nonzero | Correto — runner falha fechado; use `--mode smoke\|full\|resume` |
-| `GEMINI_API_KEY not found` | Confirmar que `systemd-creds decrypt` foi executado e KEY_PRESENT foi exibido |
-| `PDF SHA-256 mismatch` | Verificar `RAGLAB_PDF_PATH` aponta para o arquivo correto |
-| `RetryExhaustedError` | Aguardar 1–2 minutos (quota de RPM) e re-executar com `--mode resume --run-id ...` |
-| `NonRetryableError 403` | Verificar permissões da chave no console do projeto Gemini |
-| `NonRetryableError 400` | Verificar `model_id` correto (`gemini-3.1-flash-lite`) |
-| `KEY_MISSING` | Verificar se o `credstore.encrypted` está no caminho correto e `sudo` disponível |
-| `Full benchmark requires --confirm-full-benchmark` | Adicionar a flag ao comando de full run |
-| `No checkpoint found for run_id=...` | Verificar `--run-id` corresponde exatamente ao arquivo em `checkpoints/` |
+| `PROVISION_ERROR: GEMINI_API_KEY is set` | `unset GEMINI_API_KEY` e re-executar provisioning |
+| `Transient directory '/tmp'...` | Definir `RAGLAB_MODEL_CACHE` com caminho persistente |
+| `Embedding cache missing` | Executar `scripts/provision_embedding_model.py` primeiro |
+| `PREFLIGHT_FAILED: Could not load` | Provisionar novamente com rede disponível |
+| `GEMINI_API_KEY not found` | Confirmar que `systemd-creds decrypt` foi executado |
+| `PDF SHA-256 mismatch` | Verificar `RAGLAB_PDF_PATH` |
+| `RetryExhaustedError` | Aguardar quota e `--mode resume --run-id ...` |
+| `Full benchmark requires --confirm` | Adicionar `--confirm-full-benchmark` |
 
 ---
 
@@ -280,10 +235,6 @@ grep -rl "q_holdout" benchmarks/results/ 2>/dev/null \
 | TPD | 1.500 requests/dia | `QuotaManager(tpd_limit=1_500)` |
 | TPM (tokens) | 1.000.000 tokens/min | referência free tier |
 
-O `QuotaManager` enforça RPM e TPD automaticamente **antes** de cada chamada (pré-emptivo).
-O `RetryPolicy` aplica exponential backoff com jitter em caso de 429 recebido (reativo).
-Em caso de `RetryExhaustedError`, aguarde a janela de quota e re-execute com `--mode resume --run-id ...`.
-
 ---
 
 ## Artefatos produzidos
@@ -291,7 +242,9 @@ Em caso de `RetryExhaustedError`, aguarde a janela de quota e re-execute com `--
 | Arquivo | Conteúdo | Versionado? |
 |---|---|---|
 | `benchmarks/results/slice4_results_*.json` | Resultados sanitizados (RAG Triad) | ✅ Sim |
-| `checkpoints/slice4_gen_checkpoint_*.json` | Estado operacional local de progresso | ❌ Não (`.gitignore`) |
+| `checkpoints/slice4_gen_checkpoint_*.json` | Estado operacional local | ❌ Não (`.gitignore`) |
+| `.model_cache/` | Pesos ONNX do embedding model | ❌ Não (`.gitignore`) |
+| `benchmarks/provision_manifest.json` | Manifesto de provisionamento local | ❌ Não (`.gitignore`) |
 
 > **NENHUM dos artefatos versionados contém credenciais** — verificado por
 > `sanitize_*_for_artifact()` e pelo scanner `scripts/scan_secrets.py`.

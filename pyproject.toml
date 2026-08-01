@@ -46,13 +46,20 @@ select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "SIM"]
 # S101: assert statements are idiomatic in pytest test files
 # E501: long assertion messages in tests are standard practice
 # S603: subprocess calls in tests invoke our own known scripts (not untrusted input)
-"tests/**" = ["S101", "E501", "S603"]
+# SLF001: private member access used for canary embedding validation in tests
+"tests/**" = ["S101", "E501", "S603", "SLF001"]
 # S101: assert used for smoke validation in benchmark scripts (not production code)
 # E501: long help strings in argparse epilog exceed 88 chars by design
 # S603: subprocess.run invokes sys.executable (trusted)
-"benchmarks/**" = ["S101", "E501", "S603"]
+# SLF001: private member access used for canary embedding validation
+"benchmarks/**" = ["S101", "E501", "S603", "SLF001"]
 # run_slice3_benchmark.py: pre-existing file, E402/B905/F841 are known non-blocking
 "benchmarks/run_slice3_benchmark.py" = ["E402", "B905", "F841"]
+# S603: subprocess calls in scripts invoke known tools
+# SLF001: private member access for canary validation in provisioning
+"scripts/**" = ["S603", "SLF001"]
+# S108: intentional /tmp references for rejection logic
+"src/raglab/infrastructure/embeddings/fastembed_adapter.py" = ["S108"]
 
 [tool.mypy]
 python_version = "3.12"

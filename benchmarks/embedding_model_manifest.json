@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "model_revision": "HEAD",
+  "backend": "fastembed",
+  "backend_version": "0.8.0",
+  "onnxruntime_version": "1.28.0",
+  "dimension": 384,
+  "pooling": "mean",
+  "normalization": true,
+  "license": "Apache-2.0",
+  "cache_env_var": "RAGLAB_MODEL_CACHE",
+  "cache_default": ".model_cache",
+  "local_files_only_in_scientific_mode": true,
+  "provisioning_script": "scripts/provision_embedding_model.py",
+  "preflight_command": ".venv/bin/python benchmarks/run_slice4_benchmark.py --mode preflight",
+  "adr_reference": "adrs/001-embedding-pooling-policy.md",
+  "notes": [
+    "FastEmbed >= 0.6 uses mean pooling for this model (changed from CLS in <= 0.5.1)",
+    "Previous Slice 2/3 results are pooling-ambiguous; see ADR-001",
+    "Model weights MUST NOT be committed to Git",
+    "Provisioning downloads from HuggingFace Hub; scientific execution is offline-only"
+  ]
+}

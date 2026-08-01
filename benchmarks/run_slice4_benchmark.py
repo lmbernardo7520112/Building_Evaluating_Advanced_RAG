@@ -9,12 +9,19 @@ SECURITY:
 - All artifacts are sanitized via sanitize_*_for_artifact()
 - set +x must be active in the calling shell
 
+TWO-PHASE EXECUTION:
+- Phase A (no Gemini): provision-embedding → preflight
+- Phase B (with Gemini): smoke → full
+
 HOLDOUT: SEALED — q_holdout_01, q_holdout_02 are never in ACTIVE_QUESTIONS.
 
 USAGE:
 
   # Show help (no key, no PDF, no model loaded)
   .venv/bin/python benchmarks/run_slice4_benchmark.py --help
+
+  # Preflight: validate embedding cache offline (no Gemini key needed)
+  .venv/bin/python benchmarks/run_slice4_benchmark.py --mode preflight
 
   # Smoke test: 1 strategy x 1 question — mandatory before full run
   .venv/bin/python benchmarks/run_slice4_benchmark.py \\
@@ -39,6 +46,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 import os
 import sys
 import time
@@ -159,11 +167,16 @@ def build_parser() -> argparse.ArgumentParser:
             "RAGLab v7 Slice 4 Benchmark — Ambiente B (human terminal only).\n\n"
             "SECURITY: GEMINI_API_KEY must be injected by the human operator.\n"
             "          This script never prints or logs the key value.\n\n"
+            "TWO-PHASE EXECUTION:\n"
+            "  Phase A (no Gemini): provision → preflight\n"
+            "  Phase B (with Gemini): smoke → full\n\n"
             "Run --help without any credentials or PDF loaded.\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
+            "  # Preflight (validates cache, no Gemini key needed)\n"
+            "  .venv/bin/python benchmarks/run_slice4_benchmark.py --mode preflight\n\n"
             "  # Smoke test (mandatory first run)\n"
             "  .venv/bin/python benchmarks/run_slice4_benchmark.py \\\n"
             "      --mode smoke --smoke-strategy F0_baseline --smoke-question q_dev_01\n\n"
@@ -177,9 +190,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mode",
-        choices=["smoke", "full", "resume"],
+        choices=["preflight", "smoke", "full", "resume"],
         required=True,
         help=(
+            "preflight: validate embedding cache offline (no Gemini key). "
             "smoke: 1 strategy x 1 question (mandatory before full). "
             "full: all 7 strategies x 8 questions (requires --confirm-full-benchmark). "
             "resume: continue an interrupted full run (requires --run-id)."
@@ -267,14 +281,23 @@ def load_pdf_pages(pdf_path: Path, logger: logging.Logger) -> list:
     return pages
 
 
-def load_embedding_model(logger: logging.Logger) -> object:
+def load_embedding_model(
+    logger: logging.Logger, *, local_files_only: bool = True
+) -> object:
     # CR-1 fix: canonical class name is FastEmbedEmbeddingAdapter
     from raglab.infrastructure.embeddings.fastembed_adapter import (
         FastEmbedEmbeddingAdapter,
+        resolve_cache_dir,
     )
 
-    logger.info("Loading FastEmbed model: %s", EMBEDDING_MODEL)
-    adapter = FastEmbedEmbeddingAdapter(model_name=EMBEDDING_MODEL)
+    cache_dir = resolve_cache_dir()
+    logger.info("Loading FastEmbed model: %s (cache=%s, offline=%s)",
+                EMBEDDING_MODEL, cache_dir, local_files_only)
+    adapter = FastEmbedEmbeddingAdapter(
+        model_name=EMBEDDING_MODEL,
+        cache_dir=str(cache_dir),
+        local_files_only=local_files_only,
+    )
     # CR-2: .dimension property is the canonical name; .embedding_dim also works
     # but .dimension is what BaselineRetrieverAdapter uses internally.
     logger.info("Model loaded (dim=%d)", adapter.dimension)
@@ -602,6 +625,91 @@ def cmd_resume(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger)
     logger.info("=== Slice 4 Resume Complete: %s ===", output_path)
 
 
+# ─── Preflight: validate embedding cache offline ─────────────────
+
+def cmd_preflight(args: argparse.Namespace, logger: logging.Logger) -> None:
+    """Validate embedding cache offline — no Gemini key needed."""
+    logger.info("=== PREFLIGHT: Embedding Cache Validation ===")
+
+    # Must NOT require Gemini key
+    for key_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        if os.environ.get(key_name):
+            logger.warning(
+                "PREFLIGHT: %s is set but will NOT be used. "
+                "Preflight validates embedding only.",
+                key_name,
+            )
+
+    # Resolve and validate cache
+    from raglab.infrastructure.embeddings.fastembed_adapter import resolve_cache_dir
+
+    try:
+        cache_dir = resolve_cache_dir()
+    except ValueError as exc:
+        logger.error("PREFLIGHT_FAILED: %s", exc)
+        sys.exit(1)
+
+    if not cache_dir.exists():
+        logger.error(
+            "PREFLIGHT_FAILED: Cache directory does not exist: %s. "
+            "Run provisioning first: .venv/bin/python scripts/provision_embedding_model.py",
+            cache_dir,
+        )
+        sys.exit(1)
+
+    # PDF verification (optional in preflight but validates corpus integrity)
+    pdf_path_str = os.environ.get("RAGLAB_PDF_PATH")
+    if pdf_path_str:
+        pdf_path = Path(pdf_path_str)
+        verify_pdf(pdf_path, logger)
+    else:
+        logger.info("PREFLIGHT: RAGLAB_PDF_PATH not set — skipping PDF validation")
+
+    # Load embedding model offline
+    logger.info("PREFLIGHT: Loading embedding model from cache (local_files_only=True)")
+    try:
+        embed_model = load_embedding_model(logger, local_files_only=True)
+    except Exception as exc:
+        logger.error(
+            "PREFLIGHT_FAILED: Could not load embedding from cache: %s. "
+            "Run provisioning first: .venv/bin/python scripts/provision_embedding_model.py",
+            exc,
+        )
+        sys.exit(1)
+
+    # Canary embedding
+    canary_text = "Este é um texto canário para validação do embedding."
+    logger.info("PREFLIGHT: Generating canary embedding...")
+    try:
+        from raglab.infrastructure.embeddings.fastembed_adapter import (
+            FastEmbedEmbeddingAdapter,
+        )
+        assert isinstance(embed_model, FastEmbedEmbeddingAdapter)
+        canary_vec = embed_model._embed(canary_text)  # noqa: SLF001
+    except Exception as exc:
+        logger.error("PREFLIGHT_FAILED: Canary embedding failed: %s", exc)
+        sys.exit(1)
+
+    # Validate dimension
+    if len(canary_vec) != 384:
+        logger.error(
+            "PREFLIGHT_FAILED: Dimension mismatch: expected 384, got %d",
+            len(canary_vec),
+        )
+        sys.exit(1)
+
+    # Validate finite
+    if not all(math.isfinite(v) for v in canary_vec):
+        logger.error("PREFLIGHT_FAILED: Canary contains non-finite values")
+        sys.exit(1)
+
+    logger.info("PREFLIGHT: Canary OK (dim=%d, all finite)", len(canary_vec))
+    logger.info("PREFLIGHT: model_id=%s", EMBEDDING_MODEL)
+    logger.info("PREFLIGHT: cache_dir=%s", cache_dir)
+    logger.info("")
+    logger.info("EMBEDDING_OFFLINE_READY")
+
+
 # ─── Entry point ─────────────────────────────────────────────────
 
 def main(argv: list[str] | None = None) -> None:
@@ -615,10 +723,38 @@ def main(argv: list[str] | None = None) -> None:
     logger = _configure_logging(run_id_for_log)
 
     logger.info("=== RAGLab v7 Slice 4 Benchmark — mode=%s ===", args.mode)
-    logger.info("Gemini model: %s", GEMINI_MODEL)
     logger.info("Embedding model: %s", EMBEDDING_MODEL)
 
-    # Security check: GEMINI_API_KEY must be present for any execution mode
+    # ── Preflight mode: no Gemini key needed ──────────────────────
+    if args.mode == "preflight":
+        cmd_preflight(args, logger)
+        return
+
+    # ── For smoke/full/resume: validate embedding cache BEFORE reading key ──
+    logger.info("Gemini model: %s", GEMINI_MODEL)
+
+    from raglab.infrastructure.embeddings.fastembed_adapter import resolve_cache_dir
+
+    try:
+        cache_dir = resolve_cache_dir()
+    except ValueError as exc:
+        logger.error(
+            "Embedding cache not configured: %s. "
+            "Run provisioning first.",
+            exc,
+        )
+        sys.exit(1)
+
+    if not cache_dir.exists():
+        logger.error(
+            "Embedding cache missing: %s. "
+            "Run: .venv/bin/python scripts/provision_embedding_model.py "
+            "then: .venv/bin/python benchmarks/run_slice4_benchmark.py --mode preflight",
+            cache_dir,
+        )
+        sys.exit(1)
+
+    # Security check: GEMINI_API_KEY must be present for execution modes
     check_credential(logger)
 
     # PDF verification

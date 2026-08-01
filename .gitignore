@@ -60,3 +60,9 @@ coverage.xml
 
 # pytest
 .pytest_cache/
+
+# Model cache (ONNX weights — large, not versioned)
+.model_cache/
+
+# Provisioning manifests (local state)
+benchmarks/provision_manifest.json
