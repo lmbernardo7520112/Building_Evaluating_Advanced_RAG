@@ -740,10 +740,26 @@ class TestEmbeddingParity:
         retrievers = runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding
         )
-        h1_root = runner.extract_underlying_embedding_adapter(
-            retrievers["H1_auto_merging"]
+
+        # Create a proxy retriever for H1 that wraps the real one
+        # but exposes a divergent embedding adapter
+        class _DivergentProxy:
+            def __init__(self, base_retriever, embed):
+                self._wrapped = base_retriever
+                # Store a copy-like fake adapter with different model_id
+                self.embedding_adapter = type('_Div', (), {
+                    'model_id': 'divergent-model-xyz',
+                    'dimension': embed.dimension,
+                    'pooling': 'mean',
+                    'normalization': True,
+                })()
+
+            def retrieve(self, query, top_k=3):
+                return self._wrapped.retrieve(query, top_k=top_k)
+
+        retrievers["H1_auto_merging"] = _DivergentProxy(
+            retrievers["H1_auto_merging"], fake_embedding
         )
-        monkeypatch.setattr(h1_root, "model_id", "divergent-model-xyz", raising=False)
 
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: fake_pages)
         monkeypatch.setattr(
@@ -754,6 +770,18 @@ class TestEmbeddingParity:
             "build_retrievers",
             lambda pages, embed, strategies=None: retrievers,
         )
+        # Provide a valid fake manifest so run_benchmark doesn't fail
+        # at attestation before reaching the parity check
+        monkeypatch.setattr(
+            runner,
+            "load_provision_manifest",
+            lambda manifest_path=None: {
+                "model_id": runner.EMBEDDING_MODEL,
+                "cache_tree_sha256": "a" * 64,
+            },
+        )
+        monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path)
+        monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
 
         gen_mock = MagicMock()
         monkeypatch.setitem(

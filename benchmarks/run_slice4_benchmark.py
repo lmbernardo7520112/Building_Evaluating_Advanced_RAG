@@ -15,6 +15,13 @@ TWO-PHASE EXECUTION:
 
 HOLDOUT: SEALED — q_holdout_01, q_holdout_02 are never in ACTIVE_QUESTIONS.
 
+EVALUATION CONTRACT (schema=slice4_v2):
+- Each metric has a typed status: COMPUTED, NOT_APPLICABLE, FAILED, NOT_EXECUTED
+- score is non-null only when status=COMPUTED
+- FAILED/NOT_EXECUTED block SMOKE_*_OK
+- Abstention uses abstention_correctness (deterministic)
+- Groundedness is NOT_APPLICABLE for ABSTAIN answers
+
 USAGE:
 
   # Show help (no key, no PDF, no model loaded)
@@ -23,11 +30,17 @@ USAGE:
   # Preflight: validate embedding cache offline (no Gemini key needed)
   .venv/bin/python benchmarks/run_slice4_benchmark.py --mode preflight
 
-  # Smoke test: 1 strategy x 1 question — mandatory before full run
+  # Smoke positive: answerable question, must produce evaluated answer
+  .venv/bin/python benchmarks/run_slice4_benchmark.py \\
+      --mode smoke \\
+      --smoke-strategy W0_sentence_window \\
+      --smoke-question q_dev_01
+
+  # Smoke abstention: unanswerable question, must produce correct ABSTAIN
   .venv/bin/python benchmarks/run_slice4_benchmark.py \\
       --mode smoke \\
       --smoke-strategy F0_baseline \\
-      --smoke-question q_dev_01
+      --smoke-question q_test_04
 
   # Full benchmark (requires explicit confirmation flag)
   .venv/bin/python benchmarks/run_slice4_benchmark.py \\
@@ -75,6 +88,21 @@ GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 RESULTS_DIR = _REPO_ROOT / "benchmarks" / "results"
 CHECKPOINT_DIR = _REPO_ROOT / "checkpoints"
+PROVISION_MANIFEST_PATH = _REPO_ROOT / "benchmarks" / "provision_manifest.json"
+
+_EVAL_SCHEMA_VERSION = "slice4_v2"
+
+# ─── Evaluation metric status enum ───────────────────────────────
+# Typed states for each metric — replaces bare null
+METRIC_COMPUTED = "COMPUTED"
+METRIC_NOT_APPLICABLE = "NOT_APPLICABLE"
+METRIC_FAILED = "FAILED"
+METRIC_NOT_EXECUTED = "NOT_EXECUTED"
+_VALID_METRIC_STATUSES = frozenset(
+    {METRIC_COMPUTED, METRIC_NOT_APPLICABLE, METRIC_FAILED, METRIC_NOT_EXECUTED}
+)
+
+_SECRET_PATTERNS = ("GEMINI_API_KEY", "GOOGLE_API_KEY", "AIza", "ya29.")
 
 # Valid strategy labels — used for CLI validation
 VALID_STRATEGIES: tuple[str, ...] = (
@@ -538,6 +566,58 @@ def build_retrievers(
     return all_retrievers
 
 
+# ─── Manifest Attestation ────────────────────────────────────────
+
+def load_provision_manifest(
+    manifest_path: Path | None = None,
+) -> dict[str, Any]:
+    """Load the canonical provision manifest.
+
+    Raises ValueError if manifest is missing, invalid, or incompatible.
+    """
+    path = manifest_path or PROVISION_MANIFEST_PATH
+    if not path.exists():
+        raise ValueError(
+            f"EMBEDDING_ATTESTATION_FAILED: Manifest not found: {path}. "
+            "Run: python scripts/provision_embedding_model.py --attest-existing"
+        )
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ValueError(
+            f"EMBEDDING_ATTESTATION_FAILED: Invalid manifest {path}: {exc}"
+        ) from exc
+
+    required_fields = (
+        "model_id", "fastembed_version", "onnxruntime_version",
+        "dimension", "pooling", "normalization", "cache_tree_sha256",
+    )
+    missing = [f for f in required_fields if f not in data]
+    if missing:
+        raise ValueError(
+            f"EMBEDDING_ATTESTATION_FAILED: Missing fields {missing} in {path}"
+        )
+
+    cache_sha = data["cache_tree_sha256"]
+    if not cache_sha or cache_sha == "UNRESOLVED" or len(cache_sha) != 64:
+        raise ValueError(
+            f"EMBEDDING_ATTESTATION_FAILED: Invalid cache_tree_sha256={cache_sha!r}"
+        )
+
+    if data.get("model_id") != EMBEDDING_MODEL:
+        raise ValueError(
+            f"EMBEDDING_ATTESTATION_FAILED: Model mismatch: "
+            f"manifest={data.get('model_id')}, expected={EMBEDDING_MODEL}"
+        )
+
+    if not data.get("canary_dim_ok") or not data.get("canary_finite_ok"):
+        raise ValueError(
+            "EMBEDDING_ATTESTATION_FAILED: Canary validation not passed in manifest"
+        )
+
+    return data
+
+
 # ─── Embedding Parity Verification ───────────────────────────────
 
 def extract_underlying_embedding_adapter(retriever: object) -> object:
@@ -561,8 +641,15 @@ def extract_underlying_embedding_adapter(retriever: object) -> object:
     return obj
 
 
-def get_embedding_fingerprint(adapter_or_retriever: object) -> dict[str, Any]:
-    """Extract standard 7-field embedding fingerprint dict from a retriever or adapter."""
+def get_embedding_fingerprint(
+    adapter_or_retriever: object,
+    manifest: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Extract standard 7-field embedding fingerprint from a retriever or adapter.
+
+    Uses the attested provision manifest as the canonical source for
+    cache_tree_sha256, avoiding UNRESOLVED values.
+    """
     root = extract_underlying_embedding_adapter(adapter_or_retriever)
 
     model_id = str(
@@ -594,17 +681,17 @@ def get_embedding_fingerprint(adapter_or_retriever: object) -> dict[str, Any]:
         except ImportError:
             onnxruntime_ver = "unavailable"
 
+    # Canonical source: provision manifest (attested offline)
     cache_sha = getattr(root, "cache_tree_sha256", None)
-    if not cache_sha:
-        manifest_path = _REPO_ROOT / "benchmarks" / "embedding_model_manifest.json"
-        if manifest_path.exists():
-            try:
-                m_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-                cache_sha = m_data.get("cache_tree_sha256", "UNRESOLVED")
-            except Exception:
-                cache_sha = "UNRESOLVED"
+    if not cache_sha or cache_sha == "UNRESOLVED":
+        if manifest:
+            cache_sha = manifest.get("cache_tree_sha256", "UNRESOLVED")
         else:
-            cache_sha = "UNRESOLVED"
+            try:
+                m_data = load_provision_manifest()
+                cache_sha = m_data.get("cache_tree_sha256", "UNRESOLVED")
+            except ValueError:
+                cache_sha = "UNRESOLVED"
 
     return {
         "embedding_model_id": str(model_id),
@@ -620,6 +707,7 @@ def get_embedding_fingerprint(adapter_or_retriever: object) -> dict[str, Any]:
 def verify_embedding_parity(
     retrievers: dict[str, object],
     logger: logging.Logger | None = None,
+    manifest: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Verify that all strategy retrievers share identical embedding fingerprints.
 
@@ -628,7 +716,7 @@ def verify_embedding_parity(
     """
     fingerprints: dict[str, dict[str, Any]] = {}
     for label, retriever in retrievers.items():
-        fingerprints[label] = get_embedding_fingerprint(retriever)
+        fingerprints[label] = get_embedding_fingerprint(retriever, manifest)
 
     if not fingerprints:
         raise ValueError("No retrievers provided for embedding parity check")
@@ -660,6 +748,155 @@ def verify_embedding_parity(
     return fingerprints
 
 
+# ─── Typed Evaluation Metrics ────────────────────────────────────
+
+def make_metric_entry(
+    name: str,
+    status: str,
+    score: float | None = None,
+    reason: str = "",
+    evaluator_model: str = "",
+    attempts: int = 0,
+) -> dict[str, Any]:
+    """Create a typed metric entry with explicit status.
+
+    Rules:
+    - score must be in [0,1] when status=COMPUTED
+    - score must be None for other statuses
+    - status must be one of COMPUTED, NOT_APPLICABLE, FAILED, NOT_EXECUTED
+    """
+    if status not in _VALID_METRIC_STATUSES:
+        raise ValueError(f"Invalid metric status: {status!r}")
+    if status == METRIC_COMPUTED:
+        if score is None:
+            raise ValueError(f"Metric {name}: COMPUTED requires a score")
+        if not math.isfinite(score) or not (0.0 <= score <= 1.0):
+            raise ValueError(
+                f"Metric {name}: score {score} out of [0,1] or non-finite"
+            )
+    elif score is not None:
+        raise ValueError(
+            f"Metric {name}: status={status} must have score=None, got {score}"
+        )
+    return {
+        "name": name,
+        "status": status,
+        "score": score,
+        "reason": reason,
+        "evaluator_model": evaluator_model,
+        "attempts": attempts,
+    }
+
+
+def compute_abstention_correctness(
+    is_abstention_question: bool,
+    abstained: bool,
+) -> dict[str, Any]:
+    """Deterministic abstention correctness metric.
+
+    Definition:
+      is_abstention_question=True  AND abstained=True  → 1.0
+      is_abstention_question=False AND abstained=True  → 0.0
+      is_abstention_question=True  AND abstained=False → 0.0
+      is_abstention_question=False AND abstained=False → N/A (computed by Triad)
+    """
+    if not is_abstention_question and not abstained:
+        return make_metric_entry(
+            "abstention_correctness",
+            METRIC_NOT_APPLICABLE,
+            reason="SUBSTANTIVE_ANSWER_NOT_ABSTENTION_QUESTION",
+        )
+    score = 1.0 if is_abstention_question and abstained else 0.0
+    return make_metric_entry(
+        "abstention_correctness",
+        METRIC_COMPUTED,
+        score=score,
+        reason=(
+            "CORRECT_ABSTENTION" if score == 1.0
+            else (
+                "INCORRECT_ABSTENTION_ON_ANSWERABLE"
+                if not is_abstention_question
+                else "FAILED_TO_ABSTAIN_ON_UNANSWERABLE"
+            )
+        ),
+        evaluator_model="deterministic",
+        attempts=1,
+    )
+
+
+# ─── Retrieval Evidence Serialization ────────────────────────────
+
+def _extract_page_from_chunk_id(chunk_id_val: str) -> int | None:
+    """Extract page number from chunk_id like 'doc_p92_c0'. Returns None on failure."""
+    try:
+        parts = chunk_id_val.split("_p")
+        if len(parts) >= 2:
+            page_part = parts[-1].split("_")[0]
+            return int(page_part)
+    except (ValueError, IndexError):
+        pass
+    return None
+
+
+def serialize_retrieval_evidence(
+    evidence: list,
+    relevant_pages: list[int],
+    text_preview_limit: int = 80,
+) -> dict[str, Any]:
+    """Serialize retrieval evidence for auditable output.
+
+    Produces per-candidate records with no secrets.
+    Distinguishes score=None (absent) from score=0.
+    """
+    candidates: list[dict[str, Any]] = []
+    pages_found: list[int] = []
+
+    for i, ev in enumerate(evidence):
+        chunk_id_val = (
+            ev.chunk_id.value
+            if hasattr(ev.chunk_id, "value")
+            else str(ev.chunk_id)
+        )
+        page_num = _extract_page_from_chunk_id(chunk_id_val)
+        if page_num and page_num in relevant_pages:
+            pages_found.append(page_num)
+
+        text_raw = ev.text if hasattr(ev, "text") else ""
+        text_preview = text_raw[:text_preview_limit].replace("\n", " ")
+        text_sha = hashlib.sha256(text_raw.encode("utf-8")).hexdigest()
+
+        # Sanitize: no secrets in preview
+        for pattern in _SECRET_PATTERNS:
+            if pattern.lower() in text_preview.lower():
+                text_preview = "[REDACTED]"
+                break
+
+        entry: dict[str, Any] = {
+            "chunk_id": chunk_id_val,
+            "page_number": page_num,
+            "retrieval_rank": i + 1,
+            "retrieval_score": ev.score if hasattr(ev, "score") else None,
+            "rerank_rank": None,  # set by reranker if applicable
+            "rerank_score": None,
+            "parent_node_id": getattr(ev, "parent_node_id", None),
+            "text_sha256": text_sha,
+            "text_preview": text_preview,
+        }
+        candidates.append(entry)
+
+    retrieval_hit = bool(pages_found)
+    missing_pages = [p for p in relevant_pages if p not in pages_found]
+
+    return {
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+        "relevant_pages_expected": relevant_pages,
+        "relevant_pages_found": sorted(set(pages_found)),
+        "relevant_pages_missing": missing_pages,
+        "retrieval_hit": retrieval_hit,
+    }
+
+
 # ─── Core runner (shared by smoke and full) ───────────────────────
 
 def run_benchmark(
@@ -668,8 +905,17 @@ def run_benchmark(
     strategy_labels: tuple[str, ...],
     logger: logging.Logger,
     pdf_path: Path,
+    manifest: dict[str, Any] | None = None,
 ) -> Path:
-    """Execute generation + evaluation for requested questions × strategies."""
+    """Execute generation + evaluation for requested questions × strategies.
+
+    Evaluation contract (schema=slice4_v2):
+    - Each metric has typed status: COMPUTED, NOT_APPLICABLE, FAILED, NOT_EXECUTED
+    - Abstained answers get: context_relevance (COMPUTED if evidence exists),
+      groundedness (NOT_APPLICABLE), abstention_correctness (COMPUTED)
+    - Substantive answers get: context_relevance, groundedness, answer_relevance
+    - evaluation is never null; it always has typed metrics
+    """
     from raglab.domain.enums import PipelineStrategy
     from raglab.domain.quota import QuotaManager
     from raglab.domain.retry import RetryPolicy
@@ -679,16 +925,33 @@ def run_benchmark(
     )
     from raglab.infrastructure.gemini.gemini_judge_adapter import (
         GeminiJudgeAdapter,
-        sanitize_evaluation_for_artifact,
     )
     from raglab.infrastructure.persistence.generation_checkpoint_store import (
         GenerationCheckpointStore,
     )
 
+    # ── Load & validate manifest before any Gemini call ──────────
+    if manifest is None:
+        manifest = load_provision_manifest()
+    logger.info(
+        "Manifest validated: model=%s cache_sha=%s",
+        manifest["model_id"],
+        manifest["cache_tree_sha256"][:16] + "...",
+    )
+
     pages = load_pdf_pages(pdf_path, logger)
     embed_model = load_embedding_model(logger)
     retrievers = build_retrievers(pages, embed_model, strategies=strategy_labels)
-    embedding_fps = verify_embedding_parity(retrievers, logger)
+    embedding_fps = verify_embedding_parity(retrievers, logger, manifest)
+
+    # ── Reject UNRESOLVED fingerprints ───────────────────────────
+    for label, fp in embedding_fps.items():
+        if fp.get("cache_tree_sha256") == "UNRESOLVED":
+            raise ValueError(
+                f"EMBEDDING_ATTESTATION_FAILED: {label} has UNRESOLVED "
+                "cache_tree_sha256. Run: python scripts/provision_embedding_model.py "
+                "--attest-existing"
+            )
 
     shared_quota = QuotaManager()
     shared_retry = RetryPolicy()
@@ -726,6 +989,7 @@ def run_benchmark(
             qid = q["qid"]
             query = q["query"]
             is_abstention = q.get("abstention_expected", False)
+            relevant_pages = q.get("relevant_pages", [])
 
             if ckpt.is_completed(qid, strategy_label):
                 logger.info("  SKIP (already done): %s::%s", qid, strategy_label)
@@ -741,35 +1005,179 @@ def run_benchmark(
             logger.info("  Processing: %s (abstention=%s)", qid, is_abstention)
             evidence = retriever.retrieve(query, top_k=TOP_K)
 
+            # ── Serialize retrieval evidence for audit ───────────
+            evidence_record = serialize_retrieval_evidence(
+                evidence, relevant_pages,
+            )
+
             answer = generator.generate(
                 query_id=f"{strategy_label}::{qid}",
                 query=query,
                 evidence=evidence,
             )
 
-            eval_result = None
-            if not answer.abstained and not is_abstention and evidence:
-                eval_result = judge.evaluate(
-                    query_id=f"{strategy_label}::{qid}",
-                    query=query,
-                    answer=answer,
-                    evidence=evidence,
+            sanitized_answer = sanitize_answer_for_artifact(answer)
+
+            # ── Build typed evaluation ──────────────────────────
+            evaluation_metrics: list[dict[str, Any]] = []
+
+            # Abstention correctness (deterministic, always computed)
+            evaluation_metrics.append(
+                compute_abstention_correctness(is_abstention, answer.abstained)
+            )
+
+            if answer.abstained:
+                # Context Relevance: compute if evidence exists
+                if evidence:
+                    try:
+                        cr_result = judge.evaluate(
+                            query_id=f"{strategy_label}::{qid}",
+                            query=query,
+                            answer=answer,
+                            evidence=evidence,
+                        )
+                        cr_score = None
+                        for m in cr_result.metrics:
+                            if m.name == "context_relevance":
+                                cr_score = m.value
+                                break
+                        if cr_score is not None:
+                            evaluation_metrics.append(
+                                make_metric_entry(
+                                    "context_relevance",
+                                    METRIC_COMPUTED,
+                                    score=cr_score,
+                                    evaluator_model=GEMINI_MODEL,
+                                    attempts=1,
+                                )
+                            )
+                        else:
+                            evaluation_metrics.append(
+                                make_metric_entry(
+                                    "context_relevance",
+                                    METRIC_FAILED,
+                                    reason="JUDGE_NO_CR_SCORE",
+                                    evaluator_model=GEMINI_MODEL,
+                                    attempts=1,
+                                )
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "  CR evaluation failed for %s::%s: %s",
+                            strategy_label, qid, exc,
+                        )
+                        evaluation_metrics.append(
+                            make_metric_entry(
+                                "context_relevance",
+                                METRIC_FAILED,
+                                reason=str(exc)[:200],
+                                evaluator_model=GEMINI_MODEL,
+                                attempts=1,
+                            )
+                        )
+                else:
+                    evaluation_metrics.append(
+                        make_metric_entry(
+                            "context_relevance",
+                            METRIC_NOT_APPLICABLE,
+                            reason="NO_EVIDENCE_RETRIEVED",
+                        )
+                    )
+
+                # Groundedness: NOT_APPLICABLE for ABSTAIN
+                evaluation_metrics.append(
+                    make_metric_entry(
+                        "groundedness",
+                        METRIC_NOT_APPLICABLE,
+                        reason="ABSTAINED_WITHOUT_CLAIMS",
+                    )
                 )
 
-            sanitized_answer = sanitize_answer_for_artifact(answer)
-            sanitized_eval = (
-                sanitize_evaluation_for_artifact(eval_result) if eval_result else None
-            )
+                # Answer Relevance: NOT_APPLICABLE for ABSTAIN
+                evaluation_metrics.append(
+                    make_metric_entry(
+                        "answer_relevance",
+                        METRIC_NOT_APPLICABLE,
+                        reason="ABSTAINED_WITHOUT_CLAIMS",
+                    )
+                )
+            else:
+                # Substantive answer: full RAG Triad evaluation
+                if evidence:
+                    try:
+                        eval_result = judge.evaluate(
+                            query_id=f"{strategy_label}::{qid}",
+                            query=query,
+                            answer=answer,
+                            evidence=evidence,
+                        )
+                        metrics_dict = {m.name: m.value for m in eval_result.metrics}
+                        for dim in ("context_relevance", "groundedness", "answer_relevance"):
+                            score_val = metrics_dict.get(dim)
+                            if score_val is not None:
+                                evaluation_metrics.append(
+                                    make_metric_entry(
+                                        dim,
+                                        METRIC_COMPUTED,
+                                        score=score_val,
+                                        evaluator_model=GEMINI_MODEL,
+                                        attempts=1,
+                                    )
+                                )
+                            else:
+                                evaluation_metrics.append(
+                                    make_metric_entry(
+                                        dim,
+                                        METRIC_FAILED,
+                                        reason=f"JUDGE_NO_{dim.upper()}_SCORE",
+                                        evaluator_model=GEMINI_MODEL,
+                                        attempts=1,
+                                    )
+                                )
+                    except Exception as exc:
+                        logger.warning(
+                            "  Evaluation failed for %s::%s: %s",
+                            strategy_label, qid, exc,
+                        )
+                        for dim in ("context_relevance", "groundedness", "answer_relevance"):
+                            evaluation_metrics.append(
+                                make_metric_entry(
+                                    dim,
+                                    METRIC_FAILED,
+                                    reason=str(exc)[:200],
+                                    evaluator_model=GEMINI_MODEL,
+                                    attempts=1,
+                                )
+                            )
+                else:
+                    for dim in ("context_relevance", "groundedness", "answer_relevance"):
+                        evaluation_metrics.append(
+                            make_metric_entry(
+                                dim,
+                                METRIC_NOT_APPLICABLE,
+                                reason="NO_EVIDENCE_RETRIEVED",
+                            )
+                        )
+
+            # ── Citation pages used by generator ────────────────
+            citation_pages = [c.page_number for c in answer.citations]
+
+            evaluation_record = {
+                "schema_version": _EVAL_SCHEMA_VERSION,
+                "metrics": evaluation_metrics,
+            }
 
             result_entry = {
                 "qid": qid,
                 "split": q["split"],
                 "strategy": strategy_label,
-                "relevant_pages": q.get("relevant_pages", []),
+                "relevant_pages": relevant_pages,
                 "abstained": answer.abstained,
                 "is_abstention_question": is_abstention,
                 "answer": sanitized_answer,
-                "evaluation": sanitized_eval,
+                "evaluation": evaluation_record,
+                "retrieval_evidence": evidence_record,
+                "citation_pages": citation_pages,
                 "quota_stats": shared_quota.stats,
             }
             strategy_results.append(result_entry)
@@ -791,10 +1199,11 @@ def run_benchmark(
     output_path = RESULTS_DIR / f"slice4_results_{run_id}_{ts}.json"
     output = {
         "experiment_id": run_id,
-        "schema": "slice4_v1",
+        "schema": _EVAL_SCHEMA_VERSION,
         "gemini_model": GEMINI_MODEL,
         "embedding_model": EMBEDDING_MODEL,
         "embedding_fingerprints": embedding_fps,
+        "manifest_fingerprint": manifest.get("cache_tree_sha256", "UNRESOLVED"),
         "reranker_class": "bi_encoder_rescoring",
         "run_time_ms": run_times,
         "quota_final_stats": shared_quota.stats,
@@ -806,13 +1215,180 @@ def run_benchmark(
         "holdout_status": "SEALED",
         "results": all_results,
     }
-    output_path.write_text(
-        json.dumps(output, indent=2, sort_keys=True, ensure_ascii=False),
-        encoding="utf-8",
-    )
+
+    # Final secret scan on serialized output
+    output_json = json.dumps(output, indent=2, sort_keys=True, ensure_ascii=False)
+    for pattern in _SECRET_PATTERNS:
+        if pattern in output_json:
+            raise RuntimeError(
+                f"SECRET DETECTED in output: pattern={pattern!r}. Aborting."
+            )
+
+    output_path.write_text(output_json, encoding="utf-8")
     logger.info("Results written to: %s", output_path)
     logger.info("Quota stats: %s", shared_quota.stats)
     return output_path
+
+
+# ─── Smoke Validation ─────────────────────────────────────────────
+
+def validate_smoke_result(
+    data: dict[str, Any],
+    strategy: str,
+    qid: str,
+    is_abstention_question: bool,
+    logger: logging.Logger,
+) -> str:
+    """Validate smoke result and return SMOKE_POSITIVE_OK, SMOKE_ABSTENTION_OK, or SMOKE_FAILED.
+
+    Fail-closed: any missing/invalid field returns SMOKE_FAILED.
+    """
+    failures: list[str] = []
+
+    # 1. Secret scan
+    serialized = json.dumps(data)
+    for pattern in _SECRET_PATTERNS:
+        if pattern in serialized:
+            failures.append(f"SECRET_DETECTED: {pattern}")
+
+    # 2. Fingerprint resolved
+    fps = data.get("embedding_fingerprints", {})
+    for label, fp in fps.items():
+        sha = fp.get("cache_tree_sha256", "UNRESOLVED")
+        if sha == "UNRESOLVED" or not sha or len(sha) != 64:
+            failures.append(f"UNRESOLVED_FINGERPRINT: {label}")
+
+    manifest_fp = data.get("manifest_fingerprint", "UNRESOLVED")
+    if manifest_fp == "UNRESOLVED" or not manifest_fp:
+        failures.append("UNRESOLVED_MANIFEST_FINGERPRINT")
+
+    # 3. Results structure
+    results = data.get("results", {})
+    strategy_results = results.get(strategy, [])
+    if not strategy_results:
+        failures.append(f"NO_RESULTS_FOR_STRATEGY: {strategy}")
+        return _emit_smoke_result(failures, is_abstention_question, logger)
+
+    result = strategy_results[0]
+
+    # 4. Holdout guard
+    if "holdout" in result.get("qid", ""):
+        failures.append("HOLDOUT_ACCESSED")
+
+    # 5. Evaluation must not be null
+    evaluation = result.get("evaluation")
+    if evaluation is None:
+        failures.append("EVALUATION_NULL")
+        return _emit_smoke_result(failures, is_abstention_question, logger)
+
+    metrics = evaluation.get("metrics", [])
+    if not metrics:
+        failures.append("EVALUATION_NO_METRICS")
+        return _emit_smoke_result(failures, is_abstention_question, logger)
+
+    # 6. Validate each metric
+    metrics_by_name = {m["name"]: m for m in metrics}
+    for m in metrics:
+        status = m.get("status")
+        score = m.get("score")
+        name = m.get("name")
+
+        if status == METRIC_FAILED:
+            failures.append(f"METRIC_FAILED: {name}")
+        elif status == METRIC_NOT_EXECUTED:
+            failures.append(f"METRIC_NOT_EXECUTED: {name}")
+        elif status == METRIC_COMPUTED:
+            if score is None or not isinstance(score, (int, float)):
+                failures.append(f"METRIC_NO_SCORE: {name}")
+            elif not math.isfinite(score) or not (0.0 <= score <= 1.0):
+                failures.append(f"METRIC_SCORE_INVALID: {name}={score}")
+
+    abstained = result.get("abstained", False)
+
+    if is_abstention_question:
+        # ── Smoke de abstenção ───────────────────────────────
+        if not abstained:
+            failures.append("ABSTENTION_EXPECTED_BUT_ANSWERED")
+
+        # abstention_correctness must be 1.0
+        ac = metrics_by_name.get("abstention_correctness", {})
+        if ac.get("status") != METRIC_COMPUTED or ac.get("score") != 1.0:
+            failures.append(f"ABSTENTION_CORRECTNESS_NOT_1: {ac}")
+
+        # groundedness must be NOT_APPLICABLE
+        gr = metrics_by_name.get("groundedness", {})
+        if gr.get("status") != METRIC_NOT_APPLICABLE:
+            failures.append(f"GROUNDEDNESS_NOT_NA_FOR_ABSTAIN: {gr.get('status')}")
+
+        # no invented citations
+        citation_pages = result.get("citation_pages", [])
+        if citation_pages:
+            failures.append(f"CITATIONS_ON_ABSTAIN: {citation_pages}")
+
+    else:
+        # ── Smoke positivo ───────────────────────────────────
+        if abstained:
+            failures.append("ANSWERABLE_QUESTION_GOT_ABSTAIN")
+
+        # All RAG Triad dimensions must be COMPUTED
+        for dim in ("context_relevance", "groundedness", "answer_relevance"):
+            dm = metrics_by_name.get(dim, {})
+            if dm.get("status") != METRIC_COMPUTED:
+                failures.append(f"TRIAD_NOT_COMPUTED: {dim}={dm.get('status')}")
+
+        # Must have at least one citation
+        citation_pages = result.get("citation_pages", [])
+        if not citation_pages:
+            failures.append("NO_CITATIONS_ON_SUBSTANTIVE")
+
+        # Retrieval hit on relevant pages
+        evidence_rec = result.get("retrieval_evidence", {})
+        if not evidence_rec.get("retrieval_hit"):
+            failures.append("NO_RETRIEVAL_HIT_ON_RELEVANT_PAGES")
+
+        # Citations must be from retrieved evidence
+        evidence_pages = {
+            c.get("page_number")
+            for c in evidence_rec.get("candidates", [])
+            if c.get("page_number") is not None
+        }
+        for cp in citation_pages:
+            if cp not in evidence_pages and cp != 0:
+                failures.append(f"CITATION_NOT_IN_EVIDENCE: page={cp}")
+
+    # 7. Retrieval evidence must exist
+    if "retrieval_evidence" not in result:
+        failures.append("MISSING_RETRIEVAL_EVIDENCE")
+
+    # 8. Result and checkpoint valid
+    if evaluation.get("schema_version") != _EVAL_SCHEMA_VERSION:
+        failures.append(
+            f"WRONG_EVAL_SCHEMA: {evaluation.get('schema_version')} != {_EVAL_SCHEMA_VERSION}"
+        )
+
+    return _emit_smoke_result(failures, is_abstention_question, logger)
+
+
+def _emit_smoke_result(
+    failures: list[str],
+    is_abstention_question: bool,
+    logger: logging.Logger,
+) -> str:
+    """Emit the final smoke verdict."""
+    if failures:
+        for f in failures:
+            logger.error("  SMOKE FAILURE: %s", f)
+        print("SMOKE_FAILED", file=sys.stderr)
+        return "SMOKE_FAILED"
+
+    if is_abstention_question:
+        logger.info("SMOKE_ABSTENTION_OK")
+        print("SMOKE_ABSTENTION_OK")
+        return "SMOKE_ABSTENTION_OK"
+    else:
+        logger.info("SMOKE_POSITIVE_OK")
+        print("SMOKE_POSITIVE_OK")
+        return "SMOKE_POSITIVE_OK"
 
 
 # ─── Mode handlers ────────────────────────────────────────────────
@@ -834,23 +1410,31 @@ def cmd_smoke(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) 
         logger.error("Question ID not found: %s", qid)
         sys.exit(2)
 
+    question = question_map[qid]
+    is_abstention = question.get("abstention_expected", False)
+
     smoke_run_id = f"smoke_{EXPERIMENT_ID}_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
     logger.info("=== SMOKE TEST: strategy=%s question=%s run_id=%s ===",
                 strategy, qid, smoke_run_id)
 
     output_path = run_benchmark(
         run_id=smoke_run_id,
-        questions=[question_map[qid]],
+        questions=[question],
         strategy_labels=(strategy,),
         logger=logger,
         pdf_path=pdf_path,
     )
 
-    # Post-smoke validation
+    # Post-smoke validation (fail-closed)
     data = json.loads(output_path.read_text(encoding="utf-8"))
-    assert "results" in data, "SMOKE: missing 'results' key in output"
-    assert "GEMINI_API_KEY" not in json.dumps(data), "SMOKE: CREDENTIAL LEAKED"
-    logger.info("SMOKE_OK: sanitized result validated — proceed to full run if correct.")
+    verdict = validate_smoke_result(data, strategy, qid, is_abstention, logger)
+    if verdict == "SMOKE_FAILED":
+        logger.error(
+            "SMOKE_FAILED: result at %s did not pass validation. "
+            "Fix issues before proceeding.",
+            output_path,
+        )
+        sys.exit(4)
 
 
 def cmd_full(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) -> None:
