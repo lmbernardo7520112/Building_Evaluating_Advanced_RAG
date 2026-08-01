@@ -6,19 +6,29 @@ It MUST be run BEFORE any scientific execution (smoke, full, preflight).
 It MUST NOT be run with Gemini credentials in the environment.
 
 Usage:
+    # Show help (no model loaded, no side effects):
+    .venv/bin/python scripts/provision_embedding_model.py --help
+
+    # Dry run (shows what would happen, no side effects):
     .venv/bin/python scripts/provision_embedding_model.py
 
+    # Execute provisioning:
+    .venv/bin/python scripts/provision_embedding_model.py --execute
+
     # Custom cache directory:
-    RAGLAB_MODEL_CACHE=/path/to/cache \
-        .venv/bin/python scripts/provision_embedding_model.py
+    RAGLAB_MODEL_CACHE=/path/to/cache \\
+        .venv/bin/python scripts/provision_embedding_model.py --execute
 
 Exit codes:
-    0 — Model provisioned and validated successfully.
+    0 — Model provisioned and validated successfully (--execute), or help shown.
     1 — Error: credentials detected, cache invalid, or model load failed.
+    2 — No --execute flag provided (fail-closed).
 """
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import math
 import os
@@ -44,7 +54,84 @@ def _abort(msg: str) -> None:
     sys.exit(1)
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="provision_embedding_model.py",
+        description=(
+            "Provision the ONNX embedding model to a persistent local cache.\n\n"
+            "This script MUST be run BEFORE any benchmark execution.\n"
+            "It MUST NOT be run with Gemini credentials in the environment.\n\n"
+            "Without --execute, this script exits with code 2 and no side effects.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  # Show help:\n"
+            "  .venv/bin/python scripts/provision_embedding_model.py --help\n\n"
+            "  # Execute provisioning:\n"
+            "  .venv/bin/python scripts/provision_embedding_model.py --execute\n\n"
+            "  # Custom cache:\n"
+            "  RAGLAB_MODEL_CACHE=/path/to/cache \\\\\n"
+            "      .venv/bin/python scripts/provision_embedding_model.py --execute\n"
+        ),
+    )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        default=False,
+        help=(
+            "Actually execute the provisioning. Without this flag, "
+            "the script exits with code 2 and no side effects."
+        ),
+    )
+    return parser
+
+
+def _fingerprint_cache(cache_dir: Path) -> dict:
+    """Build a deterministic fingerprint of the model cache directory."""
+    entries: list[dict] = []
+    if cache_dir.exists():
+        for p in sorted(cache_dir.rglob("*")):
+            if p.is_file():
+                rel = str(p.relative_to(cache_dir))
+                size = p.stat().st_size
+                h = hashlib.sha256()
+                with p.open("rb") as f:
+                    for chunk in iter(lambda: f.read(65536), b""):
+                        h.update(chunk)
+                entries.append({
+                    "path": rel,
+                    "size_bytes": size,
+                    "sha256": h.hexdigest(),
+                })
+    # Tree digest: hash of all individual hashes
+    tree_h = hashlib.sha256()
+    for e in entries:
+        tree_h.update(e["sha256"].encode())
+    return {
+        "file_count": len(entries),
+        "files": entries,
+        "cache_tree_sha256": tree_h.hexdigest(),
+    }
+
+
 def main() -> None:
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    # --help is handled by argparse before reaching here.
+
+    if not args.execute:
+        print(
+            "PROVISION: No --execute flag provided. Exiting with no side effects.\n"
+            "\n"
+            "To provision the embedding model, run:\n"
+            "  .venv/bin/python scripts/provision_embedding_model.py --execute\n",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    # ── From here on, --execute was provided ──────────────────────
     print("=== Embedding Model Provisioning ===")
     print(f"Model: {MODEL_ID}")
     print(f"Expected dimension: {EXPECTED_DIMENSION}")
@@ -124,17 +211,27 @@ def main() -> None:
 
     print(f"Canary embedding OK: dim={len(canary_vec)}, all values finite")
 
+    # ── Cache fingerprint ─────────────────────────────────────────
+    print("Computing cache fingerprint...")
+    cache_fp = _fingerprint_cache(cache_dir)
+    print(f"Cache files: {cache_fp['file_count']}")
+    print(f"Cache tree SHA-256: {cache_fp['cache_tree_sha256']}")
+
     # ── Generate provisioning manifest ────────────────────────────
     manifest = {
         "provisioned_utc": datetime.now(UTC).isoformat(),
         "model_id": MODEL_ID,
         "model_revision": "HEAD",
+        "model_revision_status": "UNRESOLVED",
         "fastembed_version": fastembed.__version__,
         "onnxruntime_version": onnxruntime.__version__,
         "dimension": EXPECTED_DIMENSION,
         "pooling": "mean",
         "normalization": True,
         "cache_dir": str(cache_dir),
+        "cache_tree_sha256": cache_fp["cache_tree_sha256"],
+        "cache_file_count": cache_fp["file_count"],
+        "cache_files": cache_fp["files"],
         "canary_text": CANARY_TEXT,
         "canary_dim_ok": len(canary_vec) == EXPECTED_DIMENSION,
         "canary_finite_ok": all(math.isfinite(v) for v in canary_vec),
@@ -160,6 +257,7 @@ def main() -> None:
     print("  pooling:             mean")
     print(f"  dimension:           {EXPECTED_DIMENSION}")
     print(f"  cache_dir:           {cache_dir}")
+    print(f"  cache_tree_sha256:   {cache_fp['cache_tree_sha256']}")
     print("  canary_ok:           True")
     print()
     print("Next step: run preflight to validate offline loading:")

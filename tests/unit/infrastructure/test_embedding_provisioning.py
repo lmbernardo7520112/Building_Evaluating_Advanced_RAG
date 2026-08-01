@@ -109,13 +109,27 @@ class TestCacheResolution:
 class TestProvisioningSecurity:
     """Tests for provision_embedding_model.py."""
 
+    def test_provisioning_without_execute_exits_2(self):
+        """Provisioner without --execute must exit 2 with no side effects."""
+        env = dict(os.environ)
+        env.pop("GEMINI_API_KEY", None)
+        env.pop("GOOGLE_API_KEY", None)
+        result = subprocess.run(
+            [sys.executable, _PROVISIONER],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert result.returncode == 2
+        assert "--execute" in result.stderr or "--execute" in result.stdout
+
     def test_provisioning_rejects_gemini_api_key(self):
         """Provisioner must abort if GEMINI_API_KEY is set."""
         env = dict(os.environ)
         env["GEMINI_API_KEY"] = "test-key-must-not-be-used"
         env.pop("RAGLAB_MODEL_CACHE", None)
         result = subprocess.run(
-            [sys.executable, _PROVISIONER],
+            [sys.executable, _PROVISIONER, "--execute"],
             capture_output=True,
             text=True,
             env=env,
@@ -130,7 +144,7 @@ class TestProvisioningSecurity:
         env.pop("GEMINI_API_KEY", None)
         env.pop("RAGLAB_MODEL_CACHE", None)
         result = subprocess.run(
-            [sys.executable, _PROVISIONER],
+            [sys.executable, _PROVISIONER, "--execute"],
             capture_output=True,
             text=True,
             env=env,
