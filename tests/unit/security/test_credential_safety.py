@@ -219,21 +219,21 @@ class TestFakeJudgeOffline:
         ]
 
     def test_evaluate_returns_result_offline(self):
-        from raglab.domain.enums import PipelineStrategy
         from raglab.infrastructure.fakes.fake_judge_adapter import FakeJudgeAdapter
 
         judge = FakeJudgeAdapter()
         result = judge.evaluate(
             "q_dev_01",
-            PipelineStrategy.BASELINE,
+            "O que é demonstração por exaustão?",
             self._make_answer(),
             self._make_evidence(),
         )
 
         assert result is not None
-        # Verify at least faithfulness, answer_relevance present as MetricResult
         metric_names = {m.name for m in result.metrics}
-        assert "faithfulness" in metric_names
+        # RAG Triad metrics present in updated FakeJudgeAdapter
+        assert "context_relevance" in metric_names
+        assert "groundedness" in metric_names
         assert "answer_relevance" in metric_names
         assert "langsmith_disabled" in metric_names
 

@@ -13,10 +13,16 @@ class GenerationPort(Protocol):
 
     Generator and judge are logically separate — this port is
     exclusively for answer generation, not evaluation.
+
+    The query_id is required for:
+    - checkpoint idempotency;
+    - per-question quota tracking;
+    - sanitized artifact provenance.
     """
 
     def generate(
         self,
+        query_id: str,
         query: str,
         evidence: Sequence[RetrievedEvidence],
     ) -> GeneratedAnswer:

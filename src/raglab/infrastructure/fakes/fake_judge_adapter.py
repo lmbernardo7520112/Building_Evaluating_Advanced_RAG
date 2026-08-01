@@ -1,16 +1,19 @@
-"""Fake judge adapter for offline testing — no network, no credentials.
+"""Fake judge adapter — RAG Triad + Factual Correctness (offline, no credentials).
 
-Implements the domain's EvaluationResult contract without any network access.
+Implements the domain's EvaluationResult contract WITHOUT any network access.
 
 SECURITY CONTRACT:
-- Never imports LangSmith, TruLens, or any remote evaluation SDK
+- Never imports google.generativeai or any Gemini SDK
 - Never reads any credential variable
 - Never makes network calls
 - Never logs credential values
 - LangSmith tracing: DISABLED
 
-The real GeminiJudgeAdapter DOES NOT exist in this codebase yet.
-It will be implemented in a future slice with explicit Gate authorization.
+The real GeminiJudgeAdapter (Slice 4) exists in:
+  src/raglab/infrastructure/gemini/gemini_judge_adapter.py
+
+It MUST NOT be instantiated by Antigravity — only by the human operator
+in an isolated terminal with GEMINI_API_KEY exported.
 """
 
 from __future__ import annotations
@@ -34,12 +37,13 @@ class FakeJudgeAdapter:
 
     Conforms to EvaluationPort (structural typing via Protocol).
 
-    Scoring logic (deterministic, illustrative only):
-    - faithfulness: 0.5 if answer tokens overlap with evidence tokens
-    - answer_relevance: overlap between query words and answer words
-    - context_precision: 0.0 (no real LLM grounding check)
+    RAG Triad scoring (deterministic, illustrative only):
+    - context_relevance:   query words found in evidence (shallow)
+    - groundedness:        answer tokens found in evidence
+    - answer_relevance:    answer directly references key query terms
+    - factual_correctness: rough token overlap with gold_answer (if provided)
 
-    All scores are placeholders — NOT real LLM evaluations.
+    All scores are FAKE PLACEHOLDERS — NOT real LLM evaluations.
     LangSmith: permanently disabled in this adapter.
     """
 
@@ -50,42 +54,90 @@ class FakeJudgeAdapter:
     def evaluate(
         self,
         query_id: str,
-        strategy: PipelineStrategy,
+        query: str,
         answer: GeneratedAnswer,
         evidence: Sequence[RetrievedEvidence],
+        *,
+        gold_answer: str | None = None,
     ) -> EvaluationResult:
-        """Return deterministic fake evaluation without any network call."""
+        """Return deterministic fake RAG Triad evaluation (no network call)."""
+        strategy = _infer_strategy_from_query_id(query_id)
         answer_lower = answer.text.lower()
-        query_words = set(answer_lower.split()[:20])  # use answer as proxy
-
-        # Faithfulness: fake overlap
-        evidence_refs = sum(
-            1
-            for ev in evidence
-            if any(w in answer_lower for w in ev.text.lower().split()[:10])
-        )
-        faithfulness = min(1.0, evidence_refs / max(1, len(evidence)))
-
-        # Answer relevance: fraction of answer words found in evidence
+        query_tokens = {t for t in query.lower().split() if len(t) > 3}
         all_evidence_text = " ".join(ev.text.lower() for ev in evidence)
-        relevance_hits = sum(
-            1 for w in query_words if len(w) > 3 and w in all_evidence_text
-        )
-        answer_relevance = min(
-            1.0, relevance_hits / max(1, len([w for w in query_words if len(w) > 3]))
-        )
+        evidence_tokens = {t for t in all_evidence_text.split() if len(t) > 3}
 
-        metrics = (
-            MetricResult(name="faithfulness", value=round(faithfulness, 4)),
-            MetricResult(name="answer_relevance", value=round(answer_relevance, 4)),
-            MetricResult(name="context_precision", value=0.0),  # placeholder
-            MetricResult(name="fake_judge", value=1.0),  # marks as fake
+        # Context Relevance: fraction of query tokens found in evidence
+        if query_tokens:
+            cr_hits = sum(1 for t in query_tokens if t in evidence_tokens)
+            context_relevance = min(1.0, cr_hits / len(query_tokens))
+        else:
+            context_relevance = 0.0
+
+        # Groundedness: fraction of answer tokens found in evidence
+        answer_tokens = {t for t in answer_lower.split() if len(t) > 3}
+        if answer_tokens:
+            g_hits = sum(1 for t in answer_tokens if t in evidence_tokens)
+            groundedness = min(1.0, g_hits / len(answer_tokens))
+        else:
+            groundedness = 0.0
+
+        # Answer Relevance: fraction of query tokens found in answer
+        if query_tokens:
+            ar_hits = sum(1 for t in query_tokens if t in answer_lower)
+            answer_relevance = min(1.0, ar_hits / len(query_tokens))
+        else:
+            answer_relevance = 0.0
+
+        metrics: list[MetricResult] = [
+            MetricResult(
+                name="context_relevance",
+                value=round(context_relevance, 4),
+                normalized=True,
+            ),
+            MetricResult(
+                name="groundedness",
+                value=round(groundedness, 4),
+                normalized=True,
+            ),
+            MetricResult(
+                name="answer_relevance",
+                value=round(answer_relevance, 4),
+                normalized=True,
+            ),
+            MetricResult(name="fake_judge", value=1.0),
             MetricResult(name="langsmith_disabled", value=1.0),
-            MetricResult(name="gemini_planned", value=1.0),
-        )
+            MetricResult(name="gemini_judge_planned", value=1.0),
+        ]
+
+        # Factual Correctness (only when gold_answer is provided)
+        if gold_answer is not None:
+            gold_tokens = {t for t in gold_answer.lower().split() if len(t) > 3}
+            if gold_tokens:
+                fc_hits = sum(1 for t in gold_tokens if t in answer_lower)
+                factual_correctness = min(1.0, fc_hits / len(gold_tokens))
+            else:
+                factual_correctness = 0.0
+            metrics.append(
+                MetricResult(
+                    name="factual_correctness",
+                    value=round(factual_correctness, 4),
+                    normalized=True,
+                )
+            )
 
         return EvaluationResult(
             query_id=query_id,
             strategy=strategy,
-            metrics=metrics,
+            metrics=tuple(metrics),
         )
+
+
+def _infer_strategy_from_query_id(query_id: str) -> PipelineStrategy:
+    """Infer pipeline strategy from query_id prefix for fake evaluation."""
+    try:
+        # e.g. "F0::q_dev_01" → "F0"
+        prefix = query_id.split("::")[0]
+        return PipelineStrategy(prefix)
+    except (ValueError, IndexError):
+        return PipelineStrategy.BASELINE
