@@ -45,7 +45,14 @@ select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "SIM"]
 [tool.ruff.lint.per-file-ignores]
 # S101: assert statements are idiomatic in pytest test files
 # E501: long assertion messages in tests are standard practice
-"tests/**" = ["S101", "E501"]
+# S603: subprocess calls in tests invoke our own known scripts (not untrusted input)
+"tests/**" = ["S101", "E501", "S603"]
+# S101: assert used for smoke validation in benchmark scripts (not production code)
+# E501: long help strings in argparse epilog exceed 88 chars by design
+# S603: subprocess.run invokes sys.executable (trusted)
+"benchmarks/**" = ["S101", "E501", "S603"]
+# run_slice3_benchmark.py: pre-existing file, E402/B905/F841 are known non-blocking
+"benchmarks/run_slice3_benchmark.py" = ["E402", "B905", "F841"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -56,3 +63,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+pythonpath = ["src", "."]
+# UnsupportedFieldAttributeWarning is emitted by llama-index (external dependency),
+# not by raglab project code. Registered as "always" to surface once per location
+# without failing tests. Do NOT change to "ignore" — this tracks upstream changes.
+filterwarnings = [
+    "always::UserWarning",
+]

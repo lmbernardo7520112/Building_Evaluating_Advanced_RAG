@@ -22,6 +22,9 @@ ls raglab-v7/.venv/bin/python
 export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
 sha256sum "$RAGLAB_PDF_PATH"
 # Esperado: 33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254
+
+# Verificar help (sem chave, sem PDF carregado, sem modelo)
+.venv/bin/python benchmarks/run_slice4_benchmark.py --help
 ```
 
 ---
@@ -60,10 +63,24 @@ echo "KEY_PRESENT"
 
 ---
 
+## Preflight: verificar CLI sem credenciais
+
+```bash
+cd raglab-v7/
+
+# Confirmar que --help funciona sem chave, PDF ou modelo
+.venv/bin/python benchmarks/run_slice4_benchmark.py --help
+
+# Confirmar que execução sem --mode falha fechada (exit != 0)
+.venv/bin/python benchmarks/run_slice4_benchmark.py && echo "FAIL: deveria ter falhado" || echo "OK: falhou como esperado"
+```
+
+---
+
 ## Gate de smoke test (obrigatório antes do benchmark completo)
 
-Execute este gate antes de autorizar as 7 estratégias × 8 perguntas.
-Ele valida geração + julgamento + sanitização com **1 pergunta e 1 estratégia**.
+Execute este gate antes de autorizar o benchmark completo.
+Ele valida geração + julgamento + sanitização com **exatamente 1 estratégia × 1 pergunta**.
 
 ```bash
 cd raglab-v7/
@@ -75,13 +92,15 @@ export HF_HUB_DISABLE_TELEMETRY=1
 export HF_HUB_DISABLE_IMPLICIT_TOKEN=1
 export LANGCHAIN_TRACING_V2=false
 export LANGSMITH_ENDPOINT=""
-export RAGLAB_SMOKE_ONLY=1      # instrui o benchmark a rodar somente 1 pergunta × 1 estratégia
 
-# Executar smoke test
-.venv/bin/python benchmarks/run_slice4_benchmark.py
+# Executar smoke test: 1 estratégia × 1 pergunta
+.venv/bin/python benchmarks/run_slice4_benchmark.py \
+    --mode smoke \
+    --smoke-strategy F0_baseline \
+    --smoke-question q_dev_01
 
 # Validar resultado sanitizado
-SMOKE_FILE=$(ls -t benchmarks/results/slice4_results_*.json | head -1)
+SMOKE_FILE=$(ls -t benchmarks/results/slice4_results_smoke_*.json | head -1)
 python3 -c "
 import json, sys
 d = json.load(open('$SMOKE_FILE'))
@@ -97,6 +116,9 @@ print('SMOKE_OK: schema válido, sem credenciais')
 
 ## Execução do benchmark completo
 
+> **Requer flag explícita `--confirm-full-benchmark`.**
+> Sem esse flag, o runner falha antes de ler a chave.
+
 ```bash
 cd raglab-v7/
 
@@ -107,10 +129,45 @@ export HF_HUB_DISABLE_TELEMETRY=1
 export HF_HUB_DISABLE_IMPLICIT_TOKEN=1
 export LANGCHAIN_TRACING_V2=false
 export LANGSMITH_ENDPOINT=""
-unset RAGLAB_SMOKE_ONLY   # garantir que o modo completo está ativo
 
 # Executar benchmark Slice 4 (7 estratégias × 8 perguntas)
-.venv/bin/python benchmarks/run_slice4_benchmark.py
+.venv/bin/python benchmarks/run_slice4_benchmark.py \
+    --mode full \
+    --confirm-full-benchmark
+```
+
+---
+
+## Retomada após interrupção
+
+```bash
+cd raglab-v7/
+
+# Listar checkpoints disponíveis
+ls checkpoints/slice4_gen_checkpoint_*.json
+
+# Inspecionar progresso de um checkpoint específico (selecione o RUN_ID correto)
+RUN_ID="raglab_v7_slice4_v1_20260731T1230UTC"    # ajuste ao RUN_ID real
+CKPT_FILE="checkpoints/slice4_gen_checkpoint_${RUN_ID}.json"
+
+python3 - <<'EOF'
+import json, os, sys
+ckpt = os.environ.get("CKPT_FILE", "")
+if not ckpt or not os.path.exists(ckpt):
+    print("CKPT_FILE não encontrado — defina RUN_ID corretamente")
+    sys.exit(1)
+d = json.load(open(ckpt))
+completed = d.get("completed", {})
+print(f"Run ID:    {d.get('run_id')}")
+print(f"Completed: {len(completed)} pares")
+for k in sorted(completed)[:10]:
+    print(f"  {k}")
+EOF
+
+# Re-executar com --mode resume + RUN_ID explícito
+.venv/bin/python benchmarks/run_slice4_benchmark.py \
+    --mode resume \
+    --run-id "$RUN_ID"
 ```
 
 ---
@@ -162,7 +219,6 @@ git diff --check
 git diff --cached
 
 # 9. CONFIRMAÇÃO HUMANA: revisar o diff acima antes de prosseguir
-# Somente execute o próximo bloco após confirmação visual do operador.
 ```
 
 ### Commit dos resultados (somente resultados sanitizados — sem checkpoints)
@@ -183,38 +239,6 @@ git commit -m "test(slice4): record RAG Triad benchmark results"
 
 ---
 
-## Retomada após interrupção (idempotente)
-
-O benchmark usa checkpoint em `checkpoints/slice4_gen_checkpoint_<RUN_ID>.json`.
-
-```bash
-# Listar checkpoints disponíveis
-ls checkpoints/slice4_gen_checkpoint_*.json
-
-# Inspecionar progresso de um checkpoint específico (selecione pelo RUN_ID)
-RUN_ID="raglab_v7_slice4_v1_20260731T1230UTC"    # ajuste ao RUN_ID real
-CKPT_FILE="checkpoints/slice4_gen_checkpoint_${RUN_ID}.json"
-
-python3 - <<'EOF'
-import json, os, sys
-ckpt = os.environ.get("CKPT_FILE", "")
-if not ckpt or not os.path.exists(ckpt):
-    print("CKPT_FILE não encontrado — defina RUN_ID corretamente")
-    sys.exit(1)
-d = json.load(open(ckpt))
-completed = d.get("completed", {})
-print(f"Run ID:    {d.get('run_id')}")
-print(f"Completed: {len(completed)} pares")
-for k in sorted(completed)[:10]:
-    print(f"  {k}")
-EOF
-
-# Simplesmente re-executar — pares já completos serão pulados automaticamente
-.venv/bin/python benchmarks/run_slice4_benchmark.py
-```
-
----
-
 ## Verificação de holdout
 
 ```bash
@@ -230,12 +254,15 @@ grep -rl "q_holdout" benchmarks/results/ 2>/dev/null \
 
 | Erro | Ação |
 |---|---|
+| `--mode` ausente → exit nonzero | Correto — runner falha fechado; use `--mode smoke\|full\|resume` |
 | `GEMINI_API_KEY not found` | Confirmar que `systemd-creds decrypt` foi executado e KEY_PRESENT foi exibido |
 | `PDF SHA-256 mismatch` | Verificar `RAGLAB_PDF_PATH` aponta para o arquivo correto |
-| `RetryExhaustedError` | Aguardar 1–2 minutos (quota de RPM) e re-executar; o checkpoint garante retomada |
+| `RetryExhaustedError` | Aguardar 1–2 minutos (quota de RPM) e re-executar com `--mode resume --run-id ...` |
 | `NonRetryableError 403` | Verificar permissões da chave no console do projeto Gemini |
 | `NonRetryableError 400` | Verificar `model_id` correto (`gemini-3.1-flash-lite`) |
-| `KEY_MISSING` | Verifique se o `credstore.encrypted` está no caminho correto e `sudo` disponível |
+| `KEY_MISSING` | Verificar se o `credstore.encrypted` está no caminho correto e `sudo` disponível |
+| `Full benchmark requires --confirm-full-benchmark` | Adicionar a flag ao comando de full run |
+| `No checkpoint found for run_id=...` | Verificar `--run-id` corresponde exatamente ao arquivo em `checkpoints/` |
 
 ---
 
@@ -255,7 +282,7 @@ grep -rl "q_holdout" benchmarks/results/ 2>/dev/null \
 
 O `QuotaManager` enforça RPM e TPD automaticamente **antes** de cada chamada (pré-emptivo).
 O `RetryPolicy` aplica exponential backoff com jitter em caso de 429 recebido (reativo).
-Em caso de `RetryExhaustedError`, aguarde a janela de quota e re-execute — o checkpoint garante idempotência.
+Em caso de `RetryExhaustedError`, aguarde a janela de quota e re-execute com `--mode resume --run-id ...`.
 
 ---
 
