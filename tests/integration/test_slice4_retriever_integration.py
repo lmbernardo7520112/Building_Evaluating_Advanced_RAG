@@ -13,9 +13,10 @@ no Gemini, no FastEmbed model, no credentials.
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -605,3 +606,230 @@ class TestProvisionerCLI:
             capture_output=True, text=True,
         )
         assert "--execute" in (result.stdout + result.stderr)
+
+
+# ─── 12. LLAMAINDEX EMBEDDING BRIDGE ─────────────────────────────
+
+class TestLlamaIndexEmbeddingBridge:
+    def test_bridge_text_embedding_delegation(self, fake_embedding):
+        from raglab.infrastructure.retrieval.llamaindex_adapter import (
+            LlamaIndexEmbeddingBridge,
+        )
+
+        bridge = LlamaIndexEmbeddingBridge(fake_embedding)
+        vec = bridge._get_text_embedding("teste de texto")
+        assert isinstance(vec, list)
+        assert len(vec) == fake_embedding.dimension
+
+    def test_bridge_query_embedding_delegation(self, fake_embedding):
+        from raglab.infrastructure.retrieval.llamaindex_adapter import (
+            LlamaIndexEmbeddingBridge,
+        )
+
+        bridge = LlamaIndexEmbeddingBridge(fake_embedding)
+        vec = bridge._get_query_embedding("teste de busca")
+        assert isinstance(vec, list)
+        assert len(vec) == fake_embedding.dimension
+
+    def test_bridge_preserves_dimension(self, fake_embedding):
+        from raglab.infrastructure.retrieval.llamaindex_adapter import (
+            LlamaIndexEmbeddingBridge,
+        )
+
+        bridge = LlamaIndexEmbeddingBridge(fake_embedding)
+        assert bridge.dimension == fake_embedding.dimension
+
+    def test_bridge_floats_are_finite(self, fake_embedding):
+        import math
+
+        from raglab.infrastructure.retrieval.llamaindex_adapter import (
+            LlamaIndexEmbeddingBridge,
+        )
+
+        bridge = LlamaIndexEmbeddingBridge(fake_embedding)
+        vec = bridge._get_text_embedding("exemplo para verificar finitude")
+        assert all(math.isfinite(x) for x in vec)
+
+    @pytest.mark.asyncio
+    async def test_bridge_async_methods(self, fake_embedding):
+        from raglab.infrastructure.retrieval.llamaindex_adapter import (
+            LlamaIndexEmbeddingBridge,
+        )
+
+        bridge = LlamaIndexEmbeddingBridge(fake_embedding)
+        vec_q = await bridge._aget_query_embedding("query async")
+        vec_t = await bridge._aget_text_embedding("text async")
+        assert len(vec_q) == fake_embedding.dimension
+        assert len(vec_t) == fake_embedding.dimension
+
+
+# ─── 13. EMBEDDING PARITY & INJECTED EMBEDDINGS ───────────────────
+
+class TestEmbeddingParity:
+    def test_h0_uses_injected_embedding(self, fake_pages, fake_embedding):
+        import benchmarks.run_slice4_benchmark as runner
+
+        retrievers = runner.build_retrievers(
+            pages=fake_pages,
+            embed_model=fake_embedding,
+            strategies=("H0_hierarchical_leaf",),
+        )
+        root = runner.extract_underlying_embedding_adapter(
+            retrievers["H0_hierarchical_leaf"]
+        )
+        assert root is fake_embedding
+
+    def test_h1_uses_injected_embedding(self, fake_pages, fake_embedding):
+        import benchmarks.run_slice4_benchmark as runner
+
+        retrievers = runner.build_retrievers(
+            pages=fake_pages,
+            embed_model=fake_embedding,
+            strategies=("H1_auto_merging",),
+        )
+        root = runner.extract_underlying_embedding_adapter(
+            retrievers["H1_auto_merging"]
+        )
+        assert root is fake_embedding
+
+    def test_h2_uses_injected_embedding_in_retrieval_and_rerank(
+        self, fake_pages, fake_embedding
+    ):
+        import benchmarks.run_slice4_benchmark as runner
+
+        retrievers = runner.build_retrievers(
+            pages=fake_pages,
+            embed_model=fake_embedding,
+            strategies=("H2_auto_merging_rerank",),
+        )
+        h2 = retrievers["H2_auto_merging_rerank"]
+        root_base = runner.extract_underlying_embedding_adapter(h2._base)  # noqa: SLF001
+        root_reranker = runner.extract_underlying_embedding_adapter(
+            h2._reranker  # noqa: SLF001
+        )
+        assert root_base is fake_embedding
+        assert root_reranker is fake_embedding
+
+    def test_no_llamaindex_deterministic_embedding_in_runner_source(self):
+        runner_src = (_REPO_ROOT / "benchmarks" / "run_slice4_benchmark.py").read_text(
+            encoding="utf-8"
+        )
+        assert "LlamaIndexDeterministicEmbedding" not in runner_src, (
+            "Runner source must not reference LlamaIndexDeterministicEmbedding in scientific runtime"
+        )
+
+    def test_all_seven_fingerprints_equal(self, fake_pages, fake_embedding):
+        import benchmarks.run_slice4_benchmark as runner
+
+        retrievers = runner.build_retrievers(
+            pages=fake_pages, embed_model=fake_embedding
+        )
+        fps = runner.verify_embedding_parity(retrievers)
+        assert len(fps) == 7
+        ref_fp = fps["F0_baseline"]
+        for label, fp in fps.items():
+            assert fp == ref_fp, f"Strategy {label} fingerprint {fp} != {ref_fp}"
+
+    def test_divergent_fingerprint_aborts_before_generator(
+        self, fake_pages, fake_embedding, tmp_path, monkeypatch
+    ):
+        import logging
+
+        import benchmarks.run_slice4_benchmark as runner
+
+        retrievers = runner.build_retrievers(
+            pages=fake_pages, embed_model=fake_embedding
+        )
+        h1_root = runner.extract_underlying_embedding_adapter(
+            retrievers["H1_auto_merging"]
+        )
+        monkeypatch.setattr(h1_root, "model_id", "divergent-model-xyz", raising=False)
+
+        monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: fake_pages)
+        monkeypatch.setattr(
+            runner, "load_embedding_model", lambda logger, **kw: fake_embedding
+        )
+        monkeypatch.setattr(
+            runner,
+            "build_retrievers",
+            lambda pages, embed, strategies=None: retrievers,
+        )
+
+        gen_mock = MagicMock()
+        monkeypatch.setitem(
+            sys.modules,
+            "raglab.infrastructure.gemini.gemini_generator_adapter",
+            gen_mock,
+        )
+
+        with pytest.raises(ValueError, match="EMBEDDING_PARITY_FAILED"):
+            runner.run_benchmark(
+                run_id="test_parity_failure",
+                questions=[runner.ACTIVE_QUESTIONS[0]],
+                strategy_labels=runner.VALID_STRATEGIES,
+                logger=logging.getLogger("t"),
+                pdf_path=tmp_path / "fake.pdf",
+            )
+        assert not gen_mock.GeminiGeneratorAdapter.called
+
+    def test_preflight_retrievers_emits_parity_ok(self, capsys):
+        import logging
+
+        import benchmarks.run_slice4_benchmark as runner
+
+        logger = logging.getLogger("test_preflight_parity")
+        args = runner.build_parser().parse_args(["--mode", "preflight-retrievers"])
+        runner.cmd_preflight_retrievers(args, logger)
+        captured = capsys.readouterr()
+        assert (
+            "EMBEDDING_PARITY_OK" in captured.out
+            or "EMBEDDING_PARITY_OK" in captured.err
+        )
+
+
+# ─── 14. OFFLINE ATTESTATION CLI ─────────────────────────────────
+
+class TestOfflineAttestationCLI:
+    def test_attest_existing_offline_fake_cache(self, tmp_path):
+        """Test --attest-existing on a fake cache directory without network or Gemini."""
+        import os
+        import subprocess
+
+        fake_cache = tmp_path / "fake_model_cache"
+        fake_cache.mkdir(parents=True, exist_ok=True)
+        (fake_cache / "model.onnx").write_bytes(
+            b"dummy onnx weights content for testing"
+        )
+
+        fake_manifest = tmp_path / "test_provision_manifest.json"
+
+        # Mock FastEmbedEmbeddingAdapter._embed so fastembed/onnxruntime aren't called on dummy bytes
+        from raglab.infrastructure.embeddings.fastembed_adapter import (
+            FastEmbedEmbeddingAdapter,
+        )
+
+        def _fake_embed_impl(self, text: str) -> list[float]:
+            return [0.1] * 384
+
+        env = {
+            **os.environ,
+            "RAGLAB_MODEL_CACHE": str(fake_cache),
+            "RAGLAB_MANIFEST_PATH": str(fake_manifest),
+        }
+        env.pop("GEMINI_API_KEY", None)
+        env.pop("GOOGLE_API_KEY", None)
+
+        provisioner = str(_REPO_ROOT / "scripts" / "provision_embedding_model.py")
+        with patch.object(FastEmbedEmbeddingAdapter, "_embed", _fake_embed_impl):
+            result = subprocess.run(
+                [sys.executable, provisioner, "--attest-existing"],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            assert result.returncode == 0
+            assert "ATTEST_OK" in result.stdout
+            assert fake_manifest.exists()
+            data = json.loads(fake_manifest.read_text(encoding="utf-8"))
+            assert data["model_revision_status"] == "ATTESTED_OFFLINE"
+            assert "cache_tree_sha256" in data

@@ -52,6 +52,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 # ─── Path setup ───────────────────────────────────────────────────
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -419,16 +420,23 @@ def build_retrievers(
         )
 
     def _build_h0() -> object:
+        from llama_index.core.embeddings import BaseEmbedding
+
         from raglab.infrastructure.retrieval.auto_merging_adapter import (
             HierarchicalRetrievalAdapter,
         )
         from raglab.infrastructure.retrieval.llamaindex_adapter import (
-            LlamaIndexDeterministicEmbedding,
+            LlamaIndexEmbeddingBridge,
         )
 
-        # HierarchicalRetrievalAdapter requires a LlamaIndex BaseEmbedding
+        bridge = (
+            embed_model
+            if hasattr(embed_model, "_get_query_embedding")
+            and isinstance(embed_model, BaseEmbedding)
+            else LlamaIndexEmbeddingBridge(embed_model)
+        )
         adapter = HierarchicalRetrievalAdapter(
-            embed_model=LlamaIndexDeterministicEmbedding(),
+            embed_model=bridge,
             chunk_sizes=[1024, 512, 256],
             merge_threshold=MERGE_THRESHOLD,
             auto_merge=False,
@@ -438,15 +446,23 @@ def build_retrievers(
         return adapter
 
     def _build_h1() -> object:
+        from llama_index.core.embeddings import BaseEmbedding
+
         from raglab.infrastructure.retrieval.auto_merging_adapter import (
             HierarchicalRetrievalAdapter,
         )
         from raglab.infrastructure.retrieval.llamaindex_adapter import (
-            LlamaIndexDeterministicEmbedding,
+            LlamaIndexEmbeddingBridge,
         )
 
+        bridge = (
+            embed_model
+            if hasattr(embed_model, "_get_query_embedding")
+            and isinstance(embed_model, BaseEmbedding)
+            else LlamaIndexEmbeddingBridge(embed_model)
+        )
         adapter = HierarchicalRetrievalAdapter(
-            embed_model=LlamaIndexDeterministicEmbedding(),
+            embed_model=bridge,
             chunk_sizes=[1024, 512, 256],
             merge_threshold=MERGE_THRESHOLD,
             auto_merge=True,
@@ -456,18 +472,26 @@ def build_retrievers(
         return adapter
 
     def _build_h2() -> object:
+        from llama_index.core.embeddings import BaseEmbedding
+
         from raglab.infrastructure.retrieval.auto_merging_adapter import (
             HierarchicalRetrievalAdapter,
         )
         from raglab.infrastructure.retrieval.llamaindex_adapter import (
-            LlamaIndexDeterministicEmbedding,
+            LlamaIndexEmbeddingBridge,
         )
         from raglab.infrastructure.retrieval.reranker_adapter import (
             LocalRerankerAdapter,
         )
 
+        bridge = (
+            embed_model
+            if hasattr(embed_model, "_get_query_embedding")
+            and isinstance(embed_model, BaseEmbedding)
+            else LlamaIndexEmbeddingBridge(embed_model)
+        )
         base = HierarchicalRetrievalAdapter(
-            embed_model=LlamaIndexDeterministicEmbedding(),
+            embed_model=bridge,
             chunk_sizes=[1024, 512, 256],
             merge_threshold=MERGE_THRESHOLD,
             auto_merge=True,
@@ -476,8 +500,10 @@ def build_retrievers(
         base.index_pages(pages)
         reranker = LocalRerankerAdapter(embedding_adapter=embed_model)
         return _RerankedRetriever(
-            base_retriever=base, reranker=reranker,
-            candidate_k=CANDIDATE_K, top_n=TOP_K,
+            base_retriever=base,
+            reranker=reranker,
+            candidate_k=CANDIDATE_K,
+            top_n=TOP_K,
         )
 
     # ── registry ──────────────────────────────────────────────────
@@ -512,6 +538,127 @@ def build_retrievers(
     return all_retrievers
 
 
+# ─── Embedding Parity Verification ───────────────────────────────
+
+def extract_underlying_embedding_adapter(retriever: object) -> object:
+    """Unpack composite retrievers and bridges to obtain the root embedding adapter."""
+    obj = retriever
+    if hasattr(obj, "_base"):
+        obj = obj._base
+    if hasattr(obj, "embedding_adapter"):
+        obj = obj.embedding_adapter
+    elif hasattr(obj, "embedding"):
+        obj = obj.embedding
+    elif hasattr(obj, "embed_model"):
+        obj = obj.embed_model
+
+    while hasattr(obj, "_adapter") or hasattr(obj, "underlying_adapter"):
+        if hasattr(obj, "underlying_adapter"):
+            obj = obj.underlying_adapter
+        elif hasattr(obj, "_adapter"):
+            obj = obj._adapter
+
+    return obj
+
+
+def get_embedding_fingerprint(adapter_or_retriever: object) -> dict[str, Any]:
+    """Extract standard 7-field embedding fingerprint dict from a retriever or adapter."""
+    root = extract_underlying_embedding_adapter(adapter_or_retriever)
+
+    model_id = str(
+        getattr(root, "model_id", getattr(root, "model_name", "unknown"))
+    )
+    dim = int(
+        getattr(
+            root,
+            "dimension",
+            getattr(root, "_dim", getattr(root, "_embedding_dim", 0)),
+        )
+    )
+    pooling = str(getattr(root, "pooling", "mean"))
+    norm = bool(getattr(root, "normalization", True))
+
+    fastembed_ver = getattr(root, "fastembed_version", None)
+    if not fastembed_ver:
+        try:
+            import fastembed
+            fastembed_ver = fastembed.__version__
+        except ImportError:
+            fastembed_ver = "unavailable"
+
+    onnxruntime_ver = getattr(root, "onnxruntime_version", None)
+    if not onnxruntime_ver:
+        try:
+            import onnxruntime
+            onnxruntime_ver = onnxruntime.__version__
+        except ImportError:
+            onnxruntime_ver = "unavailable"
+
+    cache_sha = getattr(root, "cache_tree_sha256", None)
+    if not cache_sha:
+        manifest_path = _REPO_ROOT / "benchmarks" / "embedding_model_manifest.json"
+        if manifest_path.exists():
+            try:
+                m_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+                cache_sha = m_data.get("cache_tree_sha256", "UNRESOLVED")
+            except Exception:
+                cache_sha = "UNRESOLVED"
+        else:
+            cache_sha = "UNRESOLVED"
+
+    return {
+        "embedding_model_id": str(model_id),
+        "fastembed_version": str(fastembed_ver),
+        "onnxruntime_version": str(onnxruntime_ver),
+        "pooling": str(pooling),
+        "dimension": int(dim),
+        "normalization": bool(norm),
+        "cache_tree_sha256": str(cache_sha),
+    }
+
+
+def verify_embedding_parity(
+    retrievers: dict[str, object],
+    logger: logging.Logger | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Verify that all strategy retrievers share identical embedding fingerprints.
+
+    Returns dict mapping strategy_label -> fingerprint dict.
+    Raises ValueError if any strategy diverges.
+    """
+    fingerprints: dict[str, dict[str, Any]] = {}
+    for label, retriever in retrievers.items():
+        fingerprints[label] = get_embedding_fingerprint(retriever)
+
+    if not fingerprints:
+        raise ValueError("No retrievers provided for embedding parity check")
+
+    labels = list(fingerprints.keys())
+    ref_label = labels[0]
+    ref_fp = fingerprints[ref_label]
+
+    divergent = [lbl for lbl in labels[1:] if fingerprints[lbl] != ref_fp]
+
+    if divergent:
+        msg = (
+            f"EMBEDDING_PARITY_FAILED: Strategy {divergent} diverges from {ref_label}. "
+            f"Fingerprints: {json.dumps(fingerprints, indent=2)}"
+        )
+        if logger:
+            logger.error(msg)
+        print(f"EMBEDDING_PARITY_FAILED: {divergent}", file=sys.stderr)
+        raise ValueError(msg)
+
+    msg_ok = (
+        f"EMBEDDING_PARITY_OK: All {len(fingerprints)} strategies share identical "
+        f"embedding fingerprint: {ref_fp['embedding_model_id']} (dim={ref_fp['dimension']})"
+    )
+    if logger:
+        logger.info(msg_ok)
+    print("EMBEDDING_PARITY_OK")
+
+    return fingerprints
+
 
 # ─── Core runner (shared by smoke and full) ───────────────────────
 
@@ -541,6 +688,7 @@ def run_benchmark(
     pages = load_pdf_pages(pdf_path, logger)
     embed_model = load_embedding_model(logger)
     retrievers = build_retrievers(pages, embed_model, strategies=strategy_labels)
+    embedding_fps = verify_embedding_parity(retrievers, logger)
 
     shared_quota = QuotaManager()
     shared_retry = RetryPolicy()
@@ -646,6 +794,7 @@ def run_benchmark(
         "schema": "slice4_v1",
         "gemini_model": GEMINI_MODEL,
         "embedding_model": EMBEDDING_MODEL,
+        "embedding_fingerprints": embedding_fps,
         "reranker_class": "bi_encoder_rescoring",
         "run_time_ms": run_times,
         "quota_final_stats": shared_quota.stats,
@@ -924,12 +1073,19 @@ def cmd_preflight_retrievers(
             logger.error("  FAIL: %s", e)
         sys.exit(1)
 
-    # Verify labels are complete and unique
-    assert set(passed) == set(VALID_STRATEGIES), (
-        f"Incomplete: {set(passed)} != {set(VALID_STRATEGIES)}"
-    )
+    # Verify parity across all 7 builders together
+    try:
+        all_built = build_retrievers(
+            pages=fake_pages,
+            embed_model=fake_embed,
+            strategies=VALID_STRATEGIES,
+        )
+        verify_embedding_parity(all_built, logger)
+    except Exception as exc:
+        logger.error("PREFLIGHT-RETRIEVERS: Embedding parity check failed — %s", exc)
+        sys.exit(1)
 
-    logger.info("PREFLIGHT-RETRIEVERS: ALL 7 BUILDERS VALIDATED")
+    logger.info("PREFLIGHT-RETRIEVERS: ALL 7 BUILDERS & PARITY VALIDATED")
     logger.info("RETRIEVER_BUILDERS_OK")
 
 

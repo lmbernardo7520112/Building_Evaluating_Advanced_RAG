@@ -17,6 +17,7 @@ import hashlib
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from llama_index.core import VectorStoreIndex
 from llama_index.core.embeddings import BaseEmbedding
@@ -59,6 +60,74 @@ class LlamaIndexDeterministicEmbedding(BaseEmbedding):
         if mag == 0:
             return [0.0] * self._dim
         return [x / mag for x in raw]
+
+
+class LlamaIndexEmbeddingBridge(BaseEmbedding):
+    """Canonical bridge delegating BaseEmbedding calls to an underlying adapter.
+
+    Guarantees 100% embedding parity between LlamaIndex-based hierarchical retrievers
+    (H0, H1, H2) and non-hierarchical retrievers (F0, S0, W0, W1) by using the exact
+    same underlying embedding model instance.
+    """
+
+    _underlying: Any = PrivateAttr()
+
+    def __init__(self, underlying: Any) -> None:
+        model_name = str(
+            getattr(
+                underlying,
+                "model_id",
+                getattr(underlying, "model_name", "unknown-embedding-model"),
+            )
+        )
+        super().__init__(model_name=model_name)
+        self._underlying = underlying
+
+    @property
+    def underlying_adapter(self) -> Any:
+        return self._underlying
+
+    @property
+    def dimension(self) -> int:
+        return int(
+            getattr(
+                self._underlying,
+                "dimension",
+                getattr(
+                    self._underlying,
+                    "_dim",
+                    getattr(self._underlying, "_embedding_dim", 384),
+                ),
+            )
+        )
+
+    def _get_query_embedding(self, query: str) -> list[float]:
+        if hasattr(self._underlying, "_get_query_embedding"):
+            vec = self._underlying._get_query_embedding(query)
+        elif hasattr(self._underlying, "_embed"):
+            vec = self._underlying._embed(query)
+        elif hasattr(self._underlying, "embed"):
+            vec = self._underlying.embed(query)
+        else:
+            raise AttributeError("Underlying adapter has no query embedding method")
+        return [float(x) for x in vec]
+
+    def _get_text_embedding(self, text: str) -> list[float]:
+        if hasattr(self._underlying, "_get_text_embedding"):
+            vec = self._underlying._get_text_embedding(text)
+        elif hasattr(self._underlying, "_embed"):
+            vec = self._underlying._embed(text)
+        elif hasattr(self._underlying, "embed"):
+            vec = self._underlying.embed(text)
+        else:
+            raise AttributeError("Underlying adapter has no text embedding method")
+        return [float(x) for x in vec]
+
+    async def _aget_query_embedding(self, query: str) -> list[float]:
+        return self._get_query_embedding(query)
+
+    async def _aget_text_embedding(self, text: str) -> list[float]:
+        return self._get_text_embedding(text)
 
 
 @dataclass
