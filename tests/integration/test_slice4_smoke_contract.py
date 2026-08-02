@@ -32,10 +32,12 @@ No network, no Gemini, no HuggingFace.
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -43,12 +45,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 sys.path.insert(0, str(_REPO_ROOT / "benchmarks"))
 
+runner: Any = importlib.import_module("run_slice4_benchmark")
+
 
 # ─── Helpers ──────────────────────────────────────────────────────
 
-def _make_manifest(tmp_path: Path, **overrides: object) -> Path:
+def _make_manifest(tmp_path: Path, **overrides: Any) -> Path:
     """Create a valid provision manifest file."""
-    data = {
+    data: dict[str, Any] = {
         "model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         "fastembed_version": "0.8.0",
         "onnxruntime_version": "1.28.0",
@@ -71,13 +75,13 @@ def _make_smoke_result(
     qid: str = "q_dev_01",
     abstained: bool = False,
     is_abstention_question: bool = False,
-    metrics: list[dict] | None = None,
+    metrics: list[dict[str, Any]] | None = None,
     fingerprint_sha: str = "b" * 64,
     manifest_fingerprint: str = "b" * 64,
-    evaluation: dict | None = None,
-    retrieval_evidence: dict | None = None,
+    evaluation: dict[str, Any] | None = None,
+    retrieval_evidence: dict[str, Any] | None = None,
     citation_pages: list[int] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Build a minimal smoke result dict for validation tests."""
     if metrics is None:
         if abstained:
@@ -184,13 +188,11 @@ def _make_smoke_result(
 
 class TestManifestValidation:
     def test_manifest_absent_raises(self, tmp_path):
-        import benchmarks.run_slice4_benchmark as runner
 
         with pytest.raises(ValueError, match="EMBEDDING_ATTESTATION_FAILED"):
             runner.load_provision_manifest(tmp_path / "nonexistent.json")
 
     def test_manifest_invalid_json_raises(self, tmp_path):
-        import benchmarks.run_slice4_benchmark as runner
 
         bad = tmp_path / "bad.json"
         bad.write_text("{invalid json!", encoding="utf-8")
@@ -198,7 +200,6 @@ class TestManifestValidation:
             runner.load_provision_manifest(bad)
 
     def test_model_incompatible_raises(self, tmp_path):
-        import benchmarks.run_slice4_benchmark as runner
 
         path = _make_manifest(
             tmp_path, model_id="wrong-model/something-else"
@@ -207,14 +208,12 @@ class TestManifestValidation:
             runner.load_provision_manifest(path)
 
     def test_hash_unresolved_raises(self, tmp_path):
-        import benchmarks.run_slice4_benchmark as runner
 
         path = _make_manifest(tmp_path, cache_tree_sha256="UNRESOLVED")
         with pytest.raises(ValueError, match="EMBEDDING_ATTESTATION_FAILED"):
             runner.load_provision_manifest(path)
 
     def test_valid_manifest_loads(self, tmp_path):
-        import benchmarks.run_slice4_benchmark as runner
 
         path = _make_manifest(tmp_path)
         data = runner.load_provision_manifest(path)
@@ -226,7 +225,6 @@ class TestManifestValidation:
 
 class TestRetrievalEvidence:
     def test_evidence_serialized_correctly(self):
-        import benchmarks.run_slice4_benchmark as runner
         from raglab.domain.entities import RetrievedEvidence
         from raglab.domain.value_objects import ChunkId
 
@@ -247,7 +245,6 @@ class TestRetrievalEvidence:
         assert len(result["candidates"][0]["text_sha256"]) == 64
 
     def test_relevant_page_found(self):
-        import benchmarks.run_slice4_benchmark as runner
         from raglab.domain.entities import RetrievedEvidence
         from raglab.domain.value_objects import ChunkId
 
@@ -260,7 +257,6 @@ class TestRetrievalEvidence:
         assert result["retrieval_hit"] is True
 
     def test_relevant_page_absent(self):
-        import benchmarks.run_slice4_benchmark as runner
         from raglab.domain.entities import RetrievedEvidence
         from raglab.domain.value_objects import ChunkId
 
@@ -274,7 +270,6 @@ class TestRetrievalEvidence:
 
     def test_score_absent_different_from_zero(self):
         """None retrieval_score must be distinguishable from 0."""
-        import benchmarks.run_slice4_benchmark as runner
         from raglab.domain.entities import RetrievedEvidence
         from raglab.domain.value_objects import ChunkId
 
@@ -291,7 +286,6 @@ class TestRetrievalEvidence:
 
 class TestTypedMetrics:
     def test_evaluation_null_rejected_by_smoke_validator(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result(evaluation=None)
         # Set evaluation to None in the result
@@ -304,9 +298,8 @@ class TestTypedMetrics:
         assert verdict == "SMOKE_FAILED"
 
     def test_metric_failed_rejected(self):
-        import benchmarks.run_slice4_benchmark as runner
 
-        metrics = [
+        metrics: list[dict[str, Any]] = [
             {"name": "context_relevance", "status": "FAILED",
              "score": None, "reason": "error", "evaluator_model": "",
              "attempts": 1},
@@ -325,9 +318,8 @@ class TestTypedMetrics:
         assert verdict == "SMOKE_FAILED"
 
     def test_metric_not_executed_rejected(self):
-        import benchmarks.run_slice4_benchmark as runner
 
-        metrics = [
+        metrics: list[dict[str, Any]] = [
             {"name": "context_relevance", "status": "NOT_EXECUTED",
              "score": None, "reason": "", "evaluator_model": "",
              "attempts": 0},
@@ -346,7 +338,6 @@ class TestTypedMetrics:
         assert verdict == "SMOKE_FAILED"
 
     def test_metric_out_of_range_raises(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         with pytest.raises(ValueError, match="out of"):
             runner.make_metric_entry(
@@ -354,13 +345,11 @@ class TestTypedMetrics:
             )
 
     def test_metric_computed_requires_score(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         with pytest.raises(ValueError, match="COMPUTED requires a score"):
             runner.make_metric_entry("test", "COMPUTED", score=None)
 
     def test_metric_non_computed_rejects_score(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         with pytest.raises(ValueError, match="must have score=None"):
             runner.make_metric_entry("test", "NOT_APPLICABLE", score=0.5)
@@ -370,7 +359,6 @@ class TestTypedMetrics:
 
 class TestAbstentionMetrics:
     def test_correct_abstention_score_1(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         result = runner.compute_abstention_correctness(
             is_abstention_question=True, abstained=True,
@@ -380,7 +368,6 @@ class TestAbstentionMetrics:
         assert result["reason"] == "CORRECT_ABSTENTION"
 
     def test_incorrect_abstention_on_answerable(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         result = runner.compute_abstention_correctness(
             is_abstention_question=False, abstained=True,
@@ -390,7 +377,6 @@ class TestAbstentionMetrics:
         assert "INCORRECT_ABSTENTION" in result["reason"]
 
     def test_failed_to_abstain_on_unanswerable(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         result = runner.compute_abstention_correctness(
             is_abstention_question=True, abstained=False,
@@ -399,7 +385,6 @@ class TestAbstentionMetrics:
         assert result["score"] == 0.0
 
     def test_groundedness_na_on_abstain_in_smoke(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result(
             strategy="F0_baseline",
@@ -425,7 +410,6 @@ class TestAbstentionMetrics:
 
 class TestSmokePositive:
     def test_smoke_positive_valid(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result()
         logger = logging.getLogger("test")
@@ -435,7 +419,6 @@ class TestSmokePositive:
         assert verdict == "SMOKE_POSITIVE_OK"
 
     def test_smoke_positive_with_abstain_fails(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result(abstained=True)
         logger = logging.getLogger("test")
@@ -449,7 +432,6 @@ class TestSmokePositive:
 
 class TestSmokeAbstention:
     def test_smoke_abstention_correct(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result(
             strategy="F0_baseline",
@@ -475,7 +457,6 @@ class TestSmokeAbstention:
 
 class TestHoldoutGuard:
     def test_holdout_access_fails(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result(qid="q_holdout_01")
         logger = logging.getLogger("test")
@@ -489,7 +470,6 @@ class TestHoldoutGuard:
 
 class TestCitationValidation:
     def test_citation_without_evidence_fails(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result(
             citation_pages=[99],  # page 99 not in evidence
@@ -519,7 +499,6 @@ class TestCitationValidation:
 
 class TestCheckpointSchema:
     def test_wrong_eval_schema_fails(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result()
         data["results"]["W0_sentence_window"][0]["evaluation"]["schema_version"] = "slice4_v1"
@@ -534,7 +513,6 @@ class TestCheckpointSchema:
 
 class TestNoOKAfterFailure:
     def test_no_smoke_ok_emitted_on_failure(self, capsys):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result()
         data["results"]["W0_sentence_window"][0]["evaluation"] = None
@@ -552,7 +530,6 @@ class TestNoOKAfterFailure:
 
 class TestNoSecrets:
     def test_secret_in_result_fails(self):
-        import benchmarks.run_slice4_benchmark as runner
 
         data = _make_smoke_result()
         # Inject a fake secret into the answer text
@@ -571,7 +548,6 @@ class TestNoSecrets:
 class TestFingerprintWithManifest:
     def test_fingerprint_uses_manifest_sha(self, tmp_path):
         """get_embedding_fingerprint must use manifest's cache_tree_sha256."""
-        import benchmarks.run_slice4_benchmark as runner
         from raglab.infrastructure.retrieval.baseline_adapter import (
             DeterministicEmbedding,
         )
@@ -594,7 +570,6 @@ class TestFingerprintWithManifest:
 
     def test_fingerprint_without_manifest_still_works(self):
         """Without manifest, adapter attribute is used if present."""
-        import benchmarks.run_slice4_benchmark as runner
 
         class _FakeAdapterWithSha:
             model_id = "fake"

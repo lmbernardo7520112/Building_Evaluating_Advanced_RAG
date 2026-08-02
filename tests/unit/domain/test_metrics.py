@@ -25,6 +25,7 @@ class TestRecallAtK(unittest.TestCase):
             relevant_ids={"a", "b"},
             k=3,
         )
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 1.0)
         self.assertEqual(result.retrieved_relevant, 2)
         self.assertEqual(result.total_relevant, 2)
@@ -37,6 +38,7 @@ class TestRecallAtK(unittest.TestCase):
             relevant_ids={"a", "b"},
             k=2,
         )
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 0.5)  # only "a" in top-2
         self.assertEqual(result.retrieved_relevant, 1)
 
@@ -47,6 +49,7 @@ class TestRecallAtK(unittest.TestCase):
             relevant_ids={"a", "b"},
             k=3,
         )
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 0.0)
         self.assertEqual(result.retrieved_relevant, 0)
 
@@ -69,6 +72,7 @@ class TestRecallAtK(unittest.TestCase):
             k=3,
             empty_gt_policy="zero",
         )
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 0.0)
         self.assertFalse(result.skipped)
 
@@ -80,6 +84,7 @@ class TestRecallAtK(unittest.TestCase):
             k=3,
         )
         # "a" appears 3 times but is counted once → 1/2 = 0.5
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 0.5)
         self.assertEqual(result.retrieved_relevant, 1)
 
@@ -95,6 +100,7 @@ class TestRecallAtK(unittest.TestCase):
             relevant_ids={"a", "b"},
             k=3,
         )
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 0.5)
 
     def test_value_in_unit_interval(self) -> None:
@@ -104,6 +110,7 @@ class TestRecallAtK(unittest.TestCase):
             relevant_ids={"a", "b"},
             k=4,
         )
+        assert result.value is not None
         self.assertGreaterEqual(result.value, 0.0)
         self.assertLessEqual(result.value, 1.0)
 
@@ -114,6 +121,7 @@ class TestRecallAtK(unittest.TestCase):
             relevant_ids={"a", "b"},
             k=5,
         )
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 0.0)
 
     def test_unknown_policy_raises(self) -> None:
@@ -128,12 +136,14 @@ class TestRecallAtK(unittest.TestCase):
             relevant_ids={"a", "b"},
             k=100,
         )
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 0.5)
 
     def test_determinism(self) -> None:
         """Same inputs always produce same outputs."""
         for _ in range(10):
             r = compute_recall_at_k(["a", "b", "c"], {"a", "c"}, k=3)
+            assert r.value is not None
             self.assertAlmostEqual(r.value, 1.0)
 
 
@@ -182,23 +192,25 @@ class TestMRR(unittest.TestCase):
 
     def test_manual_computation(self) -> None:
         """Manual: RRs = [1.0, 0.5, 1/3] → MRR = (1 + 0.5 + 0.333)/3 ≈ 0.611."""
-        queries = [
+        queries: list[tuple[list[str], set[str]]] = [
             (["a", "b", "c"], {"a"}),      # RR = 1.0
             (["x", "a", "c"], {"a"}),      # RR = 0.5
             (["x", "y", "a"], {"a"}),      # RR = 1/3
         ]
         result = compute_mrr(queries)
         expected = (1.0 + 0.5 + 1.0 / 3.0) / 3.0
+        assert result.value is not None
         self.assertAlmostEqual(result.value, expected, places=6)
         self.assertEqual(result.num_queries, 3)
 
     def test_perfect_mrr(self) -> None:
         """All at rank 1 → MRR = 1.0."""
-        queries = [
+        queries: list[tuple[list[str], set[str]]] = [
             (["a"], {"a"}),
             (["b"], {"b"}),
         ]
         result = compute_mrr(queries)
+        assert result.value is not None
         self.assertAlmostEqual(result.value, 1.0)
 
     def test_empty_queries_list(self) -> None:
@@ -209,30 +221,32 @@ class TestMRR(unittest.TestCase):
 
     def test_skip_empty_gt(self) -> None:
         """Queries with empty GT are excluded when policy=skip."""
-        queries = [
+        queries: list[tuple[list[str], set[str]]] = [
             (["a"], {"a"}),        # RR = 1.0
             (["a"], set()),        # skipped
             (["x", "b"], {"b"}),   # RR = 0.5
         ]
         result = compute_mrr(queries, empty_gt_policy="skip")
         expected = (1.0 + 0.5) / 2.0
+        assert result.value is not None
         self.assertAlmostEqual(result.value, expected)
         self.assertEqual(result.num_queries, 2)
 
     def test_zero_empty_gt(self) -> None:
         """Queries with empty GT get RR=0 when policy=zero."""
-        queries = [
+        queries: list[tuple[list[str], set[str]]] = [
             (["a"], {"a"}),        # RR = 1.0
             (["a"], set()),        # RR = 0.0
         ]
         result = compute_mrr(queries, empty_gt_policy="zero")
         expected = (1.0 + 0.0) / 2.0
+        assert result.value is not None
         self.assertAlmostEqual(result.value, expected)
         self.assertEqual(result.num_queries, 2)
 
     def test_all_empty_gt_skip(self) -> None:
         """All queries have empty GT with skip → None."""
-        queries = [
+        queries: list[tuple[list[str], set[str]]] = [
             (["a"], set()),
             (["b"], set()),
         ]
@@ -242,11 +256,12 @@ class TestMRR(unittest.TestCase):
 
     def test_mrr_in_unit_interval(self) -> None:
         """MRR must be in [0, 1]."""
-        queries = [
+        queries: list[tuple[list[str], set[str]]] = [
             (["a", "b"], {"a"}),
             (["x", "y", "z"], {"a"}),  # not found → RR = 0
         ]
         result = compute_mrr(queries)
+        assert result.value is not None
         self.assertGreaterEqual(result.value, 0.0)
         self.assertLessEqual(result.value, 1.0)
 
@@ -257,7 +272,7 @@ class TestMRR(unittest.TestCase):
 
     def test_determinism(self) -> None:
         """Same inputs produce same MRR every time."""
-        queries = [
+        queries: list[tuple[list[str], set[str]]] = [
             (["a", "b"], {"a"}),
             (["x", "a"], {"a"}),
         ]
@@ -266,7 +281,7 @@ class TestMRR(unittest.TestCase):
 
     def test_reciprocal_ranks_stored(self) -> None:
         """Individual RRs are stored for audit trail."""
-        queries = [
+        queries: list[tuple[list[str], set[str]]] = [
             (["a"], {"a"}),      # RR = 1.0
             (["x", "b"], {"b"}), # RR = 0.5
         ]

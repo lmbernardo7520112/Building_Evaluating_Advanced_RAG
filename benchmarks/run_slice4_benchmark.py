@@ -1318,6 +1318,7 @@ def run_benchmark(
             logger.info("  Processing: %s (abstention=%s)", query_id, is_abstention)
 
             quota_before = int(shared_quota.stats["total_requests"])
+            retries_before = int(shared_quota.stats.get("total_retries", 0))
 
             evidence = retriever.retrieve(query, top_k=TOP_K)
 
@@ -1529,21 +1530,44 @@ def run_benchmark(
                     )
 
             # ── Call Accounting & Ledger ─────────────────────────
-            total_ext_calls = gen_calls + cr_calls + gr_calls + ar_calls
+            logical_external_requests = gen_calls + cr_calls + gr_calls + ar_calls
+
+            quota_after = int(shared_quota.stats["total_requests"])
+            retries_after = int(shared_quota.stats.get("total_retries", 0))
+
+            physical_http_attempts = quota_after - quota_before
+            retry_attempts = retries_after - retries_before
+            rate_limit_429_count = retry_attempts
+            successful_http_responses = logical_external_requests
+
             call_ledger = {
                 "generation_calls": gen_calls,
                 "context_relevance_calls": cr_calls,
                 "groundedness_calls": gr_calls,
                 "answer_relevance_calls": ar_calls,
-                "total_external_requests": total_ext_calls,
+                "total_external_requests": logical_external_requests,
+                "physical_http_attempts": physical_http_attempts,
+                "successful_http_responses": successful_http_responses,
+                "retry_attempts": retry_attempts,
+                "rate_limit_429_count": rate_limit_429_count,
             }
 
-            quota_after = int(shared_quota.stats["total_requests"])
-            quota_delta = quota_after - quota_before
-            if quota_delta != total_ext_calls:
+            if retry_attempts < 0:
                 raise ValueError(
                     f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: query_id={query_id} "
-                    f"ledger={total_ext_calls}, quota_delta={quota_delta}"
+                    f"negative retry_attempts={retry_attempts}"
+                )
+
+            if physical_http_attempts < logical_external_requests:
+                raise ValueError(
+                    f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: query_id={query_id} "
+                    f"physical_http_attempts={physical_http_attempts} < logical_external_requests={logical_external_requests}"
+                )
+
+            if physical_http_attempts != logical_external_requests + retry_attempts:
+                raise ValueError(
+                    f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: query_id={query_id} "
+                    f"physical={physical_http_attempts}, logical={logical_external_requests}, retries={retry_attempts}"
                 )
 
             # ── Strategy Provenance Verification ────────────────

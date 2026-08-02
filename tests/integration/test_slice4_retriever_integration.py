@@ -25,7 +25,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 sys.path.insert(0, str(_REPO_ROOT / "benchmarks"))
 
-from raglab.infrastructure.gemini.gemini_generator_adapter import (
+from raglab.infrastructure.gemini.gemini_generator_adapter import (  # noqa: E402
     sanitize_answer_for_artifact,
 )
 
@@ -82,7 +82,7 @@ class TestF0Isolated:
     """F0_baseline must build WITHOUT importing auto_merging or reranker."""
 
     def test_f0_builds_and_retrieves(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding,
@@ -105,7 +105,7 @@ class TestF0Isolated:
         for m in mods_to_clear:
             del sys.modules[m]
 
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding,
@@ -127,7 +127,7 @@ class TestF0Isolated:
         for m in mods_to_clear:
             del sys.modules[m]
 
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding,
@@ -148,7 +148,7 @@ class TestW0Isolated:
     """W0 must NOT build W1 nor import auto-merging."""
 
     def test_w0_builds_alone(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding,
@@ -164,7 +164,7 @@ class TestW0Isolated:
         for m in mods_to_clear:
             del sys.modules[m]
 
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding,
@@ -179,7 +179,7 @@ class TestH1CanonicalClass:
     """H1 must import HierarchicalRetrievalAdapter (the real class)."""
 
     def test_h1_uses_canonical_class(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding,
@@ -211,7 +211,7 @@ class TestAllSevenStrategies:
     """Full registry: all 7 strategies build and return RetrievalPort."""
 
     def test_all_seven_build(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding,
@@ -220,7 +220,7 @@ class TestAllSevenStrategies:
         assert set(retrievers.keys()) == set(runner.VALID_STRATEGIES)
 
     def test_all_seven_have_retrieve(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding,
@@ -233,7 +233,7 @@ class TestAllSevenStrategies:
             )
 
     def test_no_duplicate_labels(self):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
         labels = list(runner.VALID_STRATEGIES)
         assert len(labels) == len(set(labels))
 
@@ -356,7 +356,7 @@ class TestSmokeF0Fake:
     def test_smoke_f0_end_to_end_fake(self, fake_pages, fake_embedding, tmp_path, monkeypatch):
         import logging
 
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         # Patch out PDF loading, credential check, and Gemini
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: fake_pages)
@@ -377,7 +377,7 @@ class TestSmokeF0Fake:
             active_qm.append(qm_self)
         monkeypatch.setattr(QuotaManager, "__init__", custom_init)
 
-        fake_answer = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=False, citations=[])
+        fake_answer = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=False, citations=())
 
         def gen_mock(query_id, query, evidence):
             if active_qm:
@@ -439,7 +439,7 @@ class TestSmokeF0Fake:
         """After F0 smoke, auto_merging_adapter must NOT be loaded."""
         import logging
 
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: fake_pages)
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger, **kw: fake_embedding)
@@ -459,7 +459,7 @@ class TestSmokeF0Fake:
             active_qm.append(qm_self)
         monkeypatch.setattr(QuotaManager, "__init__", custom_init)
 
-        fake_answer = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=True, citations=[])
+        fake_answer = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=True, citations=())
 
         def gen_mock(query_id, query, evidence):
             if active_qm:
@@ -517,7 +517,7 @@ class TestFullFake:
     ):
         import logging
 
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
         from raglab.domain.entities import GeneratedAnswer
         from raglab.domain.enums import PipelineStrategy
         from raglab.domain.quota import QuotaManager
@@ -545,7 +545,7 @@ class TestFullFake:
             active_qm_full.append(qm_self)
         monkeypatch.setattr(QuotaManager, "__init__", custom_init_full)
 
-        fake_answer_full = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=True, citations=[])
+        fake_answer_full = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=True, citations=())
 
         def gen_mock_full(query_id, query, evidence):
             if active_qm_full:
@@ -623,7 +623,7 @@ class TestAutoMergingAdapterRegression:
 
 class TestStrategyValidation:
     def test_unknown_strategy_raises(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         with pytest.raises(ValueError, match="Unknown strategies"):
             runner.build_retrievers(
@@ -632,7 +632,7 @@ class TestStrategyValidation:
             )
 
     def test_duplicate_strategy_raises(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         with pytest.raises(ValueError, match="Duplicate strategies"):
             runner.build_retrievers(
@@ -746,7 +746,7 @@ class TestLlamaIndexEmbeddingBridge:
 
 class TestEmbeddingParity:
     def test_h0_uses_injected_embedding(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages,
@@ -759,7 +759,7 @@ class TestEmbeddingParity:
         assert root is fake_embedding
 
     def test_h1_uses_injected_embedding(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages,
@@ -774,7 +774,7 @@ class TestEmbeddingParity:
     def test_h2_uses_injected_embedding_in_retrieval_and_rerank(
         self, fake_pages, fake_embedding
     ):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages,
@@ -798,7 +798,7 @@ class TestEmbeddingParity:
         )
 
     def test_all_seven_fingerprints_equal(self, fake_pages, fake_embedding):
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding
@@ -814,7 +814,7 @@ class TestEmbeddingParity:
     ):
         import logging
 
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         retrievers = runner.build_retrievers(
             pages=fake_pages, embed_model=fake_embedding
@@ -882,7 +882,7 @@ class TestEmbeddingParity:
     def test_preflight_retrievers_emits_parity_ok(self, capsys):
         import logging
 
-        import benchmarks.run_slice4_benchmark as runner
+        runner = importlib.import_module("run_slice4_benchmark")
 
         logger = logging.getLogger("test_preflight_parity")
         args = runner.build_parser().parse_args(["--mode", "preflight-retrievers"])

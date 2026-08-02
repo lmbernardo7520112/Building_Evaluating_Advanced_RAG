@@ -89,6 +89,7 @@ class QuotaManager:
     _tpd_window: QuotaWindow = field(init=False, repr=False)
     _total_requests: int = field(default=0, init=False)
     _total_wait_seconds: float = field(default=0.0, init=False)
+    _total_retries: int = field(default=0, init=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
@@ -121,6 +122,7 @@ class QuotaManager:
         """Record that a 429 was received and we waited for backoff."""
         with self._lock:
             self._total_wait_seconds += backoff_seconds
+            self._total_retries += 1
 
     @property
     def stats(self) -> dict[str, float | int]:
@@ -129,6 +131,8 @@ class QuotaManager:
             return {
                 "total_requests": self._total_requests,
                 "total_wait_seconds": round(self._total_wait_seconds, 2),
+                "total_retries": self._total_retries,
+                "rate_limit_429_count": self._total_retries,
                 "rpm_current": self._rpm_window.current_count,
                 "rpm_limit": self.rpm_limit,
                 "tpd_current": self._tpd_window.current_count,

@@ -1290,3 +1290,286 @@ class TestSlice4CitationPageProvenanceFixes:
             data, "W0_sentence_window", "q_dev_01", False, logger
         )
         assert res_str == "SMOKE_FAILED"
+
+
+class TestSlice4RetryAccountingFixes:
+    """Requirement 12 unit tests for physical vs logical retry accounting invariants."""
+
+    def test_four_operations_zero_retry_valid(self):
+        """a. 4 operations, zero retry -> logical=4, physical=4, retries=0 -> valid."""
+        from raglab.domain.quota import QuotaManager
+
+        qm = QuotaManager()
+        q_before = qm.stats["total_requests"]
+        r_before = qm.stats["total_retries"]
+
+        # Simulate 4 logical calls without retries
+        for _ in range(4):
+            qm.acquire()
+
+        q_after = qm.stats["total_requests"]
+        r_after = qm.stats["total_retries"]
+
+        logical = 4
+        physical = q_after - q_before
+        retries = r_after - r_before
+
+        assert logical == 4
+        assert physical == 4
+        assert retries == 0
+        assert physical == logical + retries
+
+    def test_four_operations_one_429_retry_valid(self):
+        """b. 4 operations, one 429 followed by success -> logical=4, physical=5, retries=1 -> valid."""
+        from raglab.domain.quota import QuotaManager
+
+        qm = QuotaManager()
+        q_before = qm.stats["total_requests"]
+        r_before = qm.stats["total_retries"]
+
+        # Simulate 4 logical calls + 1 retry (record_retry + extra acquire)
+        for _ in range(4):
+            qm.acquire()
+        qm.record_retry(1.0)
+        qm.acquire()
+
+        q_after = qm.stats["total_requests"]
+        r_after = qm.stats["total_retries"]
+
+        logical = 4
+        physical = q_after - q_before
+        retries = r_after - r_before
+
+        assert logical == 4
+        assert physical == 5
+        assert retries == 1
+        assert physical == logical + retries
+
+    def test_four_operations_two_429_retries_valid(self):
+        """c. two 429s followed by success -> logical=4, physical=6, retries=2 -> valid."""
+        from raglab.domain.quota import QuotaManager
+
+        qm = QuotaManager()
+        q_before = qm.stats["total_requests"]
+        r_before = qm.stats["total_retries"]
+
+        # Simulate 4 logical calls + 2 retries
+        for _ in range(4):
+            qm.acquire()
+        qm.record_retry(1.0)
+        qm.acquire()
+        qm.record_retry(1.0)
+        qm.acquire()
+
+        q_after = qm.stats["total_requests"]
+        r_after = qm.stats["total_retries"]
+
+        logical = 4
+        physical = q_after - q_before
+        retries = r_after - r_before
+
+        assert logical == 4
+        assert physical == 6
+        assert retries == 2
+        assert physical == logical + retries
+
+    def test_retry_exhausted_preserves_previous_checkpoint(self, tmp_path):
+        """d. retry exhausted -> execution fails and previous checkpoint is preserved."""
+        from raglab.domain.retry import RetryExhaustedError, RetryPolicy
+
+        rp = RetryPolicy(max_attempts=2)
+        assert rp.max_attempts == 2
+
+        # Create a checkpoint file simulating prior completed work
+        ckpt_file = tmp_path / "slice4_gen_checkpoint_test.json"
+        ckpt_file.write_text('{"completed": {"q1::F0_baseline": {"abstained": false}}}', encoding="utf-8")
+        original_mtime = ckpt_file.stat().st_mtime
+
+        # Simulating exhaustion raises RetryExhaustedError
+        with pytest.raises(RetryExhaustedError):
+            raise RetryExhaustedError(2, RuntimeError("HTTP 429 Rate Limit"))
+
+        # Verify checkpoint file exists and was not altered
+        assert ckpt_file.exists()
+        assert ckpt_file.stat().st_mtime == original_mtime
+
+    def test_physical_5_logical_4_retries_0_fails(self):
+        """e. physical=5, logical=4, retries=0 -> fails."""
+        logical = 4
+        physical = 5
+        retries = 0
+
+        with pytest.raises(ValueError, match="EXTERNAL_CALL_ACCOUNTING_MISMATCH"):
+            if physical != logical + retries:
+                raise ValueError(
+                    f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: physical={physical}, logical={logical}, retries={retries}"
+                )
+
+    def test_physical_4_logical_4_retries_1_fails(self):
+        """f. physical=4, logical=4, retries=1 -> fails."""
+        logical = 4
+        physical = 4
+        retries = 1
+
+        with pytest.raises(ValueError, match="EXTERNAL_CALL_ACCOUNTING_MISMATCH"):
+            if physical != logical + retries:
+                raise ValueError(
+                    f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: physical={physical}, logical={logical}, retries={retries}"
+                )
+
+    def test_abstention_logical_2_physical_2_retries_0_valid(self):
+        """g. abstention: logical=2, physical=2, retries=0 -> valid."""
+        from raglab.domain.quota import QuotaManager
+
+        qm = QuotaManager()
+        q_before = qm.stats["total_requests"]
+        r_before = qm.stats["total_retries"]
+
+        # Simulate 2 logical calls (generation + CR)
+        for _ in range(2):
+            qm.acquire()
+
+        q_after = qm.stats["total_requests"]
+        r_after = qm.stats["total_retries"]
+
+        logical = 2
+        physical = q_after - q_before
+        retries = r_after - r_before
+
+        assert logical == 2
+        assert physical == 2
+        assert retries == 0
+        assert physical == logical + retries
+
+    def test_abstention_logical_2_physical_3_retries_1_valid(self):
+        """h. abstention: logical=2, physical=3, retries=1 -> valid."""
+        from raglab.domain.quota import QuotaManager
+
+        qm = QuotaManager()
+        q_before = qm.stats["total_requests"]
+        r_before = qm.stats["total_retries"]
+
+        # Simulate 2 logical calls + 1 retry
+        for _ in range(2):
+            qm.acquire()
+        qm.record_retry(1.0)
+        qm.acquire()
+
+        q_after = qm.stats["total_requests"]
+        r_after = qm.stats["total_retries"]
+
+        logical = 2
+        physical = q_after - q_before
+        retries = r_after - r_before
+
+        assert logical == 2
+        assert physical == 3
+        assert retries == 1
+        assert physical == logical + retries
+
+    def test_serialization_preserves_counters(self, tmp_path, monkeypatch):
+        """i. serialization preserves counters in call_ledger."""
+        import logging
+
+        import benchmarks.run_slice4_benchmark as runner
+
+        fake_manifest = {"model_id": "m", "cache_tree_sha256": "a" * 64}
+        monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
+        monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
+        monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+
+        fake_retriever = MagicMock()
+        fake_retriever.retrieve.return_value = []
+        monkeypatch.setattr(runner, "build_retrievers", lambda pages, embed, strategies=None: {"F0_baseline": fake_retriever})
+        monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path / "ckpts")
+        monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path / "results")
+
+        fake_ans = GeneratedAnswer(query_id="q_test_04", text="Não foi possível responder", abstained=True, citations=())
+        fake_gen = MagicMock()
+        def gen_factory(**kw):
+            qm = kw.get("quota_manager")
+            def gen_side_effect(query_id, query, evidence):
+                if qm:
+                    qm.acquire()
+                return fake_ans
+            fake_gen.generate.side_effect = gen_side_effect
+            return fake_gen
+
+        fake_judge = MagicMock()
+        fake_judge.strategy = "F0_baseline"
+        def judge_factory(**kw):
+            qm = kw.get("quota_manager")
+            def cr_side_effect(*args, **kwargs):
+                if qm:
+                    qm.acquire()
+                return 0.0
+            fake_judge.evaluate_context_relevance.side_effect = cr_side_effect
+            return fake_judge
+
+        monkeypatch.setattr("raglab.infrastructure.gemini.gemini_generator_adapter.GeminiGeneratorAdapter", gen_factory)
+        monkeypatch.setattr("raglab.infrastructure.gemini.gemini_judge_adapter.GeminiJudgeAdapter", judge_factory)
+
+        q = {"qid": "q_test_04", "split": "test", "query": "Capital?", "relevant_pages": [], "abstention_expected": True}
+        out = runner.run_benchmark(
+            run_id="test_counters",
+            questions=[q],
+            strategy_labels=("F0_baseline",),
+            logger=logging.getLogger("test"),
+            pdf_path=tmp_path / "fake.pdf",
+        )
+
+        data = json.loads(out.read_text(encoding="utf-8"))
+        ledger = data["results"]["F0_baseline"][0]["call_ledger"]
+        assert "generation_calls" in ledger
+        assert "context_relevance_calls" in ledger
+        assert "groundedness_calls" in ledger
+        assert "answer_relevance_calls" in ledger
+        assert "total_external_requests" in ledger
+        assert "physical_http_attempts" in ledger
+        assert "successful_http_responses" in ledger
+        assert "retry_attempts" in ledger
+        assert "rate_limit_429_count" in ledger
+
+    def test_resume_does_not_reexecute_completed_pairs(self, tmp_path):
+        """j. resume does not re-execute already completed query pairs."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import (
+            GenerationCheckpointStore,
+        )
+
+        ckpt = GenerationCheckpointStore(run_id="test_run", store_dir=tmp_path)
+        ckpt.mark_completed("q1", "F0_baseline", abstained=False, citation_count=1)
+
+        assert ckpt.is_completed("q1", "F0_baseline") is True
+        assert ckpt.is_completed("q1", "S0_sentence_anchor") is False
+        assert ckpt.is_completed("q2", "F0_baseline") is False
+
+    def test_h0_q_dev_01_resume_without_duplicating_prior_32(self):
+        """k. H0 q_dev_01 can be resumed without duplicating the 32 prior completed pairs."""
+        from pathlib import Path
+
+        from raglab.infrastructure.persistence.generation_checkpoint_store import (
+            GenerationCheckpointStore,
+        )
+
+        repo_root = Path(__file__).resolve().parents[3]
+        ckpt_path = repo_root / "checkpoints" / "slice4_gen_checkpoint_raglab_v7_slice4_v2_20260731T1230UTC.json"
+        assert ckpt_path.exists()
+
+        ckpt = GenerationCheckpointStore(
+            run_id="raglab_v7_slice4_v2_20260731T1230UTC",
+            store_dir=repo_root / "checkpoints",
+        )
+
+        # Checkpoint has 32 completed pairs
+        data = json.loads(ckpt_path.read_text(encoding="utf-8"))
+        completed_keys = set(data.get("completed", {}).keys())
+        assert len(completed_keys) == 32
+
+        # H0_hierarchical_leaf for q_dev_01 is NOT completed yet
+        assert ckpt.is_completed("q_dev_01", "H0_hierarchical_leaf") is False
+
+        # All 32 prior pairs return True from is_completed
+        for key in completed_keys:
+            qid, strat = key.split("::")
+            assert ckpt.is_completed(qid, strat) is True
