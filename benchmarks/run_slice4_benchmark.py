@@ -1346,6 +1346,9 @@ def run_benchmark(
 
             quota_before = int(shared_quota.stats["total_requests"])
             retries_before = int(shared_quota.stats.get("total_retries", 0))
+            r429_before = int(shared_quota.stats.get("rate_limit_429_count", 0))
+            r5xx_before = int(shared_quota.stats.get("server_5xx_retry_count", 0))
+            rother_before = int(shared_quota.stats.get("other_retryable_error_count", 0))
 
             evidence = retriever.retrieve(query, top_k=TOP_K)
 
@@ -1561,11 +1564,18 @@ def run_benchmark(
 
             quota_after = int(shared_quota.stats["total_requests"])
             retries_after = int(shared_quota.stats.get("total_retries", 0))
+            r429_after = int(shared_quota.stats.get("rate_limit_429_count", 0))
+            r5xx_after = int(shared_quota.stats.get("server_5xx_retry_count", 0))
+            rother_after = int(shared_quota.stats.get("other_retryable_error_count", 0))
 
             physical_http_attempts = quota_after - quota_before
             retry_attempts = retries_after - retries_before
-            rate_limit_429_count = retry_attempts
+            rate_limit_429_count = r429_after - r429_before
+            server_5xx_retry_count = r5xx_after - r5xx_before
+            other_retryable_error_count = rother_after - rother_before
+
             successful_http_responses = logical_external_requests
+            failed_http_attempts = retry_attempts
 
             call_ledger = {
                 "generation_calls": gen_calls,
@@ -1575,14 +1585,31 @@ def run_benchmark(
                 "total_external_requests": logical_external_requests,
                 "physical_http_attempts": physical_http_attempts,
                 "successful_http_responses": successful_http_responses,
+                "failed_http_attempts": failed_http_attempts,
                 "retry_attempts": retry_attempts,
                 "rate_limit_429_count": rate_limit_429_count,
+                "server_5xx_retry_count": server_5xx_retry_count,
+                "other_retryable_error_count": other_retryable_error_count,
             }
 
-            if retry_attempts < 0:
+            if (
+                retry_attempts < 0
+                or rate_limit_429_count < 0
+                or server_5xx_retry_count < 0
+                or other_retryable_error_count < 0
+            ):
                 raise ValueError(
                     f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: query_id={query_id} "
-                    f"negative retry_attempts={retry_attempts}"
+                    f"negative counters (retries={retry_attempts}, 429={rate_limit_429_count}, "
+                    f"5xx={server_5xx_retry_count}, other={other_retryable_error_count})"
+                )
+
+            causal_sum = rate_limit_429_count + server_5xx_retry_count + other_retryable_error_count
+            if retry_attempts != causal_sum:
+                raise ValueError(
+                    f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: query_id={query_id} "
+                    f"causal sum mismatch: retry_attempts={retry_attempts} != causal_sum={causal_sum} "
+                    f"(429={rate_limit_429_count}, 5xx={server_5xx_retry_count}, other={other_retryable_error_count})"
                 )
 
             if physical_http_attempts < logical_external_requests:
@@ -1595,6 +1622,12 @@ def run_benchmark(
                 raise ValueError(
                     f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: query_id={query_id} "
                     f"physical={physical_http_attempts}, logical={logical_external_requests}, retries={retry_attempts}"
+                )
+
+            if physical_http_attempts != successful_http_responses + failed_http_attempts:
+                raise ValueError(
+                    f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: query_id={query_id} "
+                    f"physical={physical_http_attempts}, successful={successful_http_responses}, failed={failed_http_attempts}"
                 )
 
             # ── Strategy Provenance Verification ────────────────
@@ -2004,19 +2037,18 @@ def cmd_resume(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger)
         logger.error("--mode resume requires --run-id. Example: --run-id %s", EXPERIMENT_ID)
         sys.exit(3)
 
-    # Validate checkpoint exists
-    ckpt_files = list(CHECKPOINT_DIR.glob(f"*{run_id}*.json"))
-    if not ckpt_files:
+    # Validate exact checkpoint file exists for run_id (no glob matching smoke files)
+    exact_ckpt_path = CHECKPOINT_DIR / f"slice4_gen_checkpoint_{run_id}.json"
+    if not exact_ckpt_path.exists():
         logger.error(
-            "No checkpoint found for run_id=%s in %s. "
+            "CHECKPOINT_NOT_FOUND: No exact checkpoint file found at %s. "
             "Available: %s",
-            run_id,
-            CHECKPOINT_DIR,
+            exact_ckpt_path,
             list(CHECKPOINT_DIR.glob("*.json")),
         )
-        sys.exit(3)
+        raise ValueError(f"CHECKPOINT_NOT_FOUND: {exact_ckpt_path}")
 
-    logger.info("=== RESUME: run_id=%s (checkpoint: %s) ===", run_id, ckpt_files[0])
+    logger.info("=== RESUME: run_id=%s (checkpoint: %s) ===", run_id, exact_ckpt_path)
     output_path = run_benchmark(
         run_id=run_id,
         questions=ACTIVE_QUESTIONS,

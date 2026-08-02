@@ -90,6 +90,9 @@ class QuotaManager:
     _total_requests: int = field(default=0, init=False)
     _total_wait_seconds: float = field(default=0.0, init=False)
     _total_retries: int = field(default=0, init=False)
+    _rate_limit_429_count: int = field(default=0, init=False)
+    _server_5xx_retry_count: int = field(default=0, init=False)
+    _other_retryable_error_count: int = field(default=0, init=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
@@ -118,11 +121,17 @@ class QuotaManager:
             self._total_wait_seconds += wait
         return wait
 
-    def record_retry(self, backoff_seconds: float) -> None:
-        """Record that a 429 was received and we waited for backoff."""
+    def record_retry(self, backoff_seconds: float, cause: str = "429") -> None:
+        """Record that a retryable failure occurred and we waited for backoff."""
         with self._lock:
             self._total_wait_seconds += backoff_seconds
             self._total_retries += 1
+            if cause in ("429", "rate_limit"):
+                self._rate_limit_429_count += 1
+            elif cause in ("5xx", "server_5xx", "server"):
+                self._server_5xx_retry_count += 1
+            else:
+                self._other_retryable_error_count += 1
 
     @property
     def stats(self) -> dict[str, float | int]:
@@ -132,7 +141,10 @@ class QuotaManager:
                 "total_requests": self._total_requests,
                 "total_wait_seconds": round(self._total_wait_seconds, 2),
                 "total_retries": self._total_retries,
-                "rate_limit_429_count": self._total_retries,
+                "retry_attempts": self._total_retries,
+                "rate_limit_429_count": self._rate_limit_429_count,
+                "server_5xx_retry_count": self._server_5xx_retry_count,
+                "other_retryable_error_count": self._other_retryable_error_count,
                 "rpm_current": self._rpm_window.current_count,
                 "rpm_limit": self.rpm_limit,
                 "tpd_current": self._tpd_window.current_count,

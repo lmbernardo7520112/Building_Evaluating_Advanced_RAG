@@ -306,7 +306,7 @@ class GeminiJudgeAdapter:
 
                 if status == 429 or "429" in exc_str:
                     backoff = self._retry.sleep_for_retry(attempt)
-                    self._quota.record_retry(backoff)
+                    self._quota.record_retry(backoff, cause="429")
                     logger.warning(
                         "query_id=%s dimension=%s: 429 (attempt %d/%d) waited %.1fs",
                         query_id, dimension,
@@ -317,6 +317,7 @@ class GeminiJudgeAdapter:
 
                 if status and status >= 500:
                     backoff = self._retry.sleep_for_retry(attempt)
+                    self._quota.record_retry(backoff, cause="5xx")
                     logger.warning(
                         "query_id=%s dimension=%s: %d (attempt %d/%d) waited %.1fs",
                         query_id, dimension, status,
