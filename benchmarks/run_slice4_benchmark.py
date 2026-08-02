@@ -448,11 +448,79 @@ def compute_retrieval_configuration_sha256(config: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
 
-def _extract_page_from_doc_id(doc_id: str) -> int | None:
-    """Extract page number integer from a document_id string (e.g. 'doc_p92_c0' -> 92)."""
-    m = re.search(r"_p(\d+)_", str(doc_id))
-    if m:
-        return int(m.group(1))
+def _extract_page_from_chunk_id(chunk_id_val: str) -> int | None:
+    """Extract page number integer from chunk_id or document_id like 'doc_p92_c0'. Returns None on failure."""
+    if not chunk_id_val:
+        return None
+    try:
+        m = re.search(r"_p(\d+)_", str(chunk_id_val))
+        if m:
+            val = int(m.group(1))
+            return val if val >= 1 else None
+        parts = str(chunk_id_val).split("_p")
+        if len(parts) >= 2:
+            page_part = parts[-1].split("_")[0]
+            val = int(page_part)
+            return val if val >= 1 else None
+    except (ValueError, IndexError):
+        pass
+    return None
+
+
+def resolve_candidate_page_number(cand: Any) -> int | None:
+    """Resolve physical page number integer (>= 1) for a candidate record or object.
+
+    Aborts with ValueError if explicit page_number attribute conflicts with chunk_id page.
+    Returns None if page_number is missing, None, boolean, non-integer, zero or negative.
+    """
+    if cand is None:
+        return None
+
+    raw_page = None
+    chunk_id_str = ""
+    doc_id_str = ""
+
+    if isinstance(cand, dict):
+        raw_page = cand.get("page_number")
+        chunk_id_str = str(cand.get("chunk_id", ""))
+        doc_id_str = str(cand.get("document_id", ""))
+    else:
+        raw_page = getattr(cand, "page_number", None)
+        chunk_id_val = getattr(cand, "chunk_id", "")
+        if hasattr(chunk_id_val, "value"):
+            chunk_id_val = chunk_id_val.value
+        chunk_id_str = str(chunk_id_val or "")
+        doc_id_str = str(getattr(cand, "document_id", "") or "")
+
+    # Reject booleans explicitly (isinstance(True, int) is True in Python)
+    if isinstance(raw_page, bool):
+        raw_page = None
+
+    extracted = None
+    if chunk_id_str:
+        extracted = _extract_page_from_chunk_id(chunk_id_str)
+    if extracted is None and doc_id_str:
+        extracted = _extract_page_from_chunk_id(doc_id_str)
+
+    if (
+        raw_page is not None
+        and isinstance(raw_page, int)
+        and raw_page >= 1
+        and extracted is not None
+        and extracted >= 1
+        and raw_page != extracted
+    ):
+        raise ValueError(
+            f"CITATION_PROVENANCE_MISMATCH: Page number mismatch between explicit page {raw_page} "
+            f"and page from chunk_id ({extracted})"
+        )
+
+    if isinstance(raw_page, int) and raw_page >= 1:
+        return raw_page
+
+    if extracted is not None and extracted >= 1:
+        return extracted
+
     return None
 
 
@@ -469,8 +537,8 @@ def build_citation_map_and_status(
     Returns:
         (citation_mapping_status, citation_map)
 
-    Aborts with CITATION_PROVENANCE_MISMATCH if an unmapped marker or non-existent
-    candidate is referenced.
+    Aborts with CITATION_PROVENANCE_MISMATCH if an unmapped marker, non-existent
+    candidate, or invalid page provenance is referenced.
     """
     if abstained:
         return ("NOT_APPLICABLE", [])
@@ -505,10 +573,8 @@ def build_citation_map_and_status(
         else:
             # 2. Check if any candidate has page_number == n
             for cand in evidence:
-                page_num = getattr(cand, "page_number", None)
-                if page_num is None and hasattr(cand, "document_id"):
-                    page_num = _extract_page_from_doc_id(cand.document_id)
-                if page_num == n:
+                p_num = resolve_candidate_page_number(cand)
+                if p_num == n:
                     matched_cand = cand
                     break
 
@@ -519,19 +585,42 @@ def build_citation_map_and_status(
                 f"(query_id={query_id})"
             )
 
-        cand_chunk_id = getattr(matched_cand, "chunk_id", "")
-        if hasattr(cand_chunk_id, "value"):
-            cand_chunk_id = cand_chunk_id.value
-        cand_chunk_id = str(cand_chunk_id)
+        if isinstance(matched_cand, dict):
+            cand_chunk_id = str(matched_cand.get("chunk_id", ""))
+            cand_sha = str(matched_cand.get("text_sha256", ""))
+            if not cand_sha:
+                cand_text = str(matched_cand.get("text", ""))
+                cand_sha = hashlib.sha256(cand_text.encode("utf-8")).hexdigest()
+        else:
+            cand_chunk_id = getattr(matched_cand, "chunk_id", "")
+            if hasattr(cand_chunk_id, "value"):
+                cand_chunk_id = cand_chunk_id.value
+            cand_chunk_id = str(cand_chunk_id)
 
-        cand_page = getattr(matched_cand, "page_number", None)
-        if cand_page is None and hasattr(matched_cand, "document_id"):
-            cand_page = _extract_page_from_doc_id(matched_cand.document_id)
-        if cand_page is None:
-            cand_page = 0
+            cand_text = getattr(matched_cand, "text", "")
+            cand_sha = hashlib.sha256(cand_text.encode("utf-8")).hexdigest()
 
-        cand_text = getattr(matched_cand, "text", "")
-        cand_sha = hashlib.sha256(cand_text.encode("utf-8")).hexdigest()
+        cand_page = resolve_candidate_page_number(matched_cand)
+
+        # Strict validation per TAREFA requirements 5 & 6:
+        # Page number must be integer >= 1 (not None, not bool, not 0, not < 1)
+        if cand_page is None or isinstance(cand_page, bool) or not isinstance(cand_page, int) or cand_page < 1:
+            raise ValueError(
+                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
+                f"has invalid or non-positive page_number {cand_page!r} (query_id={query_id})"
+            )
+
+        if not cand_chunk_id:
+            raise ValueError(
+                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
+                f"has empty chunk_id (query_id={query_id})"
+            )
+
+        if not cand_sha or len(cand_sha) != 64:
+            raise ValueError(
+                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
+                f"has invalid text_sha256 {cand_sha!r} (query_id={query_id})"
+            )
 
         citation_map.append({
             "marker": marker_str,
@@ -1057,18 +1146,6 @@ def compute_abstention_correctness(
 
 # ─── Retrieval Evidence Serialization ────────────────────────────
 
-def _extract_page_from_chunk_id(chunk_id_val: str) -> int | None:
-    """Extract page number from chunk_id like 'doc_p92_c0'. Returns None on failure."""
-    try:
-        parts = chunk_id_val.split("_p")
-        if len(parts) >= 2:
-            page_part = parts[-1].split("_")[0]
-            return int(page_part)
-    except (ValueError, IndexError):
-        pass
-    return None
-
-
 def serialize_retrieval_evidence(
     evidence: list,
     relevant_pages: list[int],
@@ -1085,10 +1162,10 @@ def serialize_retrieval_evidence(
     for i, ev in enumerate(evidence):
         chunk_id_val = (
             ev.chunk_id.value
-            if hasattr(ev.chunk_id, "value")
-            else str(ev.chunk_id)
+            if hasattr(ev, "chunk_id") and hasattr(ev.chunk_id, "value")
+            else str(getattr(ev, "chunk_id", ev))
         )
-        page_num = _extract_page_from_chunk_id(chunk_id_val)
+        page_num = resolve_candidate_page_number(ev)
         if page_num and page_num in relevant_pages:
             pages_found.append(page_num)
 
@@ -1281,7 +1358,7 @@ def run_benchmark(
             citation_mapping_status, citation_map = build_citation_map_and_status(
                 answer_text=evaluated_text,
                 abstained=answer.abstained,
-                evidence=evidence,
+                evidence=evidence_record["candidates"],
                 query_id=query_id,
             )
 
@@ -1482,7 +1559,7 @@ def run_benchmark(
                 )
 
             # ── Citation pages used by generator ────────────────
-            citation_pages = [c.page_number for c in answer.citations]
+            citation_pages = [c["page_number"] for c in citation_map] if citation_map else []
 
             evaluation_record = {
                 "protocol_version": PROTOCOL_VERSION,
@@ -1686,14 +1763,40 @@ def validate_smoke_result(
         if cms != "AVAILABLE":
             failures.append(f"CITATION_MAPPING_STATUS_NOT_AVAILABLE: {cms}")
 
-        # Citations must be from retrieved evidence
+        citation_map = result.get("citation_map", [])
+        if not citation_map:
+            failures.append("EMPTY_CITATION_MAP_ON_SUBSTANTIVE")
+
+        cand_map = {
+            c.get("chunk_id"): c
+            for c in evidence_rec.get("candidates", [])
+            if c.get("chunk_id")
+        }
+
+        for cit in citation_map:
+            cp = cit.get("page_number")
+            if cp is None or isinstance(cp, bool) or not isinstance(cp, int) or cp < 1:
+                failures.append(f"CITATION_PAGE_INVALID: page_number={cp!r} in marker {cit.get('marker')}")
+                continue
+
+            matching_cand = cand_map.get(cit.get("chunk_id"))
+            if matching_cand is None:
+                failures.append(f"CITATION_CHUNK_NOT_IN_EVIDENCE: {cit.get('chunk_id')}")
+            else:
+                if cit.get("text_sha256") != matching_cand.get("text_sha256"):
+                    failures.append(f"CITATION_SHA_MISMATCH: {cit.get('marker')}")
+                if cit.get("page_number") != matching_cand.get("page_number"):
+                    failures.append(f"CITATION_PAGE_MISMATCH: {cit.get('marker')}")
+
         evidence_pages = {
             c.get("page_number")
             for c in evidence_rec.get("candidates", [])
             if c.get("page_number") is not None
         }
         for cp in citation_pages:
-            if cp not in evidence_pages and cp != 0:
+            if cp < 1 or isinstance(cp, bool) or not isinstance(cp, int):
+                failures.append(f"CITATION_PAGE_INVALID_IN_LIST: page={cp!r}")
+            elif cp not in evidence_pages:
                 failures.append(f"CITATION_NOT_IN_EVIDENCE: page={cp}")
 
     # 7. Retrieval evidence must exist

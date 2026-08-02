@@ -1165,3 +1165,128 @@ class TestSlice4V3ContractFixes:
         res = data["results"]["F0_baseline"][0]
         assert res["call_ledger"]["total_external_requests"] == 1
         assert res["call_ledger"]["generation_calls"] == 1
+
+
+class TestSlice4CitationPageProvenanceFixes:
+    """Mandatory test suite for Slice 4 citation page provenance contract fixes (10 tests)."""
+
+    def test_citation_marker_1_maps_to_page_92(self):
+        """a. Citation marker [1] maps correctly to page 92."""
+        import benchmarks.run_slice4_benchmark as runner
+        cand1 = {"chunk_id": "doc_p92_c0", "page_number": 92, "text_sha256": "a" * 64}
+        status, cmap = runner.build_citation_map_and_status(
+            answer_text="Segundo a regra [1], o efeito ocorre.",
+            abstained=False,
+            evidence=[cand1],
+            query_id="q_dev_01",
+        )
+        assert status == "AVAILABLE"
+        assert len(cmap) == 1
+        assert cmap[0]["marker"] == "[1]"
+        assert cmap[0]["page_number"] == 92
+        assert cmap[0]["chunk_id"] == "doc_p92_c0"
+        assert cmap[0]["text_sha256"] == "a" * 64
+
+    def test_three_citation_markers_map_to_pages_92_96_101(self):
+        """b. Three markers [1], [2], [3] map to pages 92, 96, and 101."""
+        import benchmarks.run_slice4_benchmark as runner
+        cand1 = {"chunk_id": "doc_p92_c0", "page_number": 92, "text_sha256": "a" * 64}
+        cand2 = {"chunk_id": "doc_p96_c1", "page_number": 96, "text_sha256": "b" * 64}
+        cand3 = {"chunk_id": "doc_p101_c2", "page_number": 101, "text_sha256": "c" * 64}
+        status, cmap = runner.build_citation_map_and_status(
+            answer_text="A analise [1] mostra que [2] e [3] confirmam.",
+            abstained=False,
+            evidence=[cand1, cand2, cand3],
+            query_id="q_dev_01",
+        )
+        assert status == "AVAILABLE"
+        assert len(cmap) == 3
+        assert [c["marker"] for c in cmap] == ["[1]", "[2]", "[3]"]
+        assert [c["page_number"] for c in cmap] == [92, 96, 101]
+        assert [c["chunk_id"] for c in cmap] == ["doc_p92_c0", "doc_p96_c1", "doc_p101_c2"]
+        assert [c["text_sha256"] for c in cmap] == ["a" * 64, "b" * 64, "c" * 64]
+
+    def test_correct_chunk_id_with_divergent_page_fails(self):
+        """c. Correct chunk_id with divergent page fails CITATION_PROVENANCE_MISMATCH."""
+        import benchmarks.run_slice4_benchmark as runner
+        bad_cand = MagicMock()
+        bad_cand.chunk_id = "doc_p92_c0"
+        bad_cand.page_number = 99
+        bad_cand.text = "abc"
+        with pytest.raises(ValueError, match="CITATION_PROVENANCE_MISMATCH"):
+            runner.build_citation_map_and_status("Texto [1]", False, [bad_cand], "q1")
+
+    def test_correct_text_sha256_with_page_zero_fails(self):
+        """d. Correct text_sha256 with page zero fails CITATION_PROVENANCE_MISMATCH."""
+        import benchmarks.run_slice4_benchmark as runner
+        cand = {"chunk_id": "doc_unk", "page_number": 0, "text_sha256": "a" * 64}
+        with pytest.raises(ValueError, match="CITATION_PROVENANCE_MISMATCH"):
+            runner.build_citation_map_and_status("Texto [1]", False, [cand], "q1")
+
+    def test_missing_page_does_not_get_zero_fallback(self):
+        """e. Missing page number raises CITATION_PROVENANCE_MISMATCH instead of fallback 0."""
+        import benchmarks.run_slice4_benchmark as runner
+        cand = {"chunk_id": "doc_nopage", "page_number": None, "text_sha256": "a" * 64}
+        with pytest.raises(ValueError, match="CITATION_PROVENANCE_MISMATCH"):
+            runner.build_citation_map_and_status("Texto [1]", False, [cand], "q1")
+
+    def test_boolean_page_is_rejected(self):
+        """f. Boolean page_number (True/False) is rejected with CITATION_PROVENANCE_MISMATCH."""
+        import benchmarks.run_slice4_benchmark as runner
+        cand = {"chunk_id": "doc_bool", "page_number": True, "text_sha256": "a" * 64}
+        with pytest.raises(ValueError, match="CITATION_PROVENANCE_MISMATCH"):
+            runner.build_citation_map_and_status("Texto [1]", False, [cand], "q1")
+
+    def test_marker_without_candidate_fails(self):
+        """g. Citation marker referencing candidate outside evidence raises CITATION_PROVENANCE_MISMATCH."""
+        import benchmarks.run_slice4_benchmark as runner
+        cand1 = {"chunk_id": "doc_p92_c0", "page_number": 92, "text_sha256": "a" * 64}
+        with pytest.raises(ValueError, match="CITATION_PROVENANCE_MISMATCH"):
+            runner.build_citation_map_and_status("Texto [99]", False, [cand1], "q1")
+
+    def test_abstention_remains_not_applicable(self):
+        """h. Abstention returns status NOT_APPLICABLE and empty citation_map."""
+        import benchmarks.run_slice4_benchmark as runner
+        status, cmap = runner.build_citation_map_and_status("ABSTAIN", True, [], "q1")
+        assert status == "NOT_APPLICABLE"
+        assert cmap == []
+
+    def test_citation_map_serialization_preserves_page_numbers(self):
+        """i. Serialization and deserialization preserve integer page numbers."""
+        import json
+
+        import benchmarks.run_slice4_benchmark as runner
+
+        cand1 = {"chunk_id": "doc_p92_c0", "page_number": 92, "text_sha256": "a" * 64}
+        cand2 = {"chunk_id": "doc_p96_c1", "page_number": 96, "text_sha256": "b" * 64}
+        cand3 = {"chunk_id": "doc_p101_c2", "page_number": 101, "text_sha256": "c" * 64}
+        _, cmap = runner.build_citation_map_and_status("Regra [1], [2], [3]", False, [cand1, cand2, cand3], "q1")
+        json_str = json.dumps(cmap)
+        restored = json.loads(json_str)
+        assert [c["page_number"] for c in restored] == [92, 96, 101]
+        for c in restored:
+            assert isinstance(c["page_number"], int)
+            assert not isinstance(c["page_number"], bool)
+
+    def test_final_json_rejects_available_status_with_page_number_less_than_1(self):
+        """j. validate_smoke_result rejects AVAILABLE status with any page_number < 1."""
+        import logging
+
+        import benchmarks.run_slice4_benchmark as runner
+        from tests.integration.test_slice4_smoke_contract import _make_smoke_result
+
+        data = _make_smoke_result(
+            strategy="W0_sentence_window",
+            qid="q_dev_01",
+            abstained=False,
+            is_abstention_question=False,
+        )
+        # Inject page_number 0 into citation_map
+        data["results"]["W0_sentence_window"][0]["citation_map"][0]["page_number"] = 0
+        data["results"]["W0_sentence_window"][0]["citation_pages"] = [0]
+
+        logger = logging.getLogger("test")
+        res_str = runner.validate_smoke_result(
+            data, "W0_sentence_window", "q_dev_01", False, logger
+        )
+        assert res_str == "SMOKE_FAILED"
