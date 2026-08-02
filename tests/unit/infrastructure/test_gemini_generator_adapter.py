@@ -92,7 +92,9 @@ class TestSanitizeAnswerForArtifact:
             citations=(),
         )
         artifact = sanitize_answer_for_artifact(answer)
-        assert len(artifact["text"]) <= 500
+        assert len(artifact["text"]) == 1000
+        assert artifact["truncated"] is False
+        assert len(artifact["preview"]) == 500
 
     def test_sanitized_abstained(self):
         from raglab.infrastructure.gemini.gemini_generator_adapter import (

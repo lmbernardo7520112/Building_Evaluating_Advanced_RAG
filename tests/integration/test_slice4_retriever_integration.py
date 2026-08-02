@@ -16,7 +16,7 @@ import importlib
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -25,6 +25,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 sys.path.insert(0, str(_REPO_ROOT / "benchmarks"))
 
+from raglab.infrastructure.gemini.gemini_generator_adapter import (
+    sanitize_answer_for_artifact,
+)
 
 # ─── Fixtures ─────────────────────────────────────────────────────
 
@@ -395,10 +398,12 @@ class TestSmokeF0Fake:
         fake_judge.evaluate_groundedness.side_effect = judge_eval
         fake_judge.evaluate_answer_relevance.side_effect = judge_eval
 
-        # Patch the imports inside run_benchmark
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            sanitize_answer_for_artifact,
+        )
         fake_gen_mod = MagicMock()
         fake_gen_mod.GeminiGeneratorAdapter.return_value = fake_generator
-        fake_gen_mod.sanitize_answer_for_artifact = lambda ans: {"query_id": ans.query_id, "text": ans.text, "abstained": ans.abstained, "citation_pages": []}
+        fake_gen_mod.sanitize_answer_for_artifact = sanitize_answer_for_artifact
 
         fake_judge_mod = MagicMock()
         fake_judge_mod.GeminiJudgeAdapter.return_value = fake_judge
@@ -477,7 +482,7 @@ class TestSmokeF0Fake:
 
         fake_gen_mod = MagicMock()
         fake_gen_mod.GeminiGeneratorAdapter.return_value = fake_generator
-        fake_gen_mod.sanitize_answer_for_artifact = lambda ans: {"query_id": ans.query_id, "text": ans.text, "abstained": ans.abstained, "citation_pages": []}
+        fake_gen_mod.sanitize_answer_for_artifact = sanitize_answer_for_artifact
 
         fake_judge_mod = MagicMock()
         fake_judge_mod.GeminiJudgeAdapter.return_value = fake_judge
@@ -568,7 +573,7 @@ class TestFullFake:
 
         fake_gen_mod_full = MagicMock()
         fake_gen_mod_full.GeminiGeneratorAdapter.return_value = fake_generator_full
-        fake_gen_mod_full.sanitize_answer_for_artifact = lambda ans: {"query_id": ans.query_id, "text": ans.text, "abstained": ans.abstained, "citation_pages": []}
+        fake_gen_mod_full.sanitize_answer_for_artifact = sanitize_answer_for_artifact
 
         fake_judge_mod_full = MagicMock()
         fake_judge_mod_full.GeminiJudgeAdapter.side_effect = lambda strategy=None, **kw: make_judge_for_strat(strategy)
@@ -722,6 +727,7 @@ class TestLlamaIndexEmbeddingBridge:
 
     def test_bridge_async_methods(self, fake_embedding):
         import asyncio
+
         from raglab.infrastructure.retrieval.llamaindex_adapter import (
             LlamaIndexEmbeddingBridge,
         )

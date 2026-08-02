@@ -61,6 +61,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import time
 from datetime import UTC, datetime
@@ -91,7 +92,7 @@ RESULTS_DIR = _REPO_ROOT / "benchmarks" / "results"
 CHECKPOINT_DIR = _REPO_ROOT / "checkpoints"
 PROVISION_MANIFEST_PATH = _REPO_ROOT / "benchmarks" / "provision_manifest.json"
 
-_EVAL_SCHEMA_VERSION = "slice4_v2"
+_EVAL_SCHEMA_VERSION = "slice4_v3"
 
 # ─── Evaluation metric status enum ───────────────────────────────
 # Typed states for each metric — replaces bare null
@@ -330,6 +331,216 @@ def load_pdf_pages(pdf_path: Path, logger: logging.Logger) -> list:
         PAGES_END,
     )
     return pages
+
+
+# ─── Strategy retrieval configuration helpers (OBJETIVO 2) ──────────
+
+def build_retrieval_configuration(strategy_label: str) -> dict[str, Any]:
+    """Return the canonical retrieval_configuration dict for a given strategy.
+
+    Rules:
+    - F0: reranker_enabled=False, reranker_class=None, reranker_top_n=None
+    - S0: False/None
+    - W0: False/None
+    - W1: True/"bi_encoder_rescoring", reranker_top_n=TOP_K
+    - H0: False/None
+    - H1: False/None
+    - H2: True/"bi_encoder_rescoring", reranker_top_n=TOP_K
+    """
+    if strategy_label == "F0_baseline":
+        return {
+            "strategy": "F0_baseline",
+            "retrieval_family": "fixed_chunk",
+            "candidate_k": None,
+            "final_k": TOP_K,
+            "window_size": None,
+            "hierarchy_chunk_sizes": None,
+            "auto_merge_threshold": None,
+            "reranker_enabled": False,
+            "reranker_class": None,
+            "reranker_top_n": None,
+        }
+    elif strategy_label == "S0_sentence_anchor":
+        return {
+            "strategy": "S0_sentence_anchor",
+            "retrieval_family": "sentence_anchor",
+            "candidate_k": None,
+            "final_k": TOP_K,
+            "window_size": None,
+            "hierarchy_chunk_sizes": None,
+            "auto_merge_threshold": None,
+            "reranker_enabled": False,
+            "reranker_class": None,
+            "reranker_top_n": None,
+        }
+    elif strategy_label == "W0_sentence_window":
+        return {
+            "strategy": "W0_sentence_window",
+            "retrieval_family": "sentence_window",
+            "candidate_k": None,
+            "final_k": TOP_K,
+            "window_size": WINDOW_SIZE,
+            "hierarchy_chunk_sizes": None,
+            "auto_merge_threshold": None,
+            "reranker_enabled": False,
+            "reranker_class": None,
+            "reranker_top_n": None,
+        }
+    elif strategy_label == "W1_sentence_window_rerank":
+        return {
+            "strategy": "W1_sentence_window_rerank",
+            "retrieval_family": "sentence_window",
+            "candidate_k": CANDIDATE_K,
+            "final_k": TOP_K,
+            "window_size": WINDOW_SIZE,
+            "hierarchy_chunk_sizes": None,
+            "auto_merge_threshold": None,
+            "reranker_enabled": True,
+            "reranker_class": "bi_encoder_rescoring",
+            "reranker_top_n": TOP_K,
+        }
+    elif strategy_label == "H0_hierarchical_leaf":
+        return {
+            "strategy": "H0_hierarchical_leaf",
+            "retrieval_family": "hierarchical",
+            "candidate_k": None,
+            "final_k": TOP_K,
+            "window_size": None,
+            "hierarchy_chunk_sizes": [1024, 512, 256],
+            "auto_merge_threshold": None,
+            "reranker_enabled": False,
+            "reranker_class": None,
+            "reranker_top_n": None,
+        }
+    elif strategy_label == "H1_auto_merging":
+        return {
+            "strategy": "H1_auto_merging",
+            "retrieval_family": "hierarchical",
+            "candidate_k": None,
+            "final_k": TOP_K,
+            "window_size": None,
+            "hierarchy_chunk_sizes": [1024, 512, 256],
+            "auto_merge_threshold": MERGE_THRESHOLD,
+            "reranker_enabled": False,
+            "reranker_class": None,
+            "reranker_top_n": None,
+        }
+    elif strategy_label == "H2_auto_merging_rerank":
+        return {
+            "strategy": "H2_auto_merging_rerank",
+            "retrieval_family": "hierarchical",
+            "candidate_k": CANDIDATE_K,
+            "final_k": TOP_K,
+            "window_size": None,
+            "hierarchy_chunk_sizes": [1024, 512, 256],
+            "auto_merge_threshold": MERGE_THRESHOLD,
+            "reranker_enabled": True,
+            "reranker_class": "bi_encoder_rescoring",
+            "reranker_top_n": TOP_K,
+        }
+    else:
+        raise ValueError(f"Unknown strategy for retrieval_configuration: {strategy_label}")
+
+
+def compute_retrieval_configuration_sha256(config: dict[str, Any]) -> str:
+    """Compute canonical SHA-256 hash of a retrieval configuration dict."""
+    canonical_json = json.dumps(config, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+
+
+def _extract_page_from_doc_id(doc_id: str) -> int | None:
+    """Extract page number integer from a document_id string (e.g. 'doc_p92_c0' -> 92)."""
+    m = re.search(r"_p(\d+)_", str(doc_id))
+    if m:
+        return int(m.group(1))
+    return None
+
+
+# ─── Citation mapping helper (OBJETIVO 3) ───────────────────────────
+
+def build_citation_map_and_status(
+    answer_text: str,
+    abstained: bool,
+    evidence: list[Any],
+    query_id: str,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Map citation markers [n] in answer_text to retrieved evidence candidates.
+
+    Returns:
+        (citation_mapping_status, citation_map)
+
+    Aborts with CITATION_PROVENANCE_MISMATCH if an unmapped marker or non-existent
+    candidate is referenced.
+    """
+    if abstained:
+        return ("NOT_APPLICABLE", [])
+
+    # Extract unique bracketed markers like [1], [2], [92], etc. in order of appearance
+    raw_matches = re.findall(r"\[(\d+)\]", answer_text)
+    markers_found: list[str] = []
+    for m in raw_matches:
+        marker_str = f"[{m}]"
+        if marker_str not in markers_found:
+            markers_found.append(marker_str)
+
+    if not markers_found:
+        return ("UNAVAILABLE", [])
+
+    citation_map: list[dict[str, Any]] = []
+
+    for marker_str in markers_found:
+        num_match = re.search(r"\d+", marker_str)
+        if not num_match:
+            raise ValueError(
+                f"CITATION_PROVENANCE_MISMATCH: Invalid marker format {marker_str} "
+                f"in query_id={query_id}"
+            )
+        n = int(num_match.group(0))
+
+        # Check candidate matching:
+        # 1. Is n 1-indexed in evidence list?
+        matched_cand = None
+        if 1 <= n <= len(evidence):
+            matched_cand = evidence[n - 1]
+        else:
+            # 2. Check if any candidate has page_number == n
+            for cand in evidence:
+                page_num = getattr(cand, "page_number", None)
+                if page_num is None and hasattr(cand, "document_id"):
+                    page_num = _extract_page_from_doc_id(cand.document_id)
+                if page_num == n:
+                    matched_cand = cand
+                    break
+
+        if matched_cand is None:
+            raise ValueError(
+                f"CITATION_PROVENANCE_MISMATCH: Citation marker {marker_str} "
+                f"in answer text does not map to any retrieved candidate in evidence "
+                f"(query_id={query_id})"
+            )
+
+        cand_chunk_id = getattr(matched_cand, "chunk_id", "")
+        if hasattr(cand_chunk_id, "value"):
+            cand_chunk_id = cand_chunk_id.value
+        cand_chunk_id = str(cand_chunk_id)
+
+        cand_page = getattr(matched_cand, "page_number", None)
+        if cand_page is None and hasattr(matched_cand, "document_id"):
+            cand_page = _extract_page_from_doc_id(matched_cand.document_id)
+        if cand_page is None:
+            cand_page = 0
+
+        cand_text = getattr(matched_cand, "text", "")
+        cand_sha = hashlib.sha256(cand_text.encode("utf-8")).hexdigest()
+
+        citation_map.append({
+            "marker": marker_str,
+            "page_number": cand_page,
+            "chunk_id": cand_chunk_id,
+            "text_sha256": cand_sha,
+        })
+
+    return ("AVAILABLE", citation_map)
 
 
 def load_embedding_model(
@@ -1006,6 +1217,9 @@ def run_benchmark(
             temperature=0.0,
         )
 
+        retrieval_config = build_retrieval_configuration(strategy_label)
+        retrieval_config_sha = compute_retrieval_configuration_sha256(retrieval_config)
+
         for q in questions:
             qid = q["qid"]
             query = q["query"]
@@ -1046,6 +1260,30 @@ def run_benchmark(
             ar_calls = 0
 
             sanitized_answer = sanitize_answer_for_artifact(answer)
+
+            # ── Lossless Answer Integrity Verification ────────────
+            evaluated_text = answer.text
+            persisted_text = str(sanitized_answer.get("text", ""))
+            persisted_sha = str(sanitized_answer.get("text_sha256", ""))
+            computed_sha = hashlib.sha256(persisted_text.encode("utf-8")).hexdigest()
+            if (
+                evaluated_text != persisted_text
+                or persisted_sha != computed_sha
+                or sanitized_answer.get("text_length_chars") != len(evaluated_text)
+                or sanitized_answer.get("truncated") is not False
+            ):
+                raise ValueError(
+                    f"EVALUATED_ANSWER_ARTIFACT_MISMATCH: query_id={query_id} "
+                    f"evaluated text, persisted text, or SHA-256 diverged"
+                )
+
+            # ── Citation Provenance Auditability ─────────────────
+            citation_mapping_status, citation_map = build_citation_map_and_status(
+                answer_text=evaluated_text,
+                abstained=answer.abstained,
+                evidence=evidence,
+                query_id=query_id,
+            )
 
             # ── Build typed evaluation with short-circuiting ──────
             evaluation_metrics: list[dict[str, Any]] = []
@@ -1257,10 +1495,14 @@ def run_benchmark(
                 "qid": qid,
                 "split": q["split"],
                 "strategy": strategy_label,
+                "retrieval_configuration": retrieval_config,
+                "retrieval_configuration_sha256": retrieval_config_sha,
                 "relevant_pages": relevant_pages,
                 "abstained": answer.abstained,
                 "is_abstention_question": is_abstention,
                 "answer": sanitized_answer,
+                "citation_mapping_status": citation_mapping_status,
+                "citation_map": citation_map,
                 "evaluation": evaluation_record,
                 "retrieval_evidence": evidence_record,
                 "citation_pages": citation_pages,
@@ -1284,6 +1526,9 @@ def run_benchmark(
     # Write sanitized results
     ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     output_path = RESULTS_DIR / f"slice4_results_{run_id}_{ts}.json"
+    all_retrieval_configs = {s: build_retrieval_configuration(s) for s in VALID_STRATEGIES}
+    all_retrieval_config_shas = {s: compute_retrieval_configuration_sha256(c) for s, c in all_retrieval_configs.items()}
+
     output = {
         "experiment_id": run_id,
         "protocol_version": PROTOCOL_VERSION,
@@ -1293,7 +1538,8 @@ def run_benchmark(
         "embedding_model": EMBEDDING_MODEL,
         "embedding_fingerprints": embedding_fps,
         "manifest_fingerprint": manifest.get("cache_tree_sha256", "UNRESOLVED"),
-        "reranker_class": "bi_encoder_rescoring",
+        "retrieval_configurations": all_retrieval_configs,
+        "retrieval_configuration_sha256": all_retrieval_config_shas,
         "run_time_ms": run_times,
         "quota_final_stats": shared_quota.stats,
         "rag_triad_dimensions": [
@@ -1435,6 +1681,11 @@ def validate_smoke_result(
         if not evidence_rec.get("retrieval_hit"):
             failures.append("NO_RETRIEVAL_HIT_ON_RELEVANT_PAGES")
 
+        # Must have citation mapping status AVAILABLE
+        cms = result.get("citation_mapping_status")
+        if cms != "AVAILABLE":
+            failures.append(f"CITATION_MAPPING_STATUS_NOT_AVAILABLE: {cms}")
+
         # Citations must be from retrieved evidence
         evidence_pages = {
             c.get("page_number")
@@ -1449,7 +1700,16 @@ def validate_smoke_result(
     if "retrieval_evidence" not in result:
         failures.append("MISSING_RETRIEVAL_EVIDENCE")
 
-    # 8. Result and checkpoint valid
+    # 8. Lossless answer contract validation
+    answer_obj = result.get("answer", {})
+    if answer_obj.get("truncated") is not False:
+        failures.append("ANSWER_TRUNCATED")
+    text_val = str(answer_obj.get("text", ""))
+    text_sha = str(answer_obj.get("text_sha256", ""))
+    if not text_sha or hashlib.sha256(text_val.encode("utf-8")).hexdigest() != text_sha:
+        failures.append("ANSWER_TEXT_SHA256_MISMATCH")
+
+    # 9. Result and checkpoint valid
     if evaluation.get("schema_version") != _EVAL_SCHEMA_VERSION:
         failures.append(
             f"WRONG_EVAL_SCHEMA: {evaluation.get('schema_version')} != {_EVAL_SCHEMA_VERSION}"

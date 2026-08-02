@@ -31,6 +31,7 @@ No network, no Gemini, no HuggingFace.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import sys
@@ -112,7 +113,7 @@ def _make_smoke_result(
 
     if evaluation is None:
         evaluation = {
-            "schema_version": "slice4_v2",
+            "schema_version": "slice4_v3",
             "metrics": metrics,
         }
 
@@ -135,9 +136,12 @@ def _make_smoke_result(
     if citation_pages is None:
         citation_pages = [92] if not abstained else []
 
+    ans_text = "ABSTAIN" if abstained else "Test answer"
+    ans_sha = hashlib.sha256(ans_text.encode("utf-8")).hexdigest()
+
     return {
         "experiment_id": "smoke_test",
-        "schema": "slice4_v2",
+        "schema": "slice4_v3",
         "embedding_fingerprints": {
             strategy: {
                 "embedding_model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
@@ -158,7 +162,16 @@ def _make_smoke_result(
                 "relevant_pages": [92] if not is_abstention_question else [],
                 "abstained": abstained,
                 "is_abstention_question": is_abstention_question,
-                "answer": {"text": "ABSTAIN" if abstained else "Test answer", "abstained": abstained},
+                "answer": {
+                    "text": ans_text,
+                    "text_sha256": ans_sha,
+                    "text_length_chars": len(ans_text),
+                    "truncated": False,
+                    "preview": ans_text,
+                    "abstained": abstained,
+                },
+                "citation_mapping_status": "NOT_APPLICABLE" if abstained else "AVAILABLE",
+                "citation_map": [] if abstained else [{"marker": "[1]", "page_number": 92, "chunk_id": "doc_p92_c0", "text_sha256": "x" * 64}],
                 "evaluation": evaluation,
                 "retrieval_evidence": retrieval_evidence,
                 "citation_pages": citation_pages,

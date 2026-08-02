@@ -26,7 +26,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = "slice4_v2"
+_SCHEMA_VERSION = "slice4_v3"
 
 
 class GenerationCheckpointStore:
@@ -34,7 +34,7 @@ class GenerationCheckpointStore:
 
     File format (one per run):
     {
-      "schema": "slice4_v2",
+      "schema": "slice4_v3",
       "run_id": "...",
       "completed": {
         "q_dev_01::F0_baseline": {

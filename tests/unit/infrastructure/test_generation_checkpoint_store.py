@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 import pytest
 
 
@@ -68,7 +69,7 @@ class TestGenerationCheckpointStore:
 
         ckpt_files = list(tmp_path.glob("*.json"))
         data = json.loads(ckpt_files[0].read_text())
-        assert data["schema"] == "slice4_v2"
+        assert data["schema"] == "slice4_v3"
         assert data["run_id"] == "schema_run"
 
     def test_incompatible_schema_rejected(self, tmp_path):

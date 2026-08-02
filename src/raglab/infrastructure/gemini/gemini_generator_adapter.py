@@ -18,6 +18,7 @@ Temp:      0.0 (deterministic)
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from collections.abc import Sequence
@@ -234,14 +235,21 @@ def _extract_status_code(error_str: str) -> int | None:
 # ─────────────────────────────────────────────────────────────────
 
 def sanitize_answer_for_artifact(answer: GeneratedAnswer) -> dict[str, object]:
-    """Return a JSON-safe dict with no credentials.
+    """Return a JSON-safe dict with no credentials and untruncated evaluated text.
 
     Excludes: API keys, headers, HTTP responses, internal IDs.
-    Includes: query_id, text (truncated), abstained, citation page numbers.
+    Includes: query_id, text (full, untruncated), text_sha256, text_length_chars,
+              truncated (False), preview, abstained, citation page numbers.
     """
+    text_val = answer.text
+    text_sha = hashlib.sha256(text_val.encode("utf-8")).hexdigest()
     return {
         "query_id": answer.query_id,
-        "text": answer.text[:500],  # cap length
+        "text": text_val,
+        "text_sha256": text_sha,
+        "text_length_chars": len(text_val),
+        "truncated": False,
+        "preview": text_val[:500] if len(text_val) > 500 else text_val,
         "abstained": answer.abstained,
         "citation_pages": [c.page_number for c in answer.citations],
     }

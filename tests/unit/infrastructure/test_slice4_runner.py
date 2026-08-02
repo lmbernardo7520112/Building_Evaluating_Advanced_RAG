@@ -17,7 +17,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -479,7 +479,6 @@ class TestSlice4SurgicalFixes:
     @pytest.fixture(autouse=True)
     def _auto_quota_sync(self, monkeypatch):
         """Automatically sync mock generator and judge calls with QuotaManager."""
-        from raglab.domain.entities import GeneratedAnswer
         from raglab.domain.quota import QuotaManager
 
         active_qm = []
@@ -544,6 +543,7 @@ class TestSlice4SurgicalFixes:
     def test_all_seven_strategies_preserve_identity(self, tmp_path, monkeypatch, strategy_label):
         """1 & 2: W0 never registered as baseline; all 7 strategies preserve exact identity."""
         import logging
+
         import benchmarks.run_slice4_benchmark as runner
 
         fake_manifest = {
@@ -593,6 +593,7 @@ class TestSlice4SurgicalFixes:
     def test_strategy_provenance_mismatch_aborts(self, tmp_path, monkeypatch):
         """3: Strategy provenance mismatch aborts execution before saving."""
         import logging
+
         import benchmarks.run_slice4_benchmark as runner
 
         fake_manifest = {
@@ -636,6 +637,7 @@ class TestSlice4SurgicalFixes:
     def test_abstain_with_context_calls_only_cr(self, tmp_path, monkeypatch):
         """4 & 6 & 7: ABSTAIN with context calls ONLY Context Relevance (GR=0, AR=0, total=2)."""
         import logging
+
         import benchmarks.run_slice4_benchmark as runner
 
         fake_manifest = {"model_id": "m", "cache_tree_sha256": "a" * 64}
@@ -683,6 +685,7 @@ class TestSlice4SurgicalFixes:
     def test_abstain_without_context_no_judge_calls(self, tmp_path, monkeypatch):
         """5: ABSTAIN without context makes 0 judge calls (total=1)."""
         import logging
+
         import benchmarks.run_slice4_benchmark as runner
 
         fake_manifest = {"model_id": "m", "cache_tree_sha256": "a" * 64}
@@ -725,6 +728,7 @@ class TestSlice4SurgicalFixes:
     def test_substantive_answer_calls_all_three_metrics(self, tmp_path, monkeypatch):
         """8: Substantive answer calls CR, GR, and AR (total=4)."""
         import logging
+
         import benchmarks.run_slice4_benchmark as runner
 
         fake_manifest = {"model_id": "m", "cache_tree_sha256": "a" * 64}
@@ -772,6 +776,7 @@ class TestSlice4SurgicalFixes:
     def test_accounting_divergence_aborts(self, tmp_path, monkeypatch):
         """9 & 10: Call ledger quota mismatch aborts with EXTERNAL_CALL_ACCOUNTING_MISMATCH."""
         import logging
+
         import benchmarks.run_slice4_benchmark as runner
 
         fake_manifest = {"model_id": "m", "cache_tree_sha256": "a" * 64}
@@ -814,6 +819,7 @@ class TestSlice4SurgicalFixes:
     def test_explicit_versioning_fields(self, tmp_path, monkeypatch):
         """11: Top-level and evaluation records contain protocol_version and artifact_schema_version."""
         import logging
+
         import benchmarks.run_slice4_benchmark as runner
 
         fake_manifest = {"model_id": "m", "cache_tree_sha256": "a" * 64}
@@ -846,15 +852,316 @@ class TestSlice4SurgicalFixes:
 
         data = json.loads(out.read_text(encoding="utf-8"))
         assert data["protocol_version"] == "raglab_v7_slice4_v2"
-        assert data["artifact_schema_version"] == "slice4_v2"
-        assert data["schema"] == "slice4_v2"
+        assert data["artifact_schema_version"] == "slice4_v3"
+        assert data["schema"] == "slice4_v3"
         eval_rec = data["results"]["F0_baseline"][0]["evaluation"]
         assert eval_rec["protocol_version"] == "raglab_v7_slice4_v2"
-        assert eval_rec["artifact_schema_version"] == "slice4_v2"
-        assert eval_rec["schema_version"] == "slice4_v2"
+        assert eval_rec["artifact_schema_version"] == "slice4_v3"
+        assert eval_rec["schema_version"] == "slice4_v3"
 
     def test_runbook_contains_separated_commands(self):
         """13: Runbook contains independent export and unset commands."""
         runbook = (Path(_REPO_ROOT) / "docs" / "runbooks" / "slice4_human_execution.md").read_text(encoding="utf-8")
         assert "export LANGCHAIN_TRACING_V2=false" in runbook
         assert "unset GOOGLE_API_KEY" in runbook
+
+
+class TestSlice4V3ContractFixes:
+    """Mandatory test suite for Slice 4 v3 artifact contract fixes (18 tests)."""
+
+    def test_answer_longer_than_500_chars_preserved_in_full(self):
+        """1. Answer text > 500 characters is preserved in full in sanitize_answer_for_artifact."""
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            sanitize_answer_for_artifact,
+        )
+        long_text = "A" * 750 + " fim de frase."
+        ans = GeneratedAnswer(query_id="q1", text=long_text, abstained=False, citations=())
+        san = sanitize_answer_for_artifact(ans)
+        assert len(str(san["text"])) == 764
+        assert san["text"] == long_text
+        assert san["truncated"] is False
+        assert san["text_length_chars"] == 764
+        assert len(str(san["preview"])) == 500
+
+    def test_answer_ends_naturally_without_truncation(self):
+        """2. Answer text ends naturally without being cut off mid-word."""
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            sanitize_answer_for_artifact,
+        )
+        text = "Esta é uma resposta completa com mais de quinhentos caracteres " + ("palavra " * 70) + "fim natural."
+        assert len(text) > 500
+        ans = GeneratedAnswer(query_id="q1", text=text, abstained=False, citations=())
+        san = sanitize_answer_for_artifact(ans)
+        assert str(san["text"]).endswith("fim natural.")
+
+    def test_answer_text_sha256_matches_text(self):
+        """3. answer.text_sha256 corresponds exactly to SHA-256 of text."""
+        import hashlib
+
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            sanitize_answer_for_artifact,
+        )
+        text = "Texto de teste para verificação de hash SHA-256."
+        ans = GeneratedAnswer(query_id="q1", text=text, abstained=False, citations=())
+        san = sanitize_answer_for_artifact(ans)
+        expected_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        assert san["text_sha256"] == expected_sha
+
+    def test_evaluated_text_equals_persisted_text(self):
+        """4. Evaluated text is identical to persisted text in benchmark artifact."""
+        import hashlib
+
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            sanitize_answer_for_artifact,
+        )
+        text = "Resposta para avaliação e persistência identica " + "x" * 550
+        fake_ans = GeneratedAnswer(query_id="q_dev_01", text=text, abstained=False, citations=())
+        san = sanitize_answer_for_artifact(fake_ans)
+        assert san["text"] == text
+        assert san["text_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def test_hash_divergence_aborts_with_evaluated_answer_artifact_mismatch(self, tmp_path, monkeypatch):
+        """5. Mismatch between evaluated text/hash and persisted text aborts with EVALUATED_ANSWER_ARTIFACT_MISMATCH."""
+        import logging
+
+        import benchmarks.run_slice4_benchmark as runner
+
+        fake_manifest = {"model_id": "m", "cache_tree_sha256": "a" * 64}
+        monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
+        monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
+        monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, logger_val, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+
+        fake_retriever = MagicMock()
+        fake_retriever.retrieve.return_value = []
+        monkeypatch.setattr(runner, "build_retrievers", lambda pages, embed, strategies=None: {"F0_baseline": fake_retriever})
+        monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path / "ckpts")
+        monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path / "results")
+
+        monkeypatch.setattr("raglab.infrastructure.gemini.gemini_generator_adapter.sanitize_answer_for_artifact", lambda ans: {
+            "query_id": ans.query_id,
+            "text": "TEXTO_CORROMPIDO",
+            "text_sha256": "bad_sha",
+            "text_length_chars": 16,
+            "truncated": False,
+            "preview": "TEXTO_CORROMPIDO",
+            "abstained": False,
+            "citation_pages": [],
+        })
+
+        fake_gen = MagicMock()
+        fake_gen.generate.return_value = GeneratedAnswer(query_id="F0_baseline::q_dev_01", text="TEXTO_ORIGINAL", abstained=False, citations=())
+        fake_gen.model_id = "g"
+        fake_judge = MagicMock()
+        fake_judge.strategy = "F0_baseline"
+
+        monkeypatch.setattr("raglab.infrastructure.gemini.gemini_generator_adapter.GeminiGeneratorAdapter", lambda **kw: fake_gen)
+        monkeypatch.setattr("raglab.infrastructure.gemini.gemini_judge_adapter.GeminiJudgeAdapter", lambda **kw: fake_judge)
+
+        q = {"qid": "q_dev_01", "split": "development", "query": "Q?", "relevant_pages": [92]}
+        with pytest.raises(ValueError, match="EVALUATED_ANSWER_ARTIFACT_MISMATCH"):
+            runner.run_benchmark(
+                run_id="test_div",
+                questions=[q],
+                strategy_labels=("F0_baseline",),
+                logger=logging.getLogger("t"),
+                pdf_path=tmp_path / "fake.pdf",
+            )
+
+    def test_preview_does_not_replace_full_text(self):
+        """6. preview field is distinct and does not replace full text in answer artifact."""
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            sanitize_answer_for_artifact,
+        )
+        text = "B" * 800
+        ans = GeneratedAnswer(query_id="q1", text=text, abstained=False, citations=())
+        san = sanitize_answer_for_artifact(ans)
+        assert san["text"] == text
+        assert len(str(san["text"])) == 800
+        assert len(str(san["preview"])) == 500
+        assert san["text"] != san["preview"]
+
+    def test_f0_retrieval_config_has_no_reranker(self):
+        """7. F0 retrieval_configuration has reranker_enabled=False and reranker_class=None."""
+        import benchmarks.run_slice4_benchmark as runner
+        cfg = runner.build_retrieval_configuration("F0_baseline")
+        assert cfg["strategy"] == "F0_baseline"
+        assert cfg["reranker_enabled"] is False
+        assert cfg["reranker_class"] is None
+        assert cfg["reranker_top_n"] is None
+
+    def test_w0_retrieval_config_has_no_reranker(self):
+        """8. W0 retrieval_configuration has reranker_enabled=False and reranker_class=None."""
+        import benchmarks.run_slice4_benchmark as runner
+        cfg = runner.build_retrieval_configuration("W0_sentence_window")
+        assert cfg["strategy"] == "W0_sentence_window"
+        assert cfg["window_size"] == 3
+        assert cfg["reranker_enabled"] is False
+        assert cfg["reranker_class"] is None
+
+    def test_w1_retrieval_config_has_reranker(self):
+        """9. W1 retrieval_configuration has reranker_enabled=True and reranker_class='bi_encoder_rescoring'."""
+        import benchmarks.run_slice4_benchmark as runner
+        cfg = runner.build_retrieval_configuration("W1_sentence_window_rerank")
+        assert cfg["strategy"] == "W1_sentence_window_rerank"
+        assert cfg["reranker_enabled"] is True
+        assert cfg["reranker_class"] == "bi_encoder_rescoring"
+        assert cfg["reranker_top_n"] == 3
+
+    def test_h1_retrieval_config_has_no_reranker(self):
+        """10. H1 retrieval_configuration has reranker_enabled=False and reranker_class=None."""
+        import benchmarks.run_slice4_benchmark as runner
+        cfg = runner.build_retrieval_configuration("H1_auto_merging")
+        assert cfg["strategy"] == "H1_auto_merging"
+        assert cfg["auto_merge_threshold"] == 0.5
+        assert cfg["reranker_enabled"] is False
+        assert cfg["reranker_class"] is None
+
+    def test_h2_retrieval_config_has_reranker(self):
+        """11. H2 retrieval_configuration has reranker_enabled=True and reranker_class='bi_encoder_rescoring'."""
+        import benchmarks.run_slice4_benchmark as runner
+        cfg = runner.build_retrieval_configuration("H2_auto_merging_rerank")
+        assert cfg["strategy"] == "H2_auto_merging_rerank"
+        assert cfg["reranker_enabled"] is True
+        assert cfg["reranker_class"] == "bi_encoder_rescoring"
+        assert cfg["reranker_top_n"] == 3
+
+    def test_retrieval_config_has_deterministic_sha256(self):
+        """12. Retrieval configuration produces a deterministic SHA-256 hash."""
+        import benchmarks.run_slice4_benchmark as runner
+        cfg1 = runner.build_retrieval_configuration("W0_sentence_window")
+        cfg2 = runner.build_retrieval_configuration("W0_sentence_window")
+        h1 = runner.compute_retrieval_configuration_sha256(cfg1)
+        h2 = runner.compute_retrieval_configuration_sha256(cfg2)
+        assert len(h1) == 64
+        assert h1 == h2
+
+    def test_citation_markers_mapped_to_candidates(self):
+        """13. Citation markers [1] in answer text map correctly to retrieved candidates."""
+        import benchmarks.run_slice4_benchmark as runner
+        cand1 = MagicMock()
+        cand1.chunk_id = "c1"
+        cand1.page_number = 92
+        cand1.text = "Exemplo de texto do chunk 1"
+        cand2 = MagicMock()
+        cand2.chunk_id = "c2"
+        cand2.page_number = 93
+        cand2.text = "Exemplo de texto do chunk 2"
+
+        status, cmap = runner.build_citation_map_and_status(
+            answer_text="De acordo com [1] e [2], a regra se aplica.",
+            abstained=False,
+            evidence=[cand1, cand2],
+            query_id="q1",
+        )
+        assert status == "AVAILABLE"
+        assert len(cmap) == 2
+        assert cmap[0]["marker"] == "[1]"
+        assert cmap[0]["page_number"] == 92
+        assert cmap[0]["chunk_id"] == "c1"
+        assert cmap[1]["marker"] == "[2]"
+        assert cmap[1]["page_number"] == 93
+
+    def test_unmapped_citation_marker_aborts(self):
+        """14. Unmapped citation marker in answer text aborts with CITATION_PROVENANCE_MISMATCH."""
+        import benchmarks.run_slice4_benchmark as runner
+        cand1 = MagicMock()
+        cand1.chunk_id = "c1"
+        cand1.page_number = 92
+        cand1.text = "Texto 1"
+
+        with pytest.raises(ValueError, match="CITATION_PROVENANCE_MISMATCH"):
+            runner.build_citation_map_and_status(
+                answer_text="De acordo com [99], a regra se aplica.",
+                abstained=False,
+                evidence=[cand1],
+                query_id="q1",
+            )
+
+    def test_citation_to_nonexistent_evidence_aborts(self):
+        """15. Citation marker referencing candidate outside evidence aborts with CITATION_PROVENANCE_MISMATCH."""
+        import benchmarks.run_slice4_benchmark as runner
+        with pytest.raises(ValueError, match="CITATION_PROVENANCE_MISMATCH"):
+            runner.build_citation_map_and_status(
+                answer_text="Referência [5] no texto.",
+                abstained=False,
+                evidence=[],
+                query_id="q1",
+            )
+
+    def test_schema_v2_incompatible_with_v3(self, tmp_path):
+        """16. GenerationCheckpointStore rejects schema v2 as incompatible with v3."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import (
+            GenerationCheckpointStore,
+        )
+        ckpt_file = tmp_path / "slice4_gen_checkpoint_test_v2.json"
+        ckpt_file.write_text(json.dumps({"schema": "slice4_v2", "run_id": "test_v2", "completed": {}}), encoding="utf-8")
+        with pytest.raises(ValueError, match="INCOMPATIBLE_CHECKPOINT_SCHEMA"):
+            GenerationCheckpointStore(run_id="test_v2", store_dir=tmp_path)
+
+    def test_no_secrets_in_full_text(self):
+        """17. Secret scanner confirms full untruncated text contains no credentials."""
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            sanitize_answer_for_artifact,
+        )
+        text = "Texto limpo sem segredos: " + "a" * 600
+        ans = GeneratedAnswer(query_id="q1", text=text, abstained=False, citations=())
+        san = sanitize_answer_for_artifact(ans)
+        serialized = json.dumps(san)
+        for secret_pattern in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "AIza", "ya29."):
+            assert secret_pattern not in serialized
+
+    def test_call_ledger_and_quota_unaffected(self, tmp_path, monkeypatch):
+        """18. Call ledger and quota management remain unaffected and strictly reconciled."""
+        import logging
+
+        import benchmarks.run_slice4_benchmark as runner
+        from raglab.domain.quota import QuotaManager
+
+        fake_manifest = {"model_id": "m", "cache_tree_sha256": "a" * 64}
+        monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
+        monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
+        monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, logger_val, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+
+        fake_retriever = MagicMock()
+        fake_retriever.retrieve.return_value = []
+        monkeypatch.setattr(runner, "build_retrievers", lambda pages, embed, strategies=None: {"F0_baseline": fake_retriever})
+        monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path / "ckpts")
+        monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path / "results")
+
+        active_qm = []
+        orig_init = QuotaManager.__init__
+        def custom_init(qm_self, *args, **kwargs):
+            orig_init(qm_self, *args, **kwargs)
+            active_qm.append(qm_self)
+        monkeypatch.setattr(QuotaManager, "__init__", custom_init)
+
+        fake_ans = GeneratedAnswer(query_id="q_test_04", text="Não foi possível responder", abstained=True, citations=[])
+        def gen_mock(*args, **kwargs):
+            if active_qm:
+                active_qm[-1].acquire(1)
+            return fake_ans
+        fake_gen = MagicMock()
+        fake_gen.generate.side_effect = gen_mock
+        fake_gen.model_id = "g"
+
+        fake_judge = MagicMock()
+        fake_judge.strategy = "F0_baseline"
+
+        monkeypatch.setattr("raglab.infrastructure.gemini.gemini_generator_adapter.GeminiGeneratorAdapter", lambda **kw: fake_gen)
+        monkeypatch.setattr("raglab.infrastructure.gemini.gemini_judge_adapter.GeminiJudgeAdapter", lambda **kw: fake_judge)
+
+        q = {"qid": "q_test_04", "split": "test", "query": "Capital?", "relevant_pages": [], "abstention_expected": True}
+        out = runner.run_benchmark(
+            run_id="test_ledger_unaffected",
+            questions=[q],
+            strategy_labels=("F0_baseline",),
+            logger=logging.getLogger("test"),
+            pdf_path=tmp_path / "fake.pdf",
+        )
+
+        data = json.loads(out.read_text(encoding="utf-8"))
+        res = data["results"]["F0_baseline"][0]
+        assert res["call_ledger"]["total_external_requests"] == 1
+        assert res["call_ledger"]["generation_calls"] == 1
