@@ -75,13 +75,16 @@ class GeminiJudgeAdapter:
     def __init__(
         self,
         judge_model_id: str = _DEFAULT_JUDGE_MODEL,
-        strategy: PipelineStrategy = PipelineStrategy.BASELINE,
+        strategy: PipelineStrategy | str = PipelineStrategy.BASELINE,
         quota_manager: QuotaManager | None = None,
         retry_policy: RetryPolicy | None = None,
         temperature: float = 0.0,
     ) -> None:
         self._judge_model_id = judge_model_id
-        self._strategy = strategy
+        if isinstance(strategy, str):
+            self._strategy = PipelineStrategy.from_label(strategy)
+        else:
+            self._strategy = strategy
         self._quota = quota_manager or QuotaManager()
         self._retry = retry_policy or RetryPolicy()
         self._temperature = temperature
@@ -102,6 +105,42 @@ class GeminiJudgeAdapter:
     @property
     def judge_model_id(self) -> str:
         return self._judge_model_id
+
+    @property
+    def strategy(self) -> PipelineStrategy:
+        return self._strategy
+
+    def evaluate_context_relevance(
+        self, query_id: str, query: str, evidence: Sequence[RetrievedEvidence]
+    ) -> float:
+        context_passages = [ev.text for ev in evidence]
+        score, _ = self._score_dimension(
+            query_id=query_id,
+            dimension="context_relevance",
+            prompt=build_context_relevance_prompt(query, context_passages),
+        )
+        return round(score, 4)
+
+    def evaluate_groundedness(
+        self, query_id: str, query: str, answer: GeneratedAnswer, evidence: Sequence[RetrievedEvidence]
+    ) -> float:
+        context_passages = [ev.text for ev in evidence]
+        score, _ = self._score_dimension(
+            query_id=query_id,
+            dimension="groundedness",
+            prompt=build_groundedness_prompt(query, context_passages, answer.text),
+        )
+        return round(score, 4)
+
+    def evaluate_answer_relevance(
+        self, query_id: str, query: str, answer: GeneratedAnswer
+    ) -> float:
+        score, _ = self._score_dimension(
+            query_id=query_id,
+            dimension="answer_relevance",
+            prompt=build_answer_relevance_prompt(query, answer.text),
+        )
+        return round(score, 4)
 
     def evaluate(
         self,

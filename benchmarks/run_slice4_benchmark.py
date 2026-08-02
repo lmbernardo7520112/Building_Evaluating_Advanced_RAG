@@ -65,14 +65,15 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 # ─── Path setup ───────────────────────────────────────────────────
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 # ─── Constants ───────────────────────────────────────────────────
-EXPERIMENT_ID = "raglab_v7_slice4_v1_20260731T1230UTC"
+PROTOCOL_VERSION = "raglab_v7_slice4_v2"
+EXPERIMENT_ID = "raglab_v7_slice4_v2_20260731T1230UTC"
 PDF_SHA256_EXPECTED = (
     "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254"
 )
@@ -103,6 +104,25 @@ _VALID_METRIC_STATUSES = frozenset(
 )
 
 _SECRET_PATTERNS = ("GEMINI_API_KEY", "GOOGLE_API_KEY", "AIza", "ya29.")
+
+_NO_CREDENTIAL_VARS: Final[tuple[str, ...]] = (
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "LANGSMITH_API_KEY",
+    "HF_TOKEN",
+    "HUGGINGFACE_HUB_TOKEN",
+)
+
+
+def _validate_no_credentials_for_preflight(logger: logging.Logger) -> None:
+    found = [var for var in _NO_CREDENTIAL_VARS if os.environ.get(var)]
+    if found:
+        logger.error(
+            "PREFLIGHT_FAILED: Credential/token variable(s) present in environment during preflight: %s. "
+            "Unset all credential/token variables before running preflight.",
+            found,
+        )
+        sys.exit(1)
 
 # Valid strategy labels — used for CLI validation
 VALID_STRATEGIES: tuple[str, ...] = (
@@ -973,13 +993,14 @@ def run_benchmark(
 
     for strategy_label in strategy_labels:
         retriever = retrievers[strategy_label]
+        pipeline_strategy = PipelineStrategy.from_label(strategy_label)
         logger.info("=== Strategy: %s ===", strategy_label)
         strategy_results: list[dict] = []
         t0 = time.monotonic()
 
         judge = GeminiJudgeAdapter(
             judge_model_id=GEMINI_MODEL,
-            strategy=PipelineStrategy.BASELINE,
+            strategy=pipeline_strategy,
             quota_manager=shared_quota,
             retry_policy=shared_retry,
             temperature=0.0,
@@ -990,9 +1011,10 @@ def run_benchmark(
             query = q["query"]
             is_abstention = q.get("abstention_expected", False)
             relevant_pages = q.get("relevant_pages", [])
+            query_id = f"{strategy_label}::{qid}"
 
             if ckpt.is_completed(qid, strategy_label):
-                logger.info("  SKIP (already done): %s::%s", qid, strategy_label)
+                logger.info("  SKIP (already done): %s", query_id)
                 continue
 
             # Defensive holdout guard — never run holdout questions
@@ -1002,7 +1024,10 @@ def run_benchmark(
                 )
                 sys.exit(2)
 
-            logger.info("  Processing: %s (abstention=%s)", qid, is_abstention)
+            logger.info("  Processing: %s (abstention=%s)", query_id, is_abstention)
+
+            quota_before = int(shared_quota.stats["total_requests"])
+
             evidence = retriever.retrieve(query, top_k=TOP_K)
 
             # ── Serialize retrieval evidence for audit ───────────
@@ -1011,14 +1036,18 @@ def run_benchmark(
             )
 
             answer = generator.generate(
-                query_id=f"{strategy_label}::{qid}",
+                query_id=query_id,
                 query=query,
                 evidence=evidence,
             )
+            gen_calls = 1
+            cr_calls = 0
+            gr_calls = 0
+            ar_calls = 0
 
             sanitized_answer = sanitize_answer_for_artifact(answer)
 
-            # ── Build typed evaluation ──────────────────────────
+            # ── Build typed evaluation with short-circuiting ──────
             evaluation_metrics: list[dict[str, Any]] = []
 
             # Abstention correctness (deterministic, always computed)
@@ -1027,44 +1056,28 @@ def run_benchmark(
             )
 
             if answer.abstained:
-                # Context Relevance: compute if evidence exists
+                # Abstained answer: short-circuit judge calls for GR and AR
                 if evidence:
                     try:
-                        cr_result = judge.evaluate(
-                            query_id=f"{strategy_label}::{qid}",
+                        cr_score = judge.evaluate_context_relevance(
+                            query_id=query_id,
                             query=query,
-                            answer=answer,
                             evidence=evidence,
                         )
-                        cr_score = None
-                        for m in cr_result.metrics:
-                            if m.name == "context_relevance":
-                                cr_score = m.value
-                                break
-                        if cr_score is not None:
-                            evaluation_metrics.append(
-                                make_metric_entry(
-                                    "context_relevance",
-                                    METRIC_COMPUTED,
-                                    score=cr_score,
-                                    evaluator_model=GEMINI_MODEL,
-                                    attempts=1,
-                                )
+                        cr_calls = 1
+                        evaluation_metrics.append(
+                            make_metric_entry(
+                                "context_relevance",
+                                METRIC_COMPUTED,
+                                score=cr_score,
+                                evaluator_model=GEMINI_MODEL,
+                                attempts=1,
                             )
-                        else:
-                            evaluation_metrics.append(
-                                make_metric_entry(
-                                    "context_relevance",
-                                    METRIC_FAILED,
-                                    reason="JUDGE_NO_CR_SCORE",
-                                    evaluator_model=GEMINI_MODEL,
-                                    attempts=1,
-                                )
-                            )
+                        )
                     except Exception as exc:
                         logger.warning(
-                            "  CR evaluation failed for %s::%s: %s",
-                            strategy_label, qid, exc,
+                            "  CR evaluation failed for %s: %s",
+                            query_id, exc,
                         )
                         evaluation_metrics.append(
                             make_metric_entry(
@@ -1080,89 +1093,162 @@ def run_benchmark(
                         make_metric_entry(
                             "context_relevance",
                             METRIC_NOT_APPLICABLE,
-                            reason="NO_EVIDENCE_RETRIEVED",
+                            reason="NO_RETRIEVAL_CONTEXT",
                         )
                     )
 
-                # Groundedness: NOT_APPLICABLE for ABSTAIN
+                # Groundedness: NOT_APPLICABLE for ABSTAIN (0 calls)
                 evaluation_metrics.append(
                     make_metric_entry(
                         "groundedness",
                         METRIC_NOT_APPLICABLE,
-                        reason="ABSTAINED_WITHOUT_CLAIMS",
+                        reason="ABSTAINED",
                     )
                 )
 
-                # Answer Relevance: NOT_APPLICABLE for ABSTAIN
+                # Answer Relevance: NOT_APPLICABLE for ABSTAIN (0 calls)
                 evaluation_metrics.append(
                     make_metric_entry(
                         "answer_relevance",
                         METRIC_NOT_APPLICABLE,
-                        reason="ABSTAINED_WITHOUT_CLAIMS",
+                        reason="ABSTAINED",
                     )
                 )
             else:
-                # Substantive answer: full RAG Triad evaluation
+                # Substantive answer: evaluate dimensions
                 if evidence:
+                    # 1. Context Relevance
                     try:
-                        eval_result = judge.evaluate(
-                            query_id=f"{strategy_label}::{qid}",
-                            query=query,
-                            answer=answer,
-                            evidence=evidence,
+                        cr_score = judge.evaluate_context_relevance(
+                            query_id=query_id, query=query, evidence=evidence
                         )
-                        metrics_dict = {m.name: m.value for m in eval_result.metrics}
-                        for dim in ("context_relevance", "groundedness", "answer_relevance"):
-                            score_val = metrics_dict.get(dim)
-                            if score_val is not None:
-                                evaluation_metrics.append(
-                                    make_metric_entry(
-                                        dim,
-                                        METRIC_COMPUTED,
-                                        score=score_val,
-                                        evaluator_model=GEMINI_MODEL,
-                                        attempts=1,
-                                    )
-                                )
-                            else:
-                                evaluation_metrics.append(
-                                    make_metric_entry(
-                                        dim,
-                                        METRIC_FAILED,
-                                        reason=f"JUDGE_NO_{dim.upper()}_SCORE",
-                                        evaluator_model=GEMINI_MODEL,
-                                        attempts=1,
-                                    )
-                                )
-                    except Exception as exc:
-                        logger.warning(
-                            "  Evaluation failed for %s::%s: %s",
-                            strategy_label, qid, exc,
-                        )
-                        for dim in ("context_relevance", "groundedness", "answer_relevance"):
-                            evaluation_metrics.append(
-                                make_metric_entry(
-                                    dim,
-                                    METRIC_FAILED,
-                                    reason=str(exc)[:200],
-                                    evaluator_model=GEMINI_MODEL,
-                                    attempts=1,
-                                )
-                            )
-                else:
-                    for dim in ("context_relevance", "groundedness", "answer_relevance"):
+                        cr_calls = 1
                         evaluation_metrics.append(
                             make_metric_entry(
-                                dim,
-                                METRIC_NOT_APPLICABLE,
-                                reason="NO_EVIDENCE_RETRIEVED",
+                                "context_relevance",
+                                METRIC_COMPUTED,
+                                score=cr_score,
+                                evaluator_model=GEMINI_MODEL,
+                                attempts=1,
                             )
                         )
+                    except Exception as exc:
+                        logger.warning("  CR evaluation failed for %s: %s", query_id, exc)
+                        evaluation_metrics.append(
+                            make_metric_entry(
+                                "context_relevance",
+                                METRIC_FAILED,
+                                reason=str(exc)[:200],
+                                evaluator_model=GEMINI_MODEL,
+                                attempts=1,
+                            )
+                        )
+
+                    # 2. Groundedness
+                    try:
+                        gr_score = judge.evaluate_groundedness(
+                            query_id=query_id, query=query, answer=answer, evidence=evidence
+                        )
+                        gr_calls = 1
+                        evaluation_metrics.append(
+                            make_metric_entry(
+                                "groundedness",
+                                METRIC_COMPUTED,
+                                score=gr_score,
+                                evaluator_model=GEMINI_MODEL,
+                                attempts=1,
+                            )
+                        )
+                    except Exception as exc:
+                        logger.warning("  GR evaluation failed for %s: %s", query_id, exc)
+                        evaluation_metrics.append(
+                            make_metric_entry(
+                                "groundedness",
+                                METRIC_FAILED,
+                                reason=str(exc)[:200],
+                                evaluator_model=GEMINI_MODEL,
+                                attempts=1,
+                            )
+                        )
+                else:
+                    evaluation_metrics.append(
+                        make_metric_entry(
+                            "context_relevance",
+                            METRIC_NOT_APPLICABLE,
+                            reason="NO_RETRIEVAL_CONTEXT",
+                        )
+                    )
+                    evaluation_metrics.append(
+                        make_metric_entry(
+                            "groundedness",
+                            METRIC_NOT_APPLICABLE,
+                            reason="NO_RETRIEVAL_CONTEXT",
+                        )
+                    )
+
+                # 3. Answer Relevance
+                try:
+                    ar_score = judge.evaluate_answer_relevance(
+                        query_id=query_id, query=query, answer=answer
+                    )
+                    ar_calls = 1
+                    evaluation_metrics.append(
+                        make_metric_entry(
+                            "answer_relevance",
+                            METRIC_COMPUTED,
+                            score=ar_score,
+                            evaluator_model=GEMINI_MODEL,
+                            attempts=1,
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning("  AR evaluation failed for %s: %s", query_id, exc)
+                    evaluation_metrics.append(
+                        make_metric_entry(
+                            "answer_relevance",
+                            METRIC_FAILED,
+                            reason=str(exc)[:200],
+                            evaluator_model=GEMINI_MODEL,
+                            attempts=1,
+                        )
+                    )
+
+            # ── Call Accounting & Ledger ─────────────────────────
+            total_ext_calls = gen_calls + cr_calls + gr_calls + ar_calls
+            call_ledger = {
+                "generation_calls": gen_calls,
+                "context_relevance_calls": cr_calls,
+                "groundedness_calls": gr_calls,
+                "answer_relevance_calls": ar_calls,
+                "total_external_requests": total_ext_calls,
+            }
+
+            quota_after = int(shared_quota.stats["total_requests"])
+            quota_delta = quota_after - quota_before
+            if quota_delta != total_ext_calls:
+                raise ValueError(
+                    f"EXTERNAL_CALL_ACCOUNTING_MISMATCH: query_id={query_id} "
+                    f"ledger={total_ext_calls}, quota_delta={quota_delta}"
+                )
+
+            # ── Strategy Provenance Verification ────────────────
+            query_id_prefix = query_id.split("::")[0]
+            judge_strat = getattr(judge, "strategy", None)
+            if (
+                query_id_prefix != strategy_label
+                or (judge_strat is not None and judge_strat != pipeline_strategy and judge_strat != strategy_label)
+            ):
+                raise ValueError(
+                    f"STRATEGY_PROVENANCE_MISMATCH: requested={strategy_label}, "
+                    f"judge={judge_strat}, query_id_prefix={query_id_prefix}"
+                )
 
             # ── Citation pages used by generator ────────────────
             citation_pages = [c.page_number for c in answer.citations]
 
             evaluation_record = {
+                "protocol_version": PROTOCOL_VERSION,
+                "artifact_schema_version": _EVAL_SCHEMA_VERSION,
                 "schema_version": _EVAL_SCHEMA_VERSION,
                 "metrics": evaluation_metrics,
             }
@@ -1178,6 +1264,7 @@ def run_benchmark(
                 "evaluation": evaluation_record,
                 "retrieval_evidence": evidence_record,
                 "citation_pages": citation_pages,
+                "call_ledger": call_ledger,
                 "quota_stats": shared_quota.stats,
             }
             strategy_results.append(result_entry)
@@ -1199,6 +1286,8 @@ def run_benchmark(
     output_path = RESULTS_DIR / f"slice4_results_{run_id}_{ts}.json"
     output = {
         "experiment_id": run_id,
+        "protocol_version": PROTOCOL_VERSION,
+        "artifact_schema_version": _EVAL_SCHEMA_VERSION,
         "schema": _EVAL_SCHEMA_VERSION,
         "gemini_model": GEMINI_MODEL,
         "embedding_model": EMBEDDING_MODEL,
@@ -1491,14 +1580,7 @@ def cmd_preflight(args: argparse.Namespace, logger: logging.Logger) -> None:
     """Validate embedding cache offline — no Gemini key needed."""
     logger.info("=== PREFLIGHT: Embedding Cache Validation ===")
 
-    # Must NOT require Gemini key
-    for key_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
-        if os.environ.get(key_name):
-            logger.warning(
-                "PREFLIGHT: %s is set but will NOT be used. "
-                "Preflight validates embedding only.",
-                key_name,
-            )
+    _validate_no_credentials_for_preflight(logger)
 
     # Resolve and validate cache
     from raglab.infrastructure.embeddings.fastembed_adapter import resolve_cache_dir
@@ -1581,6 +1663,8 @@ def cmd_preflight_retrievers(
     imports, constructs, indexes, and retrieves without error.
     """
     logger.info("=== PREFLIGHT-RETRIEVERS: Structural validation of all 7 builders ===")
+
+    _validate_no_credentials_for_preflight(logger)
 
     from raglab.domain.value_objects import DocumentPage
     from raglab.infrastructure.retrieval.baseline_adapter import DeterministicEmbedding

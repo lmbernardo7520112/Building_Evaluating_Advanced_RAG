@@ -24,8 +24,13 @@
 ### A.1 — Limpar credenciais
 
 ```bash
-# Garantir que Gemini NÃO está no ambiente
-unset GEMINI_API_KEY GOOGLE_API_KEY
+# Garantir que credenciais e tokens NÃO estão no ambiente antes do preflight
+export LANGCHAIN_TRACING_V2=false
+unset GEMINI_API_KEY
+unset GOOGLE_API_KEY
+unset LANGSMITH_API_KEY
+unset HF_TOKEN
+unset HUGGINGFACE_HUB_TOKEN
 echo "CREDENTIALS_CLEARED"
 ```
 
@@ -154,6 +159,9 @@ print('SMOKE_OK: schema válido, sem credenciais')
 ```bash
 unset GEMINI_API_KEY
 unset GOOGLE_API_KEY
+unset LANGSMITH_API_KEY
+unset HF_TOKEN
+unset HUGGINGFACE_HUB_TOKEN
 echo "CREDENTIAL_REMOVED"
 ```
 

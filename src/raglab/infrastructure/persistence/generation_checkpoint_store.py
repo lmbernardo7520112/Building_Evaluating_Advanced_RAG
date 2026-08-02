@@ -26,7 +26,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = "slice4_v1"
+_SCHEMA_VERSION = "slice4_v2"
 
 
 class GenerationCheckpointStore:
@@ -34,7 +34,7 @@ class GenerationCheckpointStore:
 
     File format (one per run):
     {
-      "schema": "slice4_v1",
+      "schema": "slice4_v2",
       "run_id": "...",
       "completed": {
         "q_dev_01::F0_baseline": {
@@ -61,6 +61,11 @@ class GenerationCheckpointStore:
             return
         try:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
+            schema = raw.get("schema") or raw.get("artifact_schema_version")
+            if schema != _SCHEMA_VERSION:
+                raise ValueError(
+                    f"INCOMPATIBLE_CHECKPOINT_SCHEMA: found '{schema}', expected '{_SCHEMA_VERSION}'"
+                )
             if raw.get("run_id") != self._run_id:
                 logger.warning(
                     "Checkpoint run_id mismatch: %s != %s — ignoring",

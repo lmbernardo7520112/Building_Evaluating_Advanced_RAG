@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 
 
 class TestGenerationCheckpointStore:
@@ -67,8 +68,18 @@ class TestGenerationCheckpointStore:
 
         ckpt_files = list(tmp_path.glob("*.json"))
         data = json.loads(ckpt_files[0].read_text())
-        assert data["schema"] == "slice4_v1"
+        assert data["schema"] == "slice4_v2"
         assert data["run_id"] == "schema_run"
+
+    def test_incompatible_schema_rejected(self, tmp_path):
+        from raglab.infrastructure.persistence.generation_checkpoint_store import (
+            GenerationCheckpointStore,
+        )
+        ckpt_file = tmp_path / "slice4_gen_checkpoint_incompat.json"
+        ckpt_file.write_text(json.dumps({"schema": "slice4_v1", "run_id": "incompat", "completed": {}}))
+
+        with pytest.raises(ValueError, match="INCOMPATIBLE_CHECKPOINT_SCHEMA"):
+            GenerationCheckpointStore(run_id="incompat", store_dir=tmp_path)
 
     def test_abstained_recorded(self, tmp_path):
         from raglab.infrastructure.persistence.generation_checkpoint_store import (

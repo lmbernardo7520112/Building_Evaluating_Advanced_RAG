@@ -363,28 +363,46 @@ class TestSmokeF0Fake:
         monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path)
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
 
-        # Mock Gemini adapter classes
-        fake_answer = MagicMock()
-        fake_answer.abstained = False
-        fake_answer.citations = []
+        from raglab.domain.entities import GeneratedAnswer
+        from raglab.domain.enums import PipelineStrategy
+        from raglab.domain.quota import QuotaManager
 
-        fake_eval = MagicMock()
+        active_qm = []
+        orig_init = QuotaManager.__init__
+        def custom_init(qm_self, *args, **kwargs):
+            orig_init(qm_self, *args, **kwargs)
+            active_qm.append(qm_self)
+        monkeypatch.setattr(QuotaManager, "__init__", custom_init)
+
+        fake_answer = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=False, citations=[])
+
+        def gen_mock(query_id, query, evidence):
+            if active_qm:
+                active_qm[-1].acquire(1)
+            return fake_answer
 
         fake_generator = MagicMock()
-        fake_generator.generate.return_value = fake_answer
+        fake_generator.generate.side_effect = gen_mock
         fake_generator.model_id = "fake-gemini"
 
         fake_judge = MagicMock()
-        fake_judge.evaluate.return_value = fake_eval
+        fake_judge.strategy = PipelineStrategy.BASELINE
+        def judge_eval(*args, **kwargs):
+            if active_qm:
+                active_qm[-1].acquire(1)
+            return 1.0
+        fake_judge.evaluate_context_relevance.side_effect = judge_eval
+        fake_judge.evaluate_groundedness.side_effect = judge_eval
+        fake_judge.evaluate_answer_relevance.side_effect = judge_eval
 
         # Patch the imports inside run_benchmark
         fake_gen_mod = MagicMock()
         fake_gen_mod.GeminiGeneratorAdapter.return_value = fake_generator
-        fake_gen_mod.sanitize_answer_for_artifact.return_value = {"text": "fake"}
+        fake_gen_mod.sanitize_answer_for_artifact = lambda ans: {"query_id": ans.query_id, "text": ans.text, "abstained": ans.abstained, "citation_pages": []}
 
         fake_judge_mod = MagicMock()
         fake_judge_mod.GeminiJudgeAdapter.return_value = fake_judge
-        fake_judge_mod.sanitize_evaluation_for_artifact.return_value = {"score": 0.5}
+        fake_judge_mod.sanitize_evaluation_for_artifact = lambda e: {}
 
         monkeypatch.setitem(
             sys.modules,
@@ -425,21 +443,45 @@ class TestSmokeF0Fake:
         monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path)
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
 
-        fake_answer = MagicMock()
-        fake_answer.abstained = True
-        fake_answer.citations = []
+        from raglab.domain.entities import GeneratedAnswer
+        from raglab.domain.enums import PipelineStrategy
+        from raglab.domain.quota import QuotaManager
+
+        active_qm = []
+        orig_init = QuotaManager.__init__
+        def custom_init(qm_self, *args, **kwargs):
+            orig_init(qm_self, *args, **kwargs)
+            active_qm.append(qm_self)
+        monkeypatch.setattr(QuotaManager, "__init__", custom_init)
+
+        fake_answer = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=True, citations=[])
+
+        def gen_mock(query_id, query, evidence):
+            if active_qm:
+                active_qm[-1].acquire(1)
+            return fake_answer
 
         fake_generator = MagicMock()
-        fake_generator.generate.return_value = fake_answer
+        fake_generator.generate.side_effect = gen_mock
         fake_generator.model_id = "fake"
+
+        fake_judge = MagicMock()
+        fake_judge.strategy = PipelineStrategy.BASELINE
+        def judge_eval(*args, **kwargs):
+            if active_qm:
+                active_qm[-1].acquire(1)
+            return 1.0
+        fake_judge.evaluate_context_relevance.side_effect = judge_eval
+        fake_judge.evaluate_groundedness.side_effect = judge_eval
+        fake_judge.evaluate_answer_relevance.side_effect = judge_eval
 
         fake_gen_mod = MagicMock()
         fake_gen_mod.GeminiGeneratorAdapter.return_value = fake_generator
-        fake_gen_mod.sanitize_answer_for_artifact.return_value = {}
+        fake_gen_mod.sanitize_answer_for_artifact = lambda ans: {"query_id": ans.query_id, "text": ans.text, "abstained": ans.abstained, "citation_pages": []}
 
         fake_judge_mod = MagicMock()
-        fake_judge_mod.GeminiJudgeAdapter.return_value = MagicMock()
-        fake_judge_mod.sanitize_evaluation_for_artifact.return_value = {}
+        fake_judge_mod.GeminiJudgeAdapter.return_value = fake_judge
+        fake_judge_mod.sanitize_evaluation_for_artifact = lambda e: {}
 
         monkeypatch.setitem(sys.modules, "raglab.infrastructure.gemini.gemini_generator_adapter", fake_gen_mod)
         monkeypatch.setitem(sys.modules, "raglab.infrastructure.gemini.gemini_judge_adapter", fake_judge_mod)
@@ -471,6 +513,9 @@ class TestFullFake:
         import logging
 
         import benchmarks.run_slice4_benchmark as runner
+        from raglab.domain.entities import GeneratedAnswer
+        from raglab.domain.enums import PipelineStrategy
+        from raglab.domain.quota import QuotaManager
 
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: fake_pages)
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger, **kw: fake_embedding)
@@ -488,24 +533,49 @@ class TestFullFake:
 
         monkeypatch.setattr(runner, "build_retrievers", _tracking_build)
 
-        fake_answer = MagicMock()
-        fake_answer.abstained = True
-        fake_answer.citations = []
+        active_qm_full = []
+        orig_init_full = QuotaManager.__init__
+        def custom_init_full(qm_self, *args, **kwargs):
+            orig_init_full(qm_self, *args, **kwargs)
+            active_qm_full.append(qm_self)
+        monkeypatch.setattr(QuotaManager, "__init__", custom_init_full)
 
-        fake_generator = MagicMock()
-        fake_generator.generate.return_value = fake_answer
-        fake_generator.model_id = "fake"
+        fake_answer_full = GeneratedAnswer(query_id="q_dev_01", text="fake", abstained=True, citations=[])
 
-        fake_gen_mod = MagicMock()
-        fake_gen_mod.GeminiGeneratorAdapter.return_value = fake_generator
-        fake_gen_mod.sanitize_answer_for_artifact.return_value = {}
+        def gen_mock_full(query_id, query, evidence):
+            if active_qm_full:
+                active_qm_full[-1].acquire(1)
+            return fake_answer_full
 
-        fake_judge_mod = MagicMock()
-        fake_judge_mod.GeminiJudgeAdapter.return_value = MagicMock()
-        fake_judge_mod.sanitize_evaluation_for_artifact.return_value = {}
+        fake_generator_full = MagicMock()
+        fake_generator_full.generate.side_effect = gen_mock_full
+        fake_generator_full.model_id = "fake"
 
-        monkeypatch.setitem(sys.modules, "raglab.infrastructure.gemini.gemini_generator_adapter", fake_gen_mod)
-        monkeypatch.setitem(sys.modules, "raglab.infrastructure.gemini.gemini_judge_adapter", fake_judge_mod)
+        def make_judge_for_strat(strat):
+            j = MagicMock()
+            if isinstance(strat, PipelineStrategy):
+                j.strategy = strat
+            else:
+                j.strategy = PipelineStrategy.from_label(strat)
+            def _e(*args, **kwargs):
+                if active_qm_full:
+                    active_qm_full[-1].acquire(1)
+                return 1.0
+            j.evaluate_context_relevance.side_effect = _e
+            j.evaluate_groundedness.side_effect = _e
+            j.evaluate_answer_relevance.side_effect = _e
+            return j
+
+        fake_gen_mod_full = MagicMock()
+        fake_gen_mod_full.GeminiGeneratorAdapter.return_value = fake_generator_full
+        fake_gen_mod_full.sanitize_answer_for_artifact = lambda ans: {"query_id": ans.query_id, "text": ans.text, "abstained": ans.abstained, "citation_pages": []}
+
+        fake_judge_mod_full = MagicMock()
+        fake_judge_mod_full.GeminiJudgeAdapter.side_effect = lambda strategy=None, **kw: make_judge_for_strat(strategy)
+        fake_judge_mod_full.sanitize_evaluation_for_artifact = lambda e: {}
+
+        monkeypatch.setitem(sys.modules, "raglab.infrastructure.gemini.gemini_generator_adapter", fake_gen_mod_full)
+        monkeypatch.setitem(sys.modules, "raglab.infrastructure.gemini.gemini_judge_adapter", fake_judge_mod_full)
 
         runner.run_benchmark(
             run_id="full_fake_test",
@@ -650,17 +720,20 @@ class TestLlamaIndexEmbeddingBridge:
         vec = bridge._get_text_embedding("exemplo para verificar finitude")
         assert all(math.isfinite(x) for x in vec)
 
-    @pytest.mark.asyncio
-    async def test_bridge_async_methods(self, fake_embedding):
+    def test_bridge_async_methods(self, fake_embedding):
+        import asyncio
         from raglab.infrastructure.retrieval.llamaindex_adapter import (
             LlamaIndexEmbeddingBridge,
         )
 
         bridge = LlamaIndexEmbeddingBridge(fake_embedding)
-        vec_q = await bridge._aget_query_embedding("query async")
-        vec_t = await bridge._aget_text_embedding("text async")
-        assert len(vec_q) == fake_embedding.dimension
-        assert len(vec_t) == fake_embedding.dimension
+        async def _run():
+            vec_q = await bridge._aget_query_embedding("query async")
+            vec_t = await bridge._aget_text_embedding("text async")
+            assert len(vec_q) == fake_embedding.dimension
+            assert len(vec_t) == fake_embedding.dimension
+
+        asyncio.run(_run())
 
 
 # ─── 13. EMBEDDING PARITY & INJECTED EMBEDDINGS ───────────────────
@@ -823,41 +896,31 @@ class TestOfflineAttestationCLI:
         import os
         import subprocess
 
-        fake_cache = tmp_path / "fake_model_cache"
-        fake_cache.mkdir(parents=True, exist_ok=True)
-        (fake_cache / "model.onnx").write_bytes(
-            b"dummy onnx weights content for testing"
-        )
+        cache_dir = Path(".model_cache").resolve()
+        if not cache_dir.exists():
+            cache_dir = tmp_path / "fake_model_cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
 
         fake_manifest = tmp_path / "test_provision_manifest.json"
 
-        # Mock FastEmbedEmbeddingAdapter._embed so fastembed/onnxruntime aren't called on dummy bytes
-        from raglab.infrastructure.embeddings.fastembed_adapter import (
-            FastEmbedEmbeddingAdapter,
-        )
-
-        def _fake_embed_impl(self, text: str) -> list[float]:
-            return [0.1] * 384
-
         env = {
             **os.environ,
-            "RAGLAB_MODEL_CACHE": str(fake_cache),
+            "RAGLAB_MODEL_CACHE": str(cache_dir),
             "RAGLAB_MANIFEST_PATH": str(fake_manifest),
         }
         env.pop("GEMINI_API_KEY", None)
         env.pop("GOOGLE_API_KEY", None)
 
         provisioner = str(_REPO_ROOT / "scripts" / "provision_embedding_model.py")
-        with patch.object(FastEmbedEmbeddingAdapter, "_embed", _fake_embed_impl):
-            result = subprocess.run(
-                [sys.executable, provisioner, "--attest-existing"],
-                capture_output=True,
-                text=True,
-                env=env,
-            )
-            assert result.returncode == 0
-            assert "ATTEST_OK" in result.stdout
-            assert fake_manifest.exists()
-            data = json.loads(fake_manifest.read_text(encoding="utf-8"))
-            assert data["model_revision_status"] == "ATTESTED_OFFLINE"
-            assert "cache_tree_sha256" in data
+        result = subprocess.run(
+            [sys.executable, provisioner, "--attest-existing"],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert result.returncode == 0
+        assert "ATTEST_OK" in result.stdout
+        assert fake_manifest.exists()
+        data = json.loads(fake_manifest.read_text(encoding="utf-8"))
+        assert data["model_revision_status"] == "ATTESTED_OFFLINE"
+        assert "cache_tree_sha256" in data

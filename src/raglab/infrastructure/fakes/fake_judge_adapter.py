@@ -47,9 +47,51 @@ class FakeJudgeAdapter:
     LangSmith: permanently disabled in this adapter.
     """
 
+    def __init__(self, strategy: PipelineStrategy | str = PipelineStrategy.BASELINE) -> None:
+        if isinstance(strategy, str):
+            self._strategy = PipelineStrategy.from_label(strategy)
+        else:
+            self._strategy = strategy
+
     @property
     def judge_model_id(self) -> str:
         return _FAKE_JUDGE_ID
+
+    @property
+    def strategy(self) -> PipelineStrategy:
+        return getattr(self, "_strategy", PipelineStrategy.BASELINE)
+
+    def evaluate_context_relevance(
+        self, query_id: str, query: str, evidence: Sequence[RetrievedEvidence]
+    ) -> float:
+        query_tokens = {t for t in query.lower().split() if len(t) > 3}
+        all_evidence_text = " ".join(ev.text.lower() for ev in evidence)
+        evidence_tokens = {t for t in all_evidence_text.split() if len(t) > 3}
+        if query_tokens:
+            cr_hits = sum(1 for t in query_tokens if t in evidence_tokens)
+            return round(min(1.0, cr_hits / len(query_tokens)), 4)
+        return 0.0
+
+    def evaluate_groundedness(
+        self, query_id: str, query: str, answer: GeneratedAnswer, evidence: Sequence[RetrievedEvidence]
+    ) -> float:
+        answer_tokens = {t for t in answer.text.lower().split() if len(t) > 3}
+        all_evidence_text = " ".join(ev.text.lower() for ev in evidence)
+        evidence_tokens = {t for t in all_evidence_text.split() if len(t) > 3}
+        if answer_tokens:
+            g_hits = sum(1 for t in answer_tokens if t in evidence_tokens)
+            return round(min(1.0, g_hits / len(answer_tokens)), 4)
+        return 0.0
+
+    def evaluate_answer_relevance(
+        self, query_id: str, query: str, answer: GeneratedAnswer
+    ) -> float:
+        query_tokens = {t for t in query.lower().split() if len(t) > 3}
+        answer_lower = answer.text.lower()
+        if query_tokens:
+            ar_hits = sum(1 for t in query_tokens if t in answer_lower)
+            return round(min(1.0, ar_hits / len(query_tokens)), 4)
+        return 0.0
 
     def evaluate(
         self,
@@ -136,8 +178,7 @@ class FakeJudgeAdapter:
 def _infer_strategy_from_query_id(query_id: str) -> PipelineStrategy:
     """Infer pipeline strategy from query_id prefix for fake evaluation."""
     try:
-        # e.g. "F0::q_dev_01" → "F0"
         prefix = query_id.split("::")[0]
-        return PipelineStrategy(prefix)
-    except (ValueError, IndexError):
+        return PipelineStrategy.from_label(prefix)
+    except (ValueError, KeyError, IndexError):
         return PipelineStrategy.BASELINE

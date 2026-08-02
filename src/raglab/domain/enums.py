@@ -30,6 +30,32 @@ class PipelineStrategy(Enum):
     AUTO_MERGING = "auto_merging"
     AUTO_MERGING_RERANK = "auto_merging_rerank"
 
+    @classmethod
+    def from_label(cls, label: str) -> PipelineStrategy:
+        """Map canonical strategy label string or enum value to PipelineStrategy."""
+        mapping = {
+            "F0_baseline": cls.BASELINE,
+            "S0_sentence_anchor": cls.SENTENCE_ANCHOR,
+            "W0_sentence_window": cls.SENTENCE_WINDOW,
+            "W1_sentence_window_rerank": cls.SENTENCE_WINDOW_RERANK,
+            "H0_hierarchical_leaf": cls.HIERARCHICAL_LEAF,
+            "H1_auto_merging": cls.AUTO_MERGING,
+            "H2_auto_merging_rerank": cls.AUTO_MERGING_RERANK,
+            "baseline": cls.BASELINE,
+            "sentence_anchor": cls.SENTENCE_ANCHOR,
+            "sentence_window": cls.SENTENCE_WINDOW,
+            "sentence_window_rerank": cls.SENTENCE_WINDOW_RERANK,
+            "hierarchical_leaf": cls.HIERARCHICAL_LEAF,
+            "auto_merging": cls.AUTO_MERGING,
+            "auto_merging_rerank": cls.AUTO_MERGING_RERANK,
+        }
+        if label in mapping:
+            return mapping[label]
+        try:
+            return cls(label)
+        except ValueError:
+            raise ValueError(f"Invalid strategy label: '{label}'") from None
+
 
 @unique
 class DatasetSplit(Enum):
