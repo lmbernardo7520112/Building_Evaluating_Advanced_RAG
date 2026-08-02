@@ -42,14 +42,20 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
-from raglab.domain.enums import DatasetSplit, PipelineStrategy, RerankerClass
 from raglab.domain.entities import Chunk, RetrievedEvidence
+from raglab.domain.enums import RerankerClass
 from raglab.domain.value_objects import ChunkId, DocumentPage
 from raglab.infrastructure.embeddings.fastembed_adapter import FastEmbedEmbeddingAdapter
-from raglab.infrastructure.retrieval.sentence_anchor_adapter import SentenceAnchorAdapter
-from raglab.infrastructure.retrieval.sentence_window_adapter import SentenceWindowAdapter
+from raglab.infrastructure.retrieval.auto_merging_adapter import (
+    HierarchicalRetrievalAdapter,
+)
 from raglab.infrastructure.retrieval.reranker_adapter import LocalRerankerAdapter
-from raglab.infrastructure.retrieval.auto_merging_adapter import HierarchicalRetrievalAdapter
+from raglab.infrastructure.retrieval.sentence_anchor_adapter import (
+    SentenceAnchorAdapter,
+)
+from raglab.infrastructure.retrieval.sentence_window_adapter import (
+    SentenceWindowAdapter,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -209,7 +215,6 @@ def mean(values: list[float]) -> float:
 
 def run_f0(questions: list[dict], pages: list[DocumentPage], embed: FastEmbedEmbeddingAdapter) -> dict:
     """F0 — Fixed chunks, semantic embedding."""
-    from raglab.infrastructure.retrieval.sentence_window_adapter import SentenceWindowAdapter as _SW
     # Use a simple baseline with FastEmbed rather than DeterministicEmbedding
     # (consistent with Slice 2's real corpus benchmark)
     # We reuse SentenceWindowAdapter with window=0 as a chunk-level baseline.
