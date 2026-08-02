@@ -65,6 +65,10 @@ select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "SIM"]
 python_version = "3.12"
 strict = true
 
+[[tool.mypy.overrides]]
+module = ["google.*", "google.genai.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
