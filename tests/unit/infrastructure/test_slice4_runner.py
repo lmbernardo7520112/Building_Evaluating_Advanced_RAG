@@ -443,7 +443,7 @@ class TestNoCredentialLeak:
             "F0_baseline": fake_retriever
         })
         monkeypatch.setattr(runner, "verify_embedding_parity",
-                            lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "abc123"}})
+                            lambda r, lg, m: {"F0_baseline": {"cache_tree_sha256": "abc123"}})
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
         monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path)
 
@@ -551,7 +551,7 @@ class TestSlice4SurgicalFixes:
         monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
-        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {strategy_label: {"cache_tree_sha256": "a" * 64}})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {strategy_label: {"cache_tree_sha256": "a" * 64}})
 
         fake_ev = MagicMock()
         fake_ev.chunk_id = "page_0092"
@@ -601,7 +601,7 @@ class TestSlice4SurgicalFixes:
         monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
-        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {"W0_sentence_window": {"cache_tree_sha256": "a" * 64}})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {"W0_sentence_window": {"cache_tree_sha256": "a" * 64}})
 
         fake_ev = MagicMock()
         fake_ev.chunk_id = "page_0092"
@@ -642,7 +642,7 @@ class TestSlice4SurgicalFixes:
         monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
-        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
 
         fake_ev = MagicMock()
         fake_ev.chunk_id = "page_0092"
@@ -690,7 +690,7 @@ class TestSlice4SurgicalFixes:
         monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
-        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
 
         fake_retriever = MagicMock()
         fake_retriever.retrieve.return_value = []
@@ -733,7 +733,7 @@ class TestSlice4SurgicalFixes:
         monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
-        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
 
         fake_ev = MagicMock()
         fake_ev.chunk_id = "page_0092"
@@ -781,7 +781,7 @@ class TestSlice4SurgicalFixes:
         monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
-        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
 
         fake_ev = MagicMock()
         fake_ev.chunk_id = "page_0092"
@@ -824,7 +824,7 @@ class TestSlice4SurgicalFixes:
         monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
-        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
 
         fake_retriever = MagicMock()
         fake_retriever.retrieve.return_value = []
@@ -1475,7 +1475,7 @@ class TestSlice4RetryAccountingFixes:
         monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: [])
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger: MagicMock())
-        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, l, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {"F0_baseline": {"cache_tree_sha256": "a" * 64}})
 
         fake_retriever = MagicMock()
         fake_retriever.retrieve.return_value = []
@@ -1609,7 +1609,7 @@ class TestSlice4ResumeAndMaterializationFixes:
         total_rows = sum(len(rows) for rows in rehydrated.values())
         assert total_rows == 56
         assert len(rehydrated) == 7
-        for strat, rows in rehydrated.items():
+        for _strat, rows in rehydrated.items():
             assert len(rows) == 8
 
     def test_four_strategies_previous_do_not_remain_empty(self, tmp_path):

@@ -47,7 +47,9 @@ class FakeJudgeAdapter:
     LangSmith: permanently disabled in this adapter.
     """
 
-    def __init__(self, strategy: PipelineStrategy | str = PipelineStrategy.BASELINE) -> None:
+    def __init__(
+        self, strategy: PipelineStrategy | str = PipelineStrategy.BASELINE
+    ) -> None:
         if isinstance(strategy, str):
             self._strategy = PipelineStrategy.from_label(strategy)
         else:
@@ -73,7 +75,11 @@ class FakeJudgeAdapter:
         return 0.0
 
     def evaluate_groundedness(
-        self, query_id: str, query: str, answer: GeneratedAnswer, evidence: Sequence[RetrievedEvidence]
+        self,
+        query_id: str,
+        query: str,
+        answer: GeneratedAnswer,
+        evidence: Sequence[RetrievedEvidence],
     ) -> float:
         answer_tokens = {t for t in answer.text.lower().split() if len(t) > 3}
         all_evidence_text = " ".join(ev.text.lower() for ev in evidence)

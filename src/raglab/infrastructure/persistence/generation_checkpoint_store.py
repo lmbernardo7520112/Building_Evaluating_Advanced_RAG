@@ -13,7 +13,8 @@ _SCHEMA_VERSION = "slice4_v3"
 
 
 class GenerationCheckpointStore:
-    """Tracks completed (query_id, strategy) pairs and full result rows for idempotent resumption.
+    """Tracks completed (query_id, strategy) pairs and full result rows
+    for idempotent resumption.
 
     File format (one per run):
     {
@@ -50,7 +51,8 @@ class GenerationCheckpointStore:
             schema = raw.get("schema") or raw.get("artifact_schema_version")
             if schema != _SCHEMA_VERSION:
                 raise ValueError(
-                    f"INCOMPATIBLE_CHECKPOINT_SCHEMA: found '{schema}', expected '{_SCHEMA_VERSION}'"
+                    f"INCOMPATIBLE_CHECKPOINT_SCHEMA: found '{schema}', "
+                    f"expected '{_SCHEMA_VERSION}'"
                 )
             if raw.get("run_id") != self._run_id:
                 logger.warning(
@@ -75,7 +77,8 @@ class GenerationCheckpointStore:
                 actual_sha = hashlib.sha256(check_bytes).hexdigest()
                 if actual_sha != expected_sha:
                     raise ValueError(
-                        f"CHECKPOINT_CORRUPTED: SHA-256 mismatch ({actual_sha} != {expected_sha})"
+                        f"CHECKPOINT_CORRUPTED: SHA-256 mismatch "
+                        f"({actual_sha} != {expected_sha})"
                     )
 
             self._data = completed
@@ -94,7 +97,7 @@ class GenerationCheckpointStore:
         return key in self._data
 
     def has_complete_result_row(self, query_id: str, strategy: str) -> bool:
-        """Return True if this pair has a valid full result row with evaluation metrics."""
+        """Return True if this pair has a valid full result row."""
         key = f"{query_id}::{strategy}"
         if key not in self._data:
             return False
@@ -105,7 +108,9 @@ class GenerationCheckpointStore:
         eval_data = result_row.get("evaluation")
         return eval_data is not None and isinstance(eval_data, dict)
 
-    def get_complete_result_row(self, query_id: str, strategy: str) -> dict[str, Any] | None:
+    def get_complete_result_row(
+        self, query_id: str, strategy: str
+    ) -> dict[str, Any] | None:
         """Return full result row if complete, else None."""
         if self.has_complete_result_row(query_id, strategy):
             key = f"{query_id}::{strategy}"
@@ -162,7 +167,7 @@ class GenerationCheckpointStore:
         return rehydrated
 
     def merge_partial_artifact(self, partial_artifact_path: Path) -> int:
-        """Merge complete result rows from a partial results JSON into this checkpoint store."""
+        """Merge complete result rows from a partial results JSON into store."""
         if not partial_artifact_path.exists():
             return 0
         raw = json.loads(partial_artifact_path.read_text(encoding="utf-8"))
@@ -194,7 +199,9 @@ class GenerationCheckpointStore:
 
     def complete_rows_count(self) -> int:
         """Return number of complete result rows."""
-        return sum(1 for k in self._data if self.has_complete_result_row(*k.split("::", 1)))
+        return sum(
+            1 for k in self._data if self.has_complete_result_row(*k.split("::", 1))
+        )
 
     def completed_pairs(self) -> list[str]:
         """Return list of completed key strings for inspection."""
@@ -221,7 +228,9 @@ class GenerationCheckpointStore:
             "sha256": digest,
             "completed": self._data,
         }
-        final_bytes = json.dumps(payload_obj, indent=2, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        final_bytes = json.dumps(
+            payload_obj, indent=2, sort_keys=True, ensure_ascii=False
+        ).encode("utf-8")
 
         fd, tmp_path = tempfile.mkstemp(
             dir=self._store_dir, prefix=".ckpt_", suffix=".tmp"

@@ -122,7 +122,11 @@ class GeminiJudgeAdapter:
         return round(score, 4)
 
     def evaluate_groundedness(
-        self, query_id: str, query: str, answer: GeneratedAnswer, evidence: Sequence[RetrievedEvidence]
+        self,
+        query_id: str,
+        query: str,
+        answer: GeneratedAnswer,
+        evidence: Sequence[RetrievedEvidence],
     ) -> float:
         context_passages = [ev.text for ev in evidence]
         score, _ = self._score_dimension(
