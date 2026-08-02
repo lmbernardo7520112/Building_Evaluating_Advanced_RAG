@@ -1,0 +1,2076 @@
+{
+  "experiment_id": "raglab_v7_slice3_v1_20260731T1230UTC",
+  "run_time_ms": {
+    "F0": 2756.7,
+    "S0": 15615.5,
+    "W0": 188.6,
+    "W1": 814.0,
+    "H0": 369.5,
+    "H1": 168.5,
+    "H2": 636.0
+  },
+  "aggregated_by_split": {
+    "F0": {
+      "development": {
+        "mean_recall": 0.25,
+        "n_questions": 4
+      },
+      "test": {
+        "mean_recall": 0.2778,
+        "n_questions": 3
+      }
+    },
+    "S0": {
+      "development": {
+        "mean_recall": 0.5,
+        "n_questions": 4
+      },
+      "test": {
+        "mean_recall": 0.2222,
+        "n_questions": 3
+      }
+    },
+    "W0": {
+      "development": {
+        "mean_recall": 0.5,
+        "n_questions": 4
+      },
+      "test": {
+        "mean_recall": 0.1111,
+        "n_questions": 3
+      }
+    },
+    "W1": {
+      "development": {
+        "mean_recall": 0.375,
+        "n_questions": 4
+      },
+      "test": {
+        "mean_recall": 0.2778,
+        "n_questions": 3
+      }
+    },
+    "H0": {
+      "development": {
+        "mean_recall": 0.125,
+        "n_questions": 4
+      },
+      "test": {
+        "mean_recall": 0.1667,
+        "n_questions": 3
+      }
+    },
+    "H1": {
+      "development": {
+        "mean_recall": 0.125,
+        "n_questions": 4
+      },
+      "test": {
+        "mean_recall": 0.1667,
+        "n_questions": 3
+      }
+    },
+    "H2": {
+      "development": {
+        "mean_recall": 0.125,
+        "n_questions": 4
+      },
+      "test": {
+        "mean_recall": 0.4444,
+        "n_questions": 3
+      }
+    }
+  },
+  "variants": {
+    "F0": {
+      "strategy": "F0_baseline",
+      "results": [
+        {
+          "qid": "q_dev_01",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            92
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104",
+              "rank": 1,
+              "score": 0.8139
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 2,
+              "score": 0.8003
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 3,
+              "score": 0.7883
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_02",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92",
+              "rank": 1,
+              "score": 0.8399
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 2,
+              "score": 0.8232
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 3,
+              "score": 0.8166
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_03",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            97
+          ],
+          "recall": 1.0,
+          "mrr": 0.5,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.8929
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 2,
+              "score": 0.8485
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104",
+              "rank": 3,
+              "score": 0.8278
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_04",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 1,
+              "score": 0.8971
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108",
+              "rank": 2,
+              "score": 0.863
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 3,
+              "score": 0.8568
+            }
+          ]
+        },
+        {
+          "qid": "q_test_01",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.5,
+          "mrr": 0.3333333333333333,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108",
+              "rank": 1,
+              "score": 0.8573
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 2,
+              "score": 0.8558
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 3,
+              "score": 0.8553
+            }
+          ]
+        },
+        {
+          "qid": "q_test_02",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 1,
+              "score": 0.8874
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 2,
+              "score": 0.8772
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 3,
+              "score": 0.8706
+            }
+          ]
+        },
+        {
+          "qid": "q_test_03",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102,
+            103
+          ],
+          "recall": 0.3333333333333333,
+          "mrr": 0.5,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104",
+              "rank": 1,
+              "score": 0.8709
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 2,
+              "score": 0.8536
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 3,
+              "score": 0.8518
+            }
+          ]
+        },
+        {
+          "qid": "q_test_04",
+          "split": "test",
+          "is_abstention": true,
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": []
+        }
+      ]
+    },
+    "S0": {
+      "strategy": "S0_sentence_anchor",
+      "results": [
+        {
+          "qid": "q_dev_01",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            92
+          ],
+          "recall": 1.0,
+          "mrr": 1.0,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92",
+              "rank": 1,
+              "score": 0.8768
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 2,
+              "score": 0.8405
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 3,
+              "score": 0.8093
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_02",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 1,
+              "score": 0.9018
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 2,
+              "score": 0.8913
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 3,
+              "score": 0.8783
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_03",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            97
+          ],
+          "recall": 1.0,
+          "mrr": 0.5,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.9353
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 2,
+              "score": 0.9006
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 3,
+              "score": 0.8834
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_04",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 1,
+              "score": 0.8817
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 2,
+              "score": 0.8708
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 3,
+              "score": 0.8692
+            }
+          ]
+        },
+        {
+          "qid": "q_test_01",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111",
+              "rank": 1,
+              "score": 0.8472
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100",
+              "rank": 2,
+              "score": 0.8411
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100",
+              "rank": 3,
+              "score": 0.8355
+            }
+          ]
+        },
+        {
+          "qid": "q_test_02",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.8883
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 2,
+              "score": 0.8793
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 3,
+              "score": 0.8786
+            }
+          ]
+        },
+        {
+          "qid": "q_test_03",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102,
+            103
+          ],
+          "recall": 0.6666666666666666,
+          "mrr": 1.0,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103",
+              "rank": 1,
+              "score": 0.8507
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103",
+              "rank": 2,
+              "score": 0.8445
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 3,
+              "score": 0.8441
+            }
+          ]
+        },
+        {
+          "qid": "q_test_04",
+          "split": "test",
+          "is_abstention": true,
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": []
+        }
+      ]
+    },
+    "W0": {
+      "strategy": "W0_sentence_window",
+      "results": [
+        {
+          "qid": "q_dev_01",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            92
+          ],
+          "recall": 1.0,
+          "mrr": 1.0,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92",
+              "rank": 1,
+              "score": 0.8768
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 2,
+              "score": 0.8405
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 3,
+              "score": 0.8093
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_02",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 1,
+              "score": 0.9018
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 2,
+              "score": 0.8783
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 3,
+              "score": 0.8763
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_03",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            97
+          ],
+          "recall": 1.0,
+          "mrr": 0.5,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.9353
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 2,
+              "score": 0.9006
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 3,
+              "score": 0.8834
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_04",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 1,
+              "score": 0.8817
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 2,
+              "score": 0.8708
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111",
+              "rank": 3,
+              "score": 0.8519
+            }
+          ]
+        },
+        {
+          "qid": "q_test_01",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111",
+              "rank": 1,
+              "score": 0.8472
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100",
+              "rank": 2,
+              "score": 0.8411
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100",
+              "rank": 3,
+              "score": 0.8355
+            }
+          ]
+        },
+        {
+          "qid": "q_test_02",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.8883
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 2,
+              "score": 0.8793
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 3,
+              "score": 0.8786
+            }
+          ]
+        },
+        {
+          "qid": "q_test_03",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102,
+            103
+          ],
+          "recall": 0.3333333333333333,
+          "mrr": 1.0,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103",
+              "rank": 1,
+              "score": 0.8507
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 2,
+              "score": 0.8441
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104",
+              "rank": 3,
+              "score": 0.8434
+            }
+          ]
+        },
+        {
+          "qid": "q_test_04",
+          "split": "test",
+          "is_abstention": true,
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": []
+        }
+      ]
+    },
+    "W1": {
+      "strategy": "W1_sentence_window_rerank",
+      "reranker_class": "bi_encoder_rescoring",
+      "reranker_note": "LocalRerankerAdapter uses same FastEmbed model for rescoring. This is bi_encoder_rescoring — NOT a cross-encoder.",
+      "results": [
+        {
+          "qid": "q_dev_01",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            92
+          ],
+          "recall": 0.0,
+          "recall_pre_reranker": 1.0,
+          "recall_post_reranker": 0.0,
+          "delta_recall": -1.0,
+          "mrr": 0.0,
+          "hit": false,
+          "relevant_passage_dropped": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.7831
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 2,
+              "score": 0.7701
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 3,
+              "score": 0.768
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_02",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 0.0,
+          "delta_recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92",
+              "rank": 1,
+              "score": 0.8186
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 2,
+              "score": 0.7872
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 3,
+              "score": 0.7769
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_03",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            97
+          ],
+          "recall": 1.0,
+          "recall_pre_reranker": 1.0,
+          "recall_post_reranker": 1.0,
+          "delta_recall": 0.0,
+          "mrr": 0.5,
+          "hit": true,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.8749
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 2,
+              "score": 0.8485
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 3,
+              "score": 0.8207
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_04",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.5,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 0.5,
+          "delta_recall": 0.5,
+          "mrr": 0.3333333333333333,
+          "hit": true,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 1,
+              "score": 0.8985
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 2,
+              "score": 0.8612
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p102",
+              "rank": 3,
+              "score": 0.8039
+            }
+          ]
+        },
+        {
+          "qid": "q_test_01",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.5,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 0.5,
+          "delta_recall": 0.5,
+          "mrr": 0.5,
+          "hit": true,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 1,
+              "score": 0.8583
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p102",
+              "rank": 2,
+              "score": 0.8228
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 3,
+              "score": 0.7757
+            }
+          ]
+        },
+        {
+          "qid": "q_test_02",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 0.0,
+          "delta_recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 1,
+              "score": 0.8838
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 2,
+              "score": 0.8815
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 3,
+              "score": 0.8757
+            }
+          ]
+        },
+        {
+          "qid": "q_test_03",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102,
+            103
+          ],
+          "recall": 0.3333333333333333,
+          "recall_pre_reranker": 0.3333333333333333,
+          "recall_post_reranker": 0.3333333333333333,
+          "delta_recall": 0.0,
+          "mrr": 1.0,
+          "hit": true,
+          "relevant_passage_dropped": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103",
+              "rank": 1,
+              "score": 0.8438
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104",
+              "rank": 2,
+              "score": 0.8416
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100",
+              "rank": 3,
+              "score": 0.8238
+            }
+          ]
+        },
+        {
+          "qid": "q_test_04",
+          "split": "test",
+          "is_abstention": true,
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": []
+        }
+      ]
+    },
+    "H0": {
+      "strategy": "H0_hierarchical_leaf",
+      "hierarchy_stats": {
+        "total_nodes": 361,
+        "leaf_count": 218,
+        "middle_count": 97,
+        "parent_count": 46,
+        "avg_leaf_tokens": 97.6,
+        "avg_middle_tokens": 217.7,
+        "avg_parent_tokens": 456.9
+      },
+      "results": [
+        {
+          "qid": "q_dev_01",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            92
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108",
+              "rank": 1,
+              "score": 0.8344
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 2,
+              "score": 0.8195
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p93",
+              "rank": 3,
+              "score": 0.819
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 4,
+              "score": 0.8123
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 5,
+              "score": 0.8047
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p113",
+              "rank": 6,
+              "score": 0.7993
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_02",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.914
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 2,
+              "score": 0.8915
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99",
+              "rank": 3,
+              "score": 0.8808
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103",
+              "rank": 4,
+              "score": 0.8759
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p113",
+              "rank": 5,
+              "score": 0.8745
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 6,
+              "score": 0.8738
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_03",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            97
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 1,
+              "score": 0.9052
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p115",
+              "rank": 2,
+              "score": 0.886
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92",
+              "rank": 3,
+              "score": 0.8829
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100",
+              "rank": 4,
+              "score": 0.8797
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 5,
+              "score": 0.8727
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 6,
+              "score": 0.872
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_04",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.5,
+          "mrr": 0.3333333333333333,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.9104
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 2,
+              "score": 0.8758
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p102",
+              "rank": 3,
+              "score": 0.8711
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 4,
+              "score": 0.87
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 5,
+              "score": 0.8543
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 6,
+              "score": 0.8508
+            }
+          ]
+        },
+        {
+          "qid": "q_test_01",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.5,
+          "mrr": 0.5,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 1,
+              "score": 0.8678
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 2,
+              "score": 0.8569
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p114",
+              "rank": 3,
+              "score": 0.8501
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104",
+              "rank": 4,
+              "score": 0.8449
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 5,
+              "score": 0.8439
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 6,
+              "score": 0.8418
+            }
+          ]
+        },
+        {
+          "qid": "q_test_02",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.16666666666666666,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 1,
+              "score": 0.8925
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99",
+              "rank": 2,
+              "score": 0.8734
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105",
+              "rank": 3,
+              "score": 0.8492
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105",
+              "rank": 4,
+              "score": 0.8406
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 5,
+              "score": 0.8369
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p95",
+              "rank": 6,
+              "score": 0.8344
+            }
+          ]
+        },
+        {
+          "qid": "q_test_03",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102,
+            103
+          ],
+          "recall": 0.0,
+          "mrr": 0.25,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 1,
+              "score": 0.8844
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99",
+              "rank": 2,
+              "score": 0.8824
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p114",
+              "rank": 3,
+              "score": 0.8735
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 4,
+              "score": 0.8603
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 5,
+              "score": 0.8575
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 6,
+              "score": 0.8534
+            }
+          ]
+        },
+        {
+          "qid": "q_test_04",
+          "split": "test",
+          "is_abstention": true,
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": []
+        }
+      ],
+      "merge_traces": [
+        {
+          "qid": "q_dev_01",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 509,
+          "tokens_after": 509,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.77
+        },
+        {
+          "qid": "q_dev_02",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 524,
+          "tokens_after": 524,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.15
+        },
+        {
+          "qid": "q_dev_03",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 671,
+          "tokens_after": 671,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.08
+        },
+        {
+          "qid": "q_dev_04",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 674,
+          "tokens_after": 674,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.14
+        },
+        {
+          "qid": "q_test_01",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 517,
+          "tokens_after": 517,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.46
+        },
+        {
+          "qid": "q_test_02",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 620,
+          "tokens_after": 620,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.26
+        },
+        {
+          "qid": "q_test_03",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 569,
+          "tokens_after": 569,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.21
+        }
+      ]
+    },
+    "H1": {
+      "strategy": "H1_auto_merging",
+      "hierarchy_stats": {
+        "total_nodes": 361,
+        "leaf_count": 218,
+        "middle_count": 97,
+        "parent_count": 46,
+        "avg_leaf_tokens": 97.6,
+        "avg_middle_tokens": 217.7,
+        "avg_parent_tokens": 456.9
+      },
+      "results": [
+        {
+          "qid": "q_dev_01",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            92
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108",
+              "rank": 1,
+              "score": 0.8344
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 2,
+              "score": 0.8195
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p93",
+              "rank": 3,
+              "score": 0.819
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 4,
+              "score": 0.8123
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 5,
+              "score": 0.8047
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p113",
+              "rank": 6,
+              "score": 0.7993
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_02",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.914
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91",
+              "rank": 2,
+              "score": 0.8915
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99",
+              "rank": 3,
+              "score": 0.8808
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103",
+              "rank": 4,
+              "score": 0.8759
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p113",
+              "rank": 5,
+              "score": 0.8745
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 6,
+              "score": 0.8738
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_03",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            97
+          ],
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 1,
+              "score": 0.9052
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p115",
+              "rank": 2,
+              "score": 0.886
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92",
+              "rank": 3,
+              "score": 0.8829
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100",
+              "rank": 4,
+              "score": 0.8797
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 5,
+              "score": 0.8727
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 6,
+              "score": 0.872
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_04",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.5,
+          "mrr": 0.3333333333333333,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.9104
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 2,
+              "score": 0.8758
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p102",
+              "rank": 3,
+              "score": 0.8711
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 4,
+              "score": 0.87
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 5,
+              "score": 0.8543
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 6,
+              "score": 0.8508
+            }
+          ]
+        },
+        {
+          "qid": "q_test_01",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.5,
+          "mrr": 0.5,
+          "hit": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 1,
+              "score": 0.8678
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 2,
+              "score": 0.8569
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p114",
+              "rank": 3,
+              "score": 0.8501
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104",
+              "rank": 4,
+              "score": 0.8449
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 5,
+              "score": 0.8439
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 6,
+              "score": 0.8418
+            }
+          ]
+        },
+        {
+          "qid": "q_test_02",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "mrr": 0.16666666666666666,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 1,
+              "score": 0.8925
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99",
+              "rank": 2,
+              "score": 0.8734
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105",
+              "rank": 3,
+              "score": 0.8492
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105",
+              "rank": 4,
+              "score": 0.8406
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 5,
+              "score": 0.8369
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p95",
+              "rank": 6,
+              "score": 0.8344
+            }
+          ]
+        },
+        {
+          "qid": "q_test_03",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102,
+            103
+          ],
+          "recall": 0.0,
+          "mrr": 0.25,
+          "hit": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 1,
+              "score": 0.8844
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99",
+              "rank": 2,
+              "score": 0.8824
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p114",
+              "rank": 3,
+              "score": 0.8735
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 4,
+              "score": 0.8603
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 5,
+              "score": 0.8575
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p112",
+              "rank": 6,
+              "score": 0.8534
+            }
+          ]
+        },
+        {
+          "qid": "q_test_04",
+          "split": "test",
+          "is_abstention": true,
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": []
+        }
+      ],
+      "merge_traces": [
+        {
+          "qid": "q_dev_01",
+          "leaves_retrieved": 5,
+          "parent_candidates": 1,
+          "merges_performed": 1,
+          "merges_refused": 0,
+          "merge_rate": 1.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 435,
+          "tokens_after": 509,
+          "context_expansion_ratio": 1.1701,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.79
+        },
+        {
+          "qid": "q_dev_02",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 524,
+          "tokens_after": 524,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.32
+        },
+        {
+          "qid": "q_dev_03",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 671,
+          "tokens_after": 671,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.25
+        },
+        {
+          "qid": "q_dev_04",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 674,
+          "tokens_after": 674,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.3
+        },
+        {
+          "qid": "q_test_01",
+          "leaves_retrieved": 5,
+          "parent_candidates": 1,
+          "merges_performed": 1,
+          "merges_refused": 0,
+          "merge_rate": 1.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 479,
+          "tokens_after": 517,
+          "context_expansion_ratio": 1.0793,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.45
+        },
+        {
+          "qid": "q_test_02",
+          "leaves_retrieved": 5,
+          "parent_candidates": 1,
+          "merges_performed": 1,
+          "merges_refused": 0,
+          "merge_rate": 1.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 561,
+          "tokens_after": 620,
+          "context_expansion_ratio": 1.1052,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.42
+        },
+        {
+          "qid": "q_test_03",
+          "leaves_retrieved": 6,
+          "parent_candidates": 0,
+          "merges_performed": 0,
+          "merges_refused": 0,
+          "merge_rate": 0.0,
+          "parent_promotion_rate": 0.0,
+          "tokens_before": 569,
+          "tokens_after": 569,
+          "context_expansion_ratio": 1.0,
+          "relevant_evidence_preservation": 1.0,
+          "latency_ms": 1.32
+        }
+      ]
+    },
+    "H2": {
+      "strategy": "H2_auto_merging_rerank",
+      "reranker_class": "bi_encoder_rescoring",
+      "reranker_note": "LocalRerankerAdapter uses same FastEmbed model for rescoring. This is bi_encoder_rescoring — NOT a cross-encoder.",
+      "results": [
+        {
+          "qid": "q_dev_01",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            92
+          ],
+          "recall": 0.0,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 0.0,
+          "delta_recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 1,
+              "score": 0.7033
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p93",
+              "rank": 2,
+              "score": 0.6811
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p97",
+              "rank": 3,
+              "score": 0.6703
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_02",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 0.0,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 0.0,
+          "delta_recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96",
+              "rank": 1,
+              "score": 0.6327
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p113",
+              "rank": 2,
+              "score": 0.632
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99",
+              "rank": 3,
+              "score": 0.6244
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_03",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            97
+          ],
+          "recall": 0.0,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 0.0,
+          "delta_recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92",
+              "rank": 1,
+              "score": 0.7688
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100",
+              "rank": 2,
+              "score": 0.6676
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98",
+              "rank": 3,
+              "score": 0.6377
+            }
+          ]
+        },
+        {
+          "qid": "q_dev_04",
+          "split": "development",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.5,
+          "recall_pre_reranker": 0.5,
+          "recall_post_reranker": 0.5,
+          "delta_recall": 0.0,
+          "mrr": 0.5,
+          "hit": true,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 1,
+              "score": 0.7812
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p102",
+              "rank": 2,
+              "score": 0.7544
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 3,
+              "score": 0.7318
+            }
+          ]
+        },
+        {
+          "qid": "q_test_01",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102
+          ],
+          "recall": 0.0,
+          "recall_pre_reranker": 0.5,
+          "recall_post_reranker": 0.0,
+          "delta_recall": -0.5,
+          "mrr": 0.0,
+          "hit": false,
+          "relevant_passage_dropped": true,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104",
+              "rank": 1,
+              "score": 0.7953
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 2,
+              "score": 0.7463
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p114",
+              "rank": 3,
+              "score": 0.7389
+            }
+          ]
+        },
+        {
+          "qid": "q_test_02",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            95
+          ],
+          "recall": 1.0,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 1.0,
+          "delta_recall": 1.0,
+          "mrr": 0.5,
+          "hit": true,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105",
+              "rank": 1,
+              "score": 0.83
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p95",
+              "rank": 2,
+              "score": 0.7885
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110",
+              "rank": 3,
+              "score": 0.6711
+            }
+          ]
+        },
+        {
+          "qid": "q_test_03",
+          "split": "test",
+          "is_abstention": false,
+          "relevant_pages": [
+            101,
+            102,
+            103
+          ],
+          "recall": 0.3333333333333333,
+          "recall_pre_reranker": 0.0,
+          "recall_post_reranker": 0.3333333333333333,
+          "delta_recall": 0.3333,
+          "mrr": 0.3333333333333333,
+          "hit": true,
+          "relevant_passage_dropped": false,
+          "evidence": [
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107",
+              "rank": 1,
+              "score": 0.8323
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p114",
+              "rank": 2,
+              "score": 0.7717
+            },
+            {
+              "doc_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101",
+              "rank": 3,
+              "score": 0.7566
+            }
+          ]
+        },
+        {
+          "qid": "q_test_04",
+          "split": "test",
+          "is_abstention": true,
+          "recall": 0.0,
+          "mrr": 0.0,
+          "hit": false,
+          "evidence": []
+        }
+      ]
+    }
+  },
+  "reranker_class": "bi_encoder_rescoring",
+  "reranker_note": "LocalRerankerAdapter uses same FastEmbed model for rescoring. This is bi_encoder_rescoring — NOT a cross-encoder.",
+  "holdout_status": "SEALED — not executed",
+  "second_annotator_status": "GROUND_TRUTH_SINGLE_ANNOTATOR"
+}

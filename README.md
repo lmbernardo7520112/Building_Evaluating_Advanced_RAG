@@ -438,5 +438,5 @@ RAGLab v7 provides concrete evidence of capability in:
 
 ---
 
-> 💬 *RAGLab v7 bridges production-grade AI engineering with applied scientific discipline: every retrieval decision is traceable, every interruption is recoverable, every external request is accounted for, and every conclusion must be earned by evidence.*  
+> 💬 *RAGLab v7 bridges production-grade AI engineering with applied scientific discipline: every retrieval decision is traceable, every interruption is recoverable, every external request is accounted for, and every conclusion must be earned by evidence.*
 > — **Leonardo Maximino Bernardo, 2026**

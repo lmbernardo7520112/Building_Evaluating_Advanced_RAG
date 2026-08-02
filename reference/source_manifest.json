@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "expected_sha256": "c11c323e9d5362d4706c3fbbe4b11a107e7c4648407399186aef64fc1fb14db3",
+  "actual_sha256": "c11c323e9d5362d4706c3fbbe4b11a107e7c4648407399186aef64fc1fb14db3",
+  "verified": true,
+  "size_bytes": 1000742,
+  "original_filename": "L1_Advanced_RAG_Pipeline_Colab_Gemini_Atualizado_v6_1_Recuperacao_Feedback.ipynb",
+  "reference_filename": "v6_1_reference.ipynb",
+  "captured_at_utc": "2026-07-30T17:58:51.456611+00:00",
+  "nbformat": 4,
+  "nbformat_minor": 5,
+  "total_cells": 65,
+  "code_cells": 31,
+  "markdown_cells": 34
+}

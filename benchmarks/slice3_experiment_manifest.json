@@ -1,0 +1,182 @@
+{
+  "schema_version": "1.0",
+  "experiment_id": "raglab_v7_slice3_v1_20260731T1230UTC",
+  "experiment_protocol_version": "slice3-v1",
+  "registered_utc": "2026-07-31T12:30:00Z",
+  "notice": "PRE-REGISTERED MANIFEST — Do not alter after first experiment run. New configurations require a new experiment_id.",
+
+  "corpus": {
+    "pdf_sha256": "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254",
+    "pdf_filename": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf",
+    "pdf_external": true,
+    "pages_start": 91,
+    "pages_end": 115,
+    "pages_count": 25,
+    "extractor": "PyPdfExtractorAdapter",
+    "extractor_library": "pypdf>=4.0.0,<5.0.0"
+  },
+
+  "embedding": {
+    "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "backend": "fastembed>=0.3.0,<1.0.0",
+    "runtime": "ONNX CPU local",
+    "dimension": 384,
+    "license": "Apache-2.0"
+  },
+
+  "questions": {
+    "file": "benchmarks/questions/controlled_chapter2.json",
+    "schema_version": "1.0",
+    "ground_truth_annotator_count": 1,
+    "ground_truth_status": "GROUND_TRUTH_SINGLE_ANNOTATOR",
+    "active_splits": ["development", "test"],
+    "holdout_splits": ["holdout"],
+    "holdout_status": "SEALED — do not execute",
+    "active_qids": [
+      "q_dev_01", "q_dev_02", "q_dev_03", "q_dev_04",
+      "q_test_01", "q_test_02", "q_test_03", "q_test_04"
+    ]
+  },
+
+  "causal_matrix": {
+    "F0": {
+      "strategy": "baseline",
+      "description": "Fixed chunks, semantic embedding, no window, no reranker",
+      "chunk_size_chars": 512,
+      "top_k": 3
+    },
+    "S0": {
+      "strategy": "sentence_anchor",
+      "description": "Sentence indexed, returned as anchor only — no expansion",
+      "top_k": 3,
+      "causal_role": "F0 vs S0 = granularity effect; S0 vs W0 = expansion effect"
+    },
+    "W0": {
+      "strategy": "sentence_window",
+      "description": "Sentence anchor + window expansion, no reranker",
+      "window_size": 2,
+      "top_k": 3
+    },
+    "W1": {
+      "strategy": "sentence_window_rerank",
+      "description": "W0 candidate pool + bi-encoder rescoring, top_n",
+      "window_size": 2,
+      "candidate_k": 6,
+      "top_n": 3,
+      "reranker_class": "bi_encoder_rescoring",
+      "reranker_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "reranker_note": "Uses same embedding model for rescoring — NOT a cross-encoder"
+    },
+    "H0": {
+      "strategy": "hierarchical_leaf",
+      "description": "Hierarchy built, leaf retrieval only, auto-merging DISABLED",
+      "chunk_sizes_tokens": [1024, 512, 256],
+      "leaf_size_tokens": 256,
+      "middle_size_tokens": 512,
+      "parent_size_tokens": 1024,
+      "top_k": 6,
+      "auto_merge": false,
+      "causal_role": "H0 vs H1 = auto-merging effect"
+    },
+    "H1": {
+      "strategy": "auto_merging",
+      "description": "Same hierarchy as H0, auto-merging ENABLED",
+      "chunk_sizes_tokens": [1024, 512, 256],
+      "leaf_size_tokens": 256,
+      "middle_size_tokens": 512,
+      "parent_size_tokens": 1024,
+      "top_k": 6,
+      "auto_merge": true,
+      "merge_threshold": 0.5
+    },
+    "H2": {
+      "strategy": "auto_merging_rerank",
+      "description": "H1 output + bi-encoder rescoring",
+      "chunk_sizes_tokens": [1024, 512, 256],
+      "top_k": 6,
+      "auto_merge": true,
+      "merge_threshold": 0.5,
+      "top_n": 3,
+      "reranker_class": "bi_encoder_rescoring",
+      "reranker_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "reranker_note": "Uses same embedding model for rescoring — NOT a cross-encoder"
+    }
+  },
+
+  "reranker_audit": {
+    "class": "bi_encoder_rescoring",
+    "implementation": "LocalRerankerAdapter in src/raglab/infrastructure/retrieval/reranker_adapter.py",
+    "mechanism": "Re-scores candidates by cosine similarity between query embedding and candidate embedding using the same FastEmbed model",
+    "is_cross_encoder": false,
+    "is_late_interaction": false,
+    "is_lexical": false,
+    "rename_required": false,
+    "note": "Gate 2 used this reranker. It is correctly classified as bi_encoder_rescoring and must NOT be presented as equivalent to BAAI/bge-reranker-base."
+  },
+
+  "metrics": [
+    "recall_at_k",
+    "mrr",
+    "hit_rate",
+    "precision_at_k",
+    "merge_rate",
+    "parent_promotion_rate",
+    "relevant_evidence_preservation",
+    "relevant_evidence_loss",
+    "context_expansion_ratio",
+    "relevant_passage_dropped_rate",
+    "recall_pre_reranker",
+    "recall_post_reranker",
+    "latency_ms",
+    "tokens_context"
+  ],
+
+  "hypotheses": {
+    "H_gran": "S0 Recall@3 ≠ F0 Recall@3 (granularity effect)",
+    "H_exp": "W0 Recall@3 ≠ S0 Recall@3 (expansion effect)",
+    "H_merge": "H1 Recall@k ≠ H0 Recall@k (auto-merging effect)",
+    "H_rerank_w": "W1 Recall@3 ≠ W0 Recall@3 (reranking on sentence-window)",
+    "H_rerank_h": "H2 Recall@k ≠ H1 Recall@k (reranking on auto-merging)"
+  },
+
+  "success_criteria": {
+    "gate3_pass": [
+      "Gate 2 remains intact",
+      "Ground truth 8 active questions audited",
+      "S0 implemented and separates granularity from expansion",
+      "H0 implements hierarchical leaf retrieval without merging",
+      "H1 implements auto-merging retrieval",
+      "Reranker correctly classified as bi_encoder_rescoring",
+      "Results separated by split (development / test)",
+      "Holdout remains sealed",
+      "Merge observability metrics recorded",
+      "Provenance survives merges",
+      "Checkpoints compatible and resumable",
+      "All existing tests pass",
+      "PDF remains external to Git",
+      "No API calls",
+      "No claim of general superiority",
+      "Clean working tree",
+      "Zero remotes"
+    ]
+  },
+
+  "seed": 42,
+
+  "gate2_verdict": {
+    "gate2_engineering": "PASSED",
+    "experimental_result": "INCONCLUSIVE",
+    "gate2_overall": "PASSED_WITH_METHODOLOGICAL_DEBT",
+    "gate2_not_reopened": true,
+    "methodological_debts_carried_forward": [
+      "W0 had two hits only in development",
+      "Test split had recall zero for all variants",
+      "Bootstrap IC [0.0000, 0.5714] includes zero",
+      "F0 vs W0 confounds granularity + segmentation + expansion",
+      "Ground truth has single annotator",
+      "Holdout remained sealed",
+      "Reranker is bi_encoder_rescoring, not cross_encoder",
+      "Total tests 179 (not 178 as stated in main report — corrected here)"
+    ]
+  }
+}

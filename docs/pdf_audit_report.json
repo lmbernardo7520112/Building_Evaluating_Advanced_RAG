@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.0",
+  "audit_target": {
+    "filename": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf",
+    "path_sanitized": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf",
+    "size_bytes": 12543319,
+    "sha256": "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254",
+    "total_pages": 749,
+    "language": "pt-BR"
+  },
+  "quality_metrics": {
+    "extractable_pages": 743,
+    "extractable_pct": 99.2,
+    "empty_pages_count": 6,
+    "empty_pages_list": [
+      1,
+      2,
+      3,
+      4,
+      363,
+      563
+    ],
+    "low_text_pages_count": 14,
+    "character_distribution": {
+      "min": 0,
+      "max": 10159,
+      "mean": 2688.8,
+      "median": 2673
+    }
+  },
+  "layout_analysis": {
+    "recurring_headers_sample": [
+      {
+        "line": "a.",
+        "frequency": 86
+      },
+      {
+        "line": "1.",
+        "frequency": 71
+      },
+      {
+        "line": "•",
+        "frequency": 60
+      },
+      {
+        "line": "b.",
+        "frequency": 31
+      },
+      {
+        "line": "c.",
+        "frequency": 16
+      }
+    ],
+    "recurring_footers_sample": [
+      {
+        "line": ".",
+        "frequency": 32
+      },
+      {
+        "line": "0",
+        "frequency": 19
+      },
+      {
+        "line": "1",
+        "frequency": 17
+      },
+      {
+        "line": ").",
+        "frequency": 10
+      },
+      {
+        "line": "■",
+        "frequency": 9
+      }
+    ],
+    "formulas_tables_detected": true,
+    "hyphenation_present": true
+  },
+  "usage_notice": "Audit conducted without persistent verbatim publication of protected text."
+}

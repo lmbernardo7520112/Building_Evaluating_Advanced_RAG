@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "notice": "Inventory-only registration of external reference PDFs in parent workspace. Files remain un-mutated.",
+  "total_pdf_files": 6,
+  "files": [
+    {
+      "filename": "Building and Evaluating Advanced RAG.pdf",
+      "path": "/home/leonardomaximinobernardo/Downloads/huggingface_agents_course_bootcamp_AI_triggo_2026/Building_Evaluating_Advanced_RAG/Building and Evaluating Advanced RAG.pdf",
+      "size_bytes": 30876,
+      "sha256": "e64ae22426a31a2b646a60b15685350e0b553ca6a228bcda26d0e18819d2419d",
+      "usage": "INVENTORY_ONLY_DO_NOT_MODIFY"
+    },
+    {
+      "filename": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf",
+      "path": "/home/leonardomaximinobernardo/Downloads/huggingface_agents_course_bootcamp_AI_triggo_2026/Building_Evaluating_Advanced_RAG/Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf",
+      "size_bytes": 12543319,
+      "sha256": "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254",
+      "usage": "INVENTORY_ONLY_DO_NOT_MODIFY"
+    },
+    {
+      "filename": "L1-Advanced_RAG_Pipeline.pdf",
+      "path": "/home/leonardomaximinobernardo/Downloads/huggingface_agents_course_bootcamp_AI_triggo_2026/Building_Evaluating_Advanced_RAG/L1-Advanced_RAG_Pipeline.pdf",
+      "size_bytes": 61476,
+      "sha256": "d494effcedb197794ebff5c908d7feb7f7577daeb9732c92d029dfecdf9e0a7c",
+      "usage": "INVENTORY_ONLY_DO_NOT_MODIFY"
+    },
+    {
+      "filename": "L2-RAG_Triad_of_metrics.pdf",
+      "path": "/home/leonardomaximinobernardo/Downloads/huggingface_agents_course_bootcamp_AI_triggo_2026/Building_Evaluating_Advanced_RAG/L2-RAG_Triad_of_metrics.pdf",
+      "size_bytes": 120454,
+      "sha256": "b5c1919acd8154dbd5c6bdc38f2117edaf851f8d365ec6720f3fe6cd505379a2",
+      "usage": "INVENTORY_ONLY_DO_NOT_MODIFY"
+    },
+    {
+      "filename": "L4-Auto-merging_Retrieval.pdf",
+      "path": "/home/leonardomaximinobernardo/Downloads/huggingface_agents_course_bootcamp_AI_triggo_2026/Building_Evaluating_Advanced_RAG/L4-Auto-merging_Retrieval.pdf",
+      "size_bytes": 75332,
+      "sha256": "7f34a55174bc66b635cb31957c3058f4b958bbad3ca3f822dacb70e9d8b07c91",
+      "usage": "INVENTORY_ONLY_DO_NOT_MODIFY"
+    },
+    {
+      "filename": "transcript-L3-Sentence_window_retrieval.pdf",
+      "path": "/home/leonardomaximinobernardo/Downloads/huggingface_agents_course_bootcamp_AI_triggo_2026/Building_Evaluating_Advanced_RAG/transcript-L3-Sentence_window_retrieval.pdf",
+      "size_bytes": 95860,
+      "sha256": "af0c9c793a242c188cc42463c4e5abcb47f6afed4cdaaa7b3994c3a9c617bfe6",
+      "usage": "INVENTORY_ONLY_DO_NOT_MODIFY"
+    }
+  ]
+}

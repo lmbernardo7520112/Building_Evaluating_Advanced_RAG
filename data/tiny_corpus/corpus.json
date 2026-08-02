@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "corpus_id": "tiny-synthetic-v1",
+  "name": "RAGLab Tiny Synthetic Corpus",
+  "description": "Minimal synthetic corpus for deterministic smoke testing. Not a scientific benchmark. Validates infrastructure only.",
+  "documents": [
+    {
+      "document_id": "doc-alpha",
+      "title": "Fundamentals of Information Retrieval",
+      "pages": [
+        {
+          "page_number": 0,
+          "text": "Information retrieval (IR) is the activity of obtaining information system resources that are relevant to an information need. Searches can be based on full-text indexing or content-based indexing. The effectiveness of an IR system is typically measured using precision and recall metrics."
+        },
+        {
+          "page_number": 1,
+          "text": "The vector space model represents documents and queries as vectors in a high-dimensional space. Cosine similarity is commonly used to measure the angle between document and query vectors. TF-IDF weighting assigns importance to terms based on their frequency in a document relative to the corpus."
+        },
+        {
+          "page_number": 2,
+          "text": "Evaluation of retrieval systems requires ground truth relevance judgments. Recall@k measures the fraction of relevant documents retrieved in the top-k results. Mean Reciprocal Rank (MRR) averages the reciprocal of the rank of the first relevant result across queries."
+        }
+      ]
+    },
+    {
+      "document_id": "doc-beta",
+      "title": "Retrieval-Augmented Generation Architectures",
+      "pages": [
+        {
+          "page_number": 0,
+          "text": "Retrieval-Augmented Generation (RAG) combines information retrieval with language model generation. The retriever fetches relevant passages from a knowledge base, and the generator uses those passages as context to produce answers. This approach reduces hallucination by grounding responses in retrieved evidence."
+        },
+        {
+          "page_number": 1,
+          "text": "Chunking strategies significantly affect retrieval quality. Fixed-size chunking splits documents into equal-length segments. Sentence-window retrieval indexes individual sentences but expands the context window during generation. Auto-merging retrieval uses hierarchical chunk structures where leaf nodes can be merged into parent nodes."
+        },
+        {
+          "page_number": 2,
+          "text": "Reranking is a second-stage process that reorders initial retrieval results using a more expensive model. Cross-encoders evaluate query-passage pairs jointly and can capture fine-grained semantic relationships. The reranker assigns new scores and the top-n passages are selected for generation."
+        }
+      ]
+    },
+    {
+      "document_id": "doc-gamma",
+      "title": "Experimental Design for NLP Systems",
+      "pages": [
+        {
+          "page_number": 0,
+          "text": "Statistical significance testing helps determine whether observed differences between systems are due to chance. The paired t-test compares means of paired observations. Bootstrap confidence intervals provide non-parametric estimates of effect size uncertainty."
+        },
+        {
+          "page_number": 1,
+          "text": "Ablation studies systematically remove or modify components to measure their individual contribution. In RAG systems, ablation might compare retrieval with and without reranking, or test different chunking strategies while keeping other components fixed."
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "q1",
+      "text": "What metrics are used to evaluate the effectiveness of an information retrieval system?",
+      "relevant_chunks": ["doc-alpha_p0", "doc-alpha_p2"],
+      "expected_answer_contains": ["precision", "recall"],
+      "split": "development"
+    },
+    {
+      "question_id": "q2",
+      "text": "How does Retrieval-Augmented Generation reduce hallucination?",
+      "relevant_chunks": ["doc-beta_p0"],
+      "expected_answer_contains": ["grounding", "retrieved evidence"],
+      "split": "development"
+    },
+    {
+      "question_id": "q3",
+      "text": "What is the difference between sentence-window retrieval and auto-merging retrieval?",
+      "relevant_chunks": ["doc-beta_p1"],
+      "expected_answer_contains": ["sentence", "hierarchical"],
+      "split": "development"
+    },
+    {
+      "question_id": "q4",
+      "text": "What is the capital of Mars?",
+      "relevant_chunks": [],
+      "expected_answer_contains": [],
+      "split": "development",
+      "abstention_expected": true,
+      "note": "Deliberately unanswerable from this corpus. System must abstain."
+    },
+    {
+      "question_id": "q5",
+      "text": "How does reranking improve retrieval results?",
+      "relevant_chunks": ["doc-beta_p2"],
+      "expected_answer_contains": ["cross-encoder", "reorder"],
+      "split": "development"
+    }
+  ]
+}

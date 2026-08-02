@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raglab"
+version = "7.0.0a1"
+description = "RAGLab — Advanced RAG Pipeline with Scientific Evaluation"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+
+# Runtime dependencies — domain and application layers remain stdlib-only by design.
+# Infrastructure adapters integrate third-party libraries (e.g. LlamaIndex).
+dependencies = [
+    "llama-index-core>=0.13.0,<0.14",
+    "pypdf>=4.0.0,<5.0.0",
+    "fastembed>=0.3.0,<1.0.0",
+    "google-genai>=0.1.0,<3.0.0",
+]
+
+[project.scripts]
+raglab = "raglab.interfaces.cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<10",
+    "pytest-cov>=5.0,<6",
+    "ruff>=0.5,<1",
+    "mypy>=1.10,<2",
+    "pip-audit>=2.7,<3",
+    "pip-tools>=7.0,<8",
+    "cyclonedx-bom>=7.0,<8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# S101: assert statements are idiomatic in pytest test files
+# E501: long assertion messages in tests are standard practice
+# S603: subprocess calls in tests invoke our own known scripts (not untrusted input)
+# SLF001: private member access used for canary embedding validation in tests
+"tests/**" = ["S101", "E501", "S603", "SLF001"]
+# S101: assert used for smoke validation in benchmark scripts (not production code)
+# E501: long help strings in argparse epilog exceed 88 chars by design
+# S603: subprocess.run invokes sys.executable (trusted)
+# SLF001: private member access used for canary embedding validation
+"benchmarks/**" = ["S101", "E501", "S603", "SLF001"]
+# run_slice3_benchmark.py: pre-existing file, E402/B905/F841 are known non-blocking
+"benchmarks/run_slice3_benchmark.py" = ["E402", "B905", "F841"]
+# S603: subprocess calls in scripts invoke known tools
+# SLF001: private member access for canary validation in provisioning
+"scripts/**" = ["S603", "SLF001"]
+# S108: intentional /tmp references for rejection logic
+"src/raglab/infrastructure/embeddings/fastembed_adapter.py" = ["S108"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["google.*", "google.genai.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+pythonpath = ["src", "."]
+# UnsupportedFieldAttributeWarning is emitted by llama-index (external dependency),
+# not by raglab project code. Registered as "always" to surface once per location
+# without failing tests. Do NOT change to "ignore" — this tracks upstream changes.
+filterwarnings = [
+    "always::UserWarning",
+]

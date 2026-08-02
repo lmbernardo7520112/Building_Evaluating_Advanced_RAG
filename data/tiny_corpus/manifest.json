@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "corpus_id": "tiny-synthetic-v1",
+  "corpus_file": "corpus.json",
+  "sha256": "1854fd6007850d851cb9eeb438ba27be8ee52209c241884624c5be0d703d0887",
+  "total_documents": 3,
+  "total_pages": 8,
+  "total_questions": 5,
+  "abstention_questions": 1,
+  "created_utc": "2026-07-30T21:14:00Z",
+  "purpose": "Deterministic smoke test. Validates infrastructure, not scientific hypothesis."
+}
