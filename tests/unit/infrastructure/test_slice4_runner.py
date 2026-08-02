@@ -1542,6 +1542,10 @@ class TestSlice4RetryAccountingFixes:
         assert ckpt.is_completed("q1", "S0_sentence_anchor") is False
         assert ckpt.is_completed("q2", "F0_baseline") is False
 
+    @pytest.mark.skipif(
+        not (Path(__file__).resolve().parents[3] / "checkpoints" / "slice4_gen_checkpoint_raglab_v7_slice4_v2_20260731T1230UTC.json").exists(),
+        reason="Requires local run checkpoint file in checkpoints/",
+    )
     def test_h0_q_dev_01_resume_without_duplicating_prior_32(self):
         """k. H0 q_dev_01 can be resumed without duplicating the 32 prior completed pairs."""
         from pathlib import Path
@@ -2014,6 +2018,10 @@ class TestSlice4GenericRetryAccountingFixes:
         exact_ckpt_path = runner.CHECKPOINT_DIR / f"slice4_gen_checkpoint_{run_id}.json"
         assert exact_ckpt_path == exact_file
 
+    @pytest.mark.skipif(
+        not (Path(__file__).resolve().parents[3] / "checkpoints" / "slice4_gen_checkpoint_raglab_v7_slice4_v2_20260731T1230UTC.json").exists(),
+        reason="Requires local run checkpoint file in checkpoints/",
+    )
     def test_forty_eight_complete_rows_preserved(self):
         """o. 48 linhas completas são preservadas."""
         from pathlib import Path
@@ -2030,6 +2038,10 @@ class TestSlice4GenericRetryAccountingFixes:
         assert ckpt.completed_count() == 56
         assert ckpt.complete_rows_count() in (48, 56)
 
+    @pytest.mark.skipif(
+        not (Path(__file__).resolve().parents[3] / "checkpoints" / "slice4_gen_checkpoint_raglab_v7_slice4_v2_20260731T1230UTC.json").exists(),
+        reason="Requires local run checkpoint file in checkpoints/",
+    )
     def test_w1_q_dev_01_remains_incomplete(self):
         """p. W1 q_dev_01 complete row verification."""
         from pathlib import Path
@@ -2045,6 +2057,10 @@ class TestSlice4GenericRetryAccountingFixes:
         )
         assert ckpt.is_completed("q_dev_01", "W1_sentence_window_rerank") is True
 
+    @pytest.mark.skipif(
+        not (Path(__file__).resolve().parents[3] / "checkpoints" / "slice4_gen_checkpoint_raglab_v7_slice4_v2_20260731T1230UTC.json").exists(),
+        reason="Requires local run checkpoint file in checkpoints/",
+    )
     def test_resume_starts_at_w1_q_dev_01(self):
         """q. resume após correção valida estado de todas as 56 tarefas."""
         from pathlib import Path

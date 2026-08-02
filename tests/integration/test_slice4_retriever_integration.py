@@ -358,13 +358,15 @@ class TestSmokeF0Fake:
 
         runner = importlib.import_module("run_slice4_benchmark")
 
-        # Patch out PDF loading, credential check, and Gemini
+        # Patch out PDF loading, credential check, manifest attestation, and Gemini
         monkeypatch.setattr(runner, "load_pdf_pages", lambda path, logger: fake_pages)
         monkeypatch.setattr(runner, "load_embedding_model", lambda logger, **kw: fake_embedding)
         monkeypatch.setattr(runner, "check_credential", lambda logger: None)
         monkeypatch.setattr(runner, "verify_pdf", lambda path, logger: None)
         monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path)
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
+        monkeypatch.setattr(runner, "load_provision_manifest", lambda: {"model_id": "m", "cache_tree_sha256": "a" * 64})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {s: {"cache_tree_sha256": "a" * 64} for s in runner.VALID_STRATEGIES})
 
         from raglab.domain.entities import GeneratedAnswer
         from raglab.domain.enums import PipelineStrategy
@@ -447,6 +449,8 @@ class TestSmokeF0Fake:
         monkeypatch.setattr(runner, "verify_pdf", lambda path, logger: None)
         monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path)
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
+        monkeypatch.setattr(runner, "load_provision_manifest", lambda: {"model_id": "m", "cache_tree_sha256": "a" * 64})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {s: {"cache_tree_sha256": "a" * 64} for s in runner.VALID_STRATEGIES})
 
         from raglab.domain.entities import GeneratedAnswer
         from raglab.domain.enums import PipelineStrategy
@@ -528,6 +532,8 @@ class TestFullFake:
         monkeypatch.setattr(runner, "verify_pdf", lambda path, logger: None)
         monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path)
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
+        monkeypatch.setattr(runner, "load_provision_manifest", lambda: {"model_id": "m", "cache_tree_sha256": "a" * 64})
+        monkeypatch.setattr(runner, "verify_embedding_parity", lambda r, lg, m: {s: {"cache_tree_sha256": "a" * 64} for s in runner.VALID_STRATEGIES})
 
         build_called = []
         orig_build = runner.build_retrievers
@@ -897,6 +903,10 @@ class TestEmbeddingParity:
 # ─── 14. OFFLINE ATTESTATION CLI ─────────────────────────────────
 
 class TestOfflineAttestationCLI:
+    @pytest.mark.skipif(
+        not Path(".model_cache").resolve().exists(),
+        reason="Requires local ONNX model cache in .model_cache",
+    )
     def test_attest_existing_offline_fake_cache(self, tmp_path):
         """Test --attest-existing on a fake cache directory without network or Gemini."""
         import os
