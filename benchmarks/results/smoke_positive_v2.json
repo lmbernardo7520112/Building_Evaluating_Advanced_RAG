@@ -1,0 +1,167 @@
+{
+  "artifact_schema_version": "slice4_v2",
+  "embedding_fingerprints": {
+    "W0_sentence_window": {
+      "cache_tree_sha256": "485efb6ba1e2d2244a0154fa6fb6639193ff35267f5a160088f18b4fe6df95a4",
+      "dimension": 384,
+      "embedding_model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "fastembed_version": "0.8.0",
+      "normalization": true,
+      "onnxruntime_version": "1.28.0",
+      "pooling": "mean"
+    }
+  },
+  "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "experiment_id": "smoke_raglab_v7_slice4_v2_20260731T1230UTC_20260802T005643Z",
+  "gemini_model": "gemini-3.1-flash-lite",
+  "holdout_status": "SEALED",
+  "manifest_fingerprint": "485efb6ba1e2d2244a0154fa6fb6639193ff35267f5a160088f18b4fe6df95a4",
+  "protocol_version": "raglab_v7_slice4_v2",
+  "quota_final_stats": {
+    "rpm_current": 4,
+    "rpm_limit": 15,
+    "total_requests": 4,
+    "total_wait_seconds": 0.0,
+    "tpd_current": 4,
+    "tpd_limit": 1500
+  },
+  "rag_triad_dimensions": [
+    "context_relevance",
+    "groundedness",
+    "answer_relevance"
+  ],
+  "reranker_class": "bi_encoder_rescoring",
+  "results": {
+    "W0_sentence_window": [
+      {
+        "abstained": false,
+        "answer": {
+          "abstained": false,
+          "citation_pages": [
+            92,
+            96,
+            101
+          ],
+          "query_id": "W0_sentence_window::q_dev_01",
+          "text": "A demonstração por exaustão é um método que consiste em verificar a veracidade de uma conjectura para cada elemento de uma coleção, esgotando todos os casos possíveis [1].\n\nEla é aplicável quando a conjectura é uma asserção sobre uma coleção finita de elementos [1]. Além disso, a demonstração por casos é considerada uma forma de demonstração por exaustão, envolvendo a identificação de todos os casos possíveis condizentes com a informação dada e a demonstração de cada um separadamente [2]. O méto"
+        },
+        "call_ledger": {
+          "answer_relevance_calls": 1,
+          "context_relevance_calls": 1,
+          "generation_calls": 1,
+          "groundedness_calls": 1,
+          "total_external_requests": 4
+        },
+        "citation_pages": [
+          92,
+          96,
+          101
+        ],
+        "evaluation": {
+          "artifact_schema_version": "slice4_v2",
+          "metrics": [
+            {
+              "attempts": 0,
+              "evaluator_model": "",
+              "name": "abstention_correctness",
+              "reason": "SUBSTANTIVE_ANSWER_NOT_ABSTENTION_QUESTION",
+              "score": null,
+              "status": "NOT_APPLICABLE"
+            },
+            {
+              "attempts": 1,
+              "evaluator_model": "gemini-3.1-flash-lite",
+              "name": "context_relevance",
+              "reason": "",
+              "score": 1.0,
+              "status": "COMPUTED"
+            },
+            {
+              "attempts": 1,
+              "evaluator_model": "gemini-3.1-flash-lite",
+              "name": "groundedness",
+              "reason": "",
+              "score": 1.0,
+              "status": "COMPUTED"
+            },
+            {
+              "attempts": 1,
+              "evaluator_model": "gemini-3.1-flash-lite",
+              "name": "answer_relevance",
+              "reason": "",
+              "score": 1.0,
+              "status": "COMPUTED"
+            }
+          ],
+          "protocol_version": "raglab_v7_slice4_v2",
+          "schema_version": "slice4_v2"
+        },
+        "is_abstention_question": false,
+        "qid": "q_dev_01",
+        "quota_stats": {
+          "rpm_current": 4,
+          "rpm_limit": 15,
+          "total_requests": 4,
+          "total_wait_seconds": 0.0,
+          "tpd_current": 4,
+          "tpd_limit": 1500
+        },
+        "relevant_pages": [
+          92
+        ],
+        "retrieval_evidence": {
+          "candidate_count": 3,
+          "candidates": [
+            {
+              "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s36",
+              "page_number": 92,
+              "parent_node_id": null,
+              "rerank_rank": null,
+              "rerank_score": null,
+              "retrieval_rank": 1,
+              "retrieval_score": 0.8651,
+              "text_preview": "Demonstração por Exaustão Embora “provar a falsidade por um contraexemplo” sempr",
+              "text_sha256": "f50d08cedc2a50ef9c93ce7f72859859230f08047f9c554400c9e3bdfe6b832e"
+            },
+            {
+              "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s20",
+              "page_number": 96,
+              "parent_node_id": null,
+              "rerank_rank": null,
+              "rerank_score": null,
+              "retrieval_rank": 2,
+              "retrieval_score": 0.8139,
+              "text_preview": "x ímpar, y par: funciona como no primeiro caso. x par, y par: então xy é par pel",
+              "text_sha256": "08b27eed51399820d4ff7291ffeae7457b07f2114a9d2a3e61f18bfb822b9412"
+            },
+            {
+              "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_s28",
+              "page_number": 101,
+              "parent_node_id": null,
+              "rerank_rank": null,
+              "rerank_score": null,
+              "retrieval_rank": 3,
+              "retrieval_score": 0.8065,
+              "text_preview": "+ (2 n – 1).) O termo à esquerda do sinal de igualdade nessa equação é a soma de",
+              "text_sha256": "ac48ae0e8800cbc66c7a1101a0dbfcef7dea78111903586b0df77185628823cf"
+            }
+          ],
+          "relevant_pages_expected": [
+            92
+          ],
+          "relevant_pages_found": [
+            92
+          ],
+          "relevant_pages_missing": [],
+          "retrieval_hit": true
+        },
+        "split": "development",
+        "strategy": "W0_sentence_window"
+      }
+    ]
+  },
+  "run_time_ms": {
+    "W0_sentence_window": 7072.8
+  },
+  "schema": "slice4_v2"
+}

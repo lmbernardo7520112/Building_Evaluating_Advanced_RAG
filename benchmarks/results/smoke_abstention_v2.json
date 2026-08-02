@@ -1,0 +1,153 @@
+{
+  "artifact_schema_version": "slice4_v2",
+  "embedding_fingerprints": {
+    "F0_baseline": {
+      "cache_tree_sha256": "485efb6ba1e2d2244a0154fa6fb6639193ff35267f5a160088f18b4fe6df95a4",
+      "dimension": 384,
+      "embedding_model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "fastembed_version": "0.8.0",
+      "normalization": true,
+      "onnxruntime_version": "1.28.0",
+      "pooling": "mean"
+    }
+  },
+  "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "experiment_id": "smoke_raglab_v7_slice4_v2_20260731T1230UTC_20260802T005849Z",
+  "gemini_model": "gemini-3.1-flash-lite",
+  "holdout_status": "SEALED",
+  "manifest_fingerprint": "485efb6ba1e2d2244a0154fa6fb6639193ff35267f5a160088f18b4fe6df95a4",
+  "protocol_version": "raglab_v7_slice4_v2",
+  "quota_final_stats": {
+    "rpm_current": 2,
+    "rpm_limit": 15,
+    "total_requests": 2,
+    "total_wait_seconds": 0.0,
+    "tpd_current": 2,
+    "tpd_limit": 1500
+  },
+  "rag_triad_dimensions": [
+    "context_relevance",
+    "groundedness",
+    "answer_relevance"
+  ],
+  "reranker_class": "bi_encoder_rescoring",
+  "results": {
+    "F0_baseline": [
+      {
+        "abstained": true,
+        "answer": {
+          "abstained": true,
+          "citation_pages": [],
+          "query_id": "F0_baseline::q_test_04",
+          "text": "ABSTAIN"
+        },
+        "call_ledger": {
+          "answer_relevance_calls": 0,
+          "context_relevance_calls": 1,
+          "generation_calls": 1,
+          "groundedness_calls": 0,
+          "total_external_requests": 2
+        },
+        "citation_pages": [],
+        "evaluation": {
+          "artifact_schema_version": "slice4_v2",
+          "metrics": [
+            {
+              "attempts": 1,
+              "evaluator_model": "deterministic",
+              "name": "abstention_correctness",
+              "reason": "CORRECT_ABSTENTION",
+              "score": 1.0,
+              "status": "COMPUTED"
+            },
+            {
+              "attempts": 1,
+              "evaluator_model": "gemini-3.1-flash-lite",
+              "name": "context_relevance",
+              "reason": "",
+              "score": 0.0,
+              "status": "COMPUTED"
+            },
+            {
+              "attempts": 0,
+              "evaluator_model": "",
+              "name": "groundedness",
+              "reason": "ABSTAINED",
+              "score": null,
+              "status": "NOT_APPLICABLE"
+            },
+            {
+              "attempts": 0,
+              "evaluator_model": "",
+              "name": "answer_relevance",
+              "reason": "ABSTAINED",
+              "score": null,
+              "status": "NOT_APPLICABLE"
+            }
+          ],
+          "protocol_version": "raglab_v7_slice4_v2",
+          "schema_version": "slice4_v2"
+        },
+        "is_abstention_question": true,
+        "qid": "q_test_04",
+        "quota_stats": {
+          "rpm_current": 2,
+          "rpm_limit": 15,
+          "total_requests": 2,
+          "total_wait_seconds": 0.0,
+          "tpd_current": 2,
+          "tpd_limit": 1500
+        },
+        "relevant_pages": [],
+        "retrieval_evidence": {
+          "candidate_count": 3,
+          "candidates": [
+            {
+              "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_c0",
+              "page_number": 100,
+              "parent_node_id": null,
+              "rerank_rank": null,
+              "rerank_score": null,
+              "retrieval_rank": 1,
+              "retrieval_score": 0.2020773907226692,
+              "text_preview": "73. 74. 75. 76. 1. 2. 1. 2. Prove que a medida do ângulo 5 mais a medida do ângu",
+              "text_sha256": "7c30c873e2cdf6c4eff3da1b91c8b48ac75f11c0ef240e98a2452c24d87b4a1e"
+            },
+            {
+              "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111_c6",
+              "page_number": 111,
+              "parent_node_id": null,
+              "rerank_rank": null,
+              "rerank_score": null,
+              "retrieval_rank": 2,
+              "retrieval_score": 0.1718946466381266,
+              "text_preview": "za, a calabresa e a vegetariana. Cada pizza é entregue com um número par de pali",
+              "text_sha256": "2ab8e7ebfacf79c3727dee581565f01db5f2cae019b7e8d72958078549a98c36"
+            },
+            {
+              "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_c7",
+              "page_number": 92,
+              "parent_node_id": null,
+              "rerank_rank": null,
+              "rerank_score": null,
+              "retrieval_rank": 3,
+              "retrieval_score": 0.15716569403728486,
+              "text_preview": "erdadeira",
+              "text_sha256": "1b3ca6c4e9ebffa96dea92cb21018a7ab09e0f8c458ee3ad3833b84cb99c169b"
+            }
+          ],
+          "relevant_pages_expected": [],
+          "relevant_pages_found": [],
+          "relevant_pages_missing": [],
+          "retrieval_hit": false
+        },
+        "split": "test",
+        "strategy": "F0_baseline"
+      }
+    ]
+  },
+  "run_time_ms": {
+    "F0_baseline": 2361.0
+  },
+  "schema": "slice4_v2"
+}
