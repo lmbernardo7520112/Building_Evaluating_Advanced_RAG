@@ -154,7 +154,7 @@ class GenerationCheckpointStore:
     def rehydrate_complete_rows(self) -> dict[str, list[dict[str, Any]]]:
         """Rehydrate all complete result rows grouped by strategy."""
         rehydrated: dict[str, list[dict[str, Any]]] = {}
-        for key, entry in sorted(self._data.items()):
+        for _key, entry in sorted(self._data.items()):
             row = entry.get("result_row")
             if isinstance(row, dict) and row.get("evaluation") is not None:
                 strat = str(entry.get("strategy") or row.get("strategy"))

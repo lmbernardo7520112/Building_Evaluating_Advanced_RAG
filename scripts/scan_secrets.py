@@ -20,7 +20,6 @@ import re
 import sys
 from pathlib import Path
 
-
 # Patterns that indicate a hardcoded secret (not a reference or env lookup)
 SECRET_ASSIGNMENT_PATTERNS = [
     # Direct assignment: API_KEY = "actual-value"
