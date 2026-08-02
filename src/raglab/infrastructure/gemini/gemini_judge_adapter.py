@@ -100,6 +100,7 @@ class GeminiJudgeAdapter:
                 "See docs/security/credential_boundary.md"
             )
         import google.genai as genai
+
         return genai.Client(api_key=api_key)
 
     @property

@@ -92,6 +92,7 @@ class GeminiGeneratorAdapter:
             )
         # Key is used only for initialization — never logged
         import google.genai as genai
+
         return genai.Client(api_key=api_key)
 
     @property
