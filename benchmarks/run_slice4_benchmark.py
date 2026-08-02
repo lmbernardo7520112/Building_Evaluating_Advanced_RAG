@@ -1273,17 +1273,44 @@ def run_benchmark(
 
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
     ckpt = GenerationCheckpointStore(run_id=run_id, store_dir=CHECKPOINT_DIR)
-    logger.info("Checkpoint: %d entries already completed", ckpt.completed_count())
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    all_results: dict[str, list[dict]] = {}
+
+    # In resume mode (or if partial artifact exists), merge partial artifact into checkpoint store
+    partial_files = sorted(RESULTS_DIR.glob(f"slice4_results_{run_id}_*.json"))
+    for pfile in partial_files:
+        merged = ckpt.merge_partial_artifact(pfile)
+        if merged > 0:
+            logger.info(
+                "Merged %d complete result rows from partial artifact %s into checkpoint",
+                merged, pfile.name,
+            )
+
+    logger.info(
+        "Checkpoint: %d total entries (%d complete result rows)",
+        ckpt.completed_count(), ckpt.complete_rows_count(),
+    )
+
+    all_results: dict[str, list[dict]] = {
+        label: [] for label in strategy_labels
+    }
     run_times: dict[str, float] = {}
+
+    # Rehydrate existing complete result rows from checkpoint
+    rehydrated = ckpt.rehydrate_complete_rows()
+    for strat, rows in rehydrated.items():
+        if strat in all_results:
+            all_results[strat].extend(rows)
+            logger.info(
+                "Rehydrated %d complete result rows for strategy %s from checkpoint",
+                len(rows), strat,
+            )
 
     for strategy_label in strategy_labels:
         retriever = retrievers[strategy_label]
         pipeline_strategy = PipelineStrategy.from_label(strategy_label)
         logger.info("=== Strategy: %s ===", strategy_label)
-        strategy_results: list[dict] = []
+        strategy_results: list[dict] = all_results.get(strategy_label, [])
         t0 = time.monotonic()
 
         judge = GeminiJudgeAdapter(
@@ -1304,8 +1331,8 @@ def run_benchmark(
             relevant_pages = q.get("relevant_pages", [])
             query_id = f"{strategy_label}::{qid}"
 
-            if ckpt.is_completed(qid, strategy_label):
-                logger.info("  SKIP (already done): %s", query_id)
+            if ckpt.has_complete_result_row(qid, strategy_label):
+                logger.info("  SKIP (already complete): %s", query_id)
                 continue
 
             # Defensive holdout guard — never run holdout questions
@@ -1611,18 +1638,56 @@ def run_benchmark(
                 "quota_stats": shared_quota.stats,
             }
             strategy_results.append(result_entry)
-
-            ckpt.mark_completed(
-                qid,
-                strategy_label,
-                abstained=answer.abstained,
-                citation_count=len(answer.citations),
-            )
+            ckpt.mark_complete_row(qid, strategy_label, result_entry)
 
         elapsed_ms = (time.monotonic() - t0) * 1000
         run_times[strategy_label] = round(elapsed_ms, 1)
         all_results[strategy_label] = strategy_results
         logger.info("  %s complete in %.1f ms", strategy_label, elapsed_ms)
+
+    # ── Pre-Materialization Invariant Validation ─────────────────────────
+    expected_total_rows = len(strategy_labels) * len(questions)
+    all_rows: list[dict[str, Any]] = []
+
+    for strat in strategy_labels:
+        strat_rows = all_results.get(strat, [])
+        if not strat_rows:
+            raise ValueError(f"FINAL_ARTIFACT_INCOMPLETE: strategy '{strat}' has 0 result rows")
+        if len(strat_rows) != len(questions):
+            raise ValueError(
+                f"FINAL_ARTIFACT_INCOMPLETE: strategy '{strat}' has {len(strat_rows)} rows, expected {len(questions)}"
+            )
+        all_rows.extend(strat_rows)
+
+    if len(all_rows) != expected_total_rows:
+        raise ValueError(
+            f"FINAL_ARTIFACT_INCOMPLETE: expected {expected_total_rows} complete result rows, "
+            f"got {len(all_rows)}. Aborting final artifact materialization."
+        )
+
+    # 1. No duplicate (qid, strategy) pairs
+    seen_pairs = set()
+    for r in all_rows:
+        pair_key = f"{r.get('qid')}::{r.get('strategy')}"
+        if pair_key in seen_pairs:
+            raise ValueError(f"DUPLICATE_RESULT_ROW: pair '{pair_key}' appears multiple times")
+        seen_pairs.add(pair_key)
+
+    # 2. No holdout questions
+    for r in all_rows:
+        if "holdout" in str(r.get("qid", "")):
+            raise ValueError(f"HOLDOUT_QUESTION_DETECTED: {r.get('qid')}")
+
+    # 3. Expected QIDs match
+    expected_qids = {q["qid"] for q in questions}
+    for r in all_rows:
+        if r.get("qid") not in expected_qids:
+            raise ValueError(f"UNKNOWN_QID_DETECTED: {r.get('qid')}")
+
+    # 4. Hashes and citations valid
+    for r in all_rows:
+        if r.get("citation_mapping_status") == "AVAILABLE" and not r.get("citation_pages"):
+            raise ValueError(f"SUBSTANTIVE_ANSWER_MISSING_CITATIONS: {r.get('qid')}")
 
     # Write sanitized results
     ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -1661,6 +1726,7 @@ def run_benchmark(
             )
 
     output_path.write_text(output_json, encoding="utf-8")
+    logger.info("Resume Complete: all %d complete result rows rehydrated and validated.", len(all_rows))
     logger.info("Results written to: %s", output_path)
     logger.info("Quota stats: %s", shared_quota.stats)
     return output_path

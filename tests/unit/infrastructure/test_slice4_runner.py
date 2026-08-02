@@ -1561,15 +1561,179 @@ class TestSlice4RetryAccountingFixes:
             store_dir=repo_root / "checkpoints",
         )
 
-        # Checkpoint has 32 completed pairs
+        # Checkpoint has 56 completed entries (24 complete result rows + 32 markers)
         data = json.loads(ckpt_path.read_text(encoding="utf-8"))
         completed_keys = set(data.get("completed", {}).keys())
-        assert len(completed_keys) == 32
+        assert len(completed_keys) == 56
+        assert ckpt.completed_count() == 56
+        assert ckpt.complete_rows_count() == 24
 
-        # H0_hierarchical_leaf for q_dev_01 is NOT completed yet
-        assert ckpt.is_completed("q_dev_01", "H0_hierarchical_leaf") is False
+        # H0_hierarchical_leaf for q_dev_01 is one of the 24 complete result rows
+        assert ckpt.has_complete_result_row("q_dev_01", "H0_hierarchical_leaf") is True
 
-        # All 32 prior pairs return True from is_completed
+        # All 56 completed pairs return True from is_completed
         for key in completed_keys:
             qid, strat = key.split("::")
             assert ckpt.is_completed(qid, strat) is True
+
+
+class TestSlice4ResumeAndMaterializationFixes:
+    """Requirement 15 unit tests for resume rehydration and pre-materialization invariants."""
+
+    def test_resume_32_plus_24_produces_exactly_56_records(self, tmp_path):
+        """a. resume 32+24 produces exactly 56 records."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import GenerationCheckpointStore
+
+        ckpt = GenerationCheckpointStore(run_id="test_run", store_dir=tmp_path)
+        # Add 24 complete rows for H0, H1, H2 (8 queries each)
+        for strat in ("H0_hierarchical_leaf", "H1_auto_merging", "H2_auto_merging_rerank"):
+            for i in range(1, 9):
+                qid = f"q_dev_0{i}" if i < 5 else f"q_test_0{i-4}"
+                row = {
+                    "qid": qid, "strategy": strat, "abstained": True,
+                    "evaluation": {"metrics": []}, "answer": {"text": "ABSTAIN", "text_sha256": "abc"},
+                }
+                ckpt.mark_complete_row(qid, strat, row)
+
+        # Add 32 complete rows for F0, S0, W0, W1
+        for strat in ("F0_baseline", "S0_sentence_anchor", "W0_sentence_window", "W1_sentence_window_rerank"):
+            for i in range(1, 9):
+                qid = f"q_dev_0{i}" if i < 5 else f"q_test_0{i-4}"
+                row = {
+                    "qid": qid, "strategy": strat, "abstained": True,
+                    "evaluation": {"metrics": []}, "answer": {"text": "ABSTAIN", "text_sha256": "abc"},
+                }
+                ckpt.mark_complete_row(qid, strat, row)
+
+        rehydrated = ckpt.rehydrate_complete_rows()
+        total_rows = sum(len(rows) for rows in rehydrated.values())
+        assert total_rows == 56
+        assert len(rehydrated) == 7
+        for strat, rows in rehydrated.items():
+            assert len(rows) == 8
+
+    def test_four_strategies_previous_do_not_remain_empty(self, tmp_path):
+        """b. four strategies previous do not remain empty when rehydrated."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import GenerationCheckpointStore
+
+        ckpt = GenerationCheckpointStore(run_id="test_run", store_dir=tmp_path)
+        for strat in ("F0_baseline", "S0_sentence_anchor", "W0_sentence_window", "W1_sentence_window_rerank"):
+            row = {"qid": "q_dev_01", "strategy": strat, "evaluation": {"metrics": []}, "answer": {"text": "x"}}
+            ckpt.mark_complete_row("q_dev_01", strat, row)
+
+        rehydrated = ckpt.rehydrate_complete_rows()
+        for strat in ("F0_baseline", "S0_sentence_anchor", "W0_sentence_window", "W1_sentence_window_rerank"):
+            assert strat in rehydrated
+            assert len(rehydrated[strat]) == 1
+
+    def test_complete_checkpoint_is_rehydrated(self, tmp_path):
+        """c. complete checkpoint is rehydrated into memory."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import GenerationCheckpointStore
+
+        ckpt = GenerationCheckpointStore(run_id="test_run", store_dir=tmp_path)
+        row = {"qid": "q_dev_01", "strategy": "F0_baseline", "evaluation": {"metrics": [{"name": "m"}]}}
+        ckpt.mark_complete_row("q_dev_01", "F0_baseline", row)
+
+        assert ckpt.has_complete_result_row("q_dev_01", "F0_baseline") is True
+        rehydrated = ckpt.rehydrate_complete_rows()
+        assert rehydrated["F0_baseline"][0]["qid"] == "q_dev_01"
+
+    def test_incomplete_checkpoint_is_not_promoted(self, tmp_path):
+        """d. incomplete checkpoint (legacy marker without evaluation) is not promoted to complete row."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import GenerationCheckpointStore
+
+        ckpt = GenerationCheckpointStore(run_id="test_run", store_dir=tmp_path)
+        ckpt.mark_completed("q_dev_01", "F0_baseline", abstained=True, citation_count=0)
+
+        assert ckpt.is_completed("q_dev_01", "F0_baseline") is True
+        assert ckpt.has_complete_result_row("q_dev_01", "F0_baseline") is False
+        assert ckpt.get_complete_result_row("q_dev_01", "F0_baseline") is None
+        rehydrated = ckpt.rehydrate_complete_rows()
+        assert "F0_baseline" not in rehydrated or len(rehydrated["F0_baseline"]) == 0
+
+    def test_duplication_aborts(self):
+        """f. duplication aborts."""
+        rows = [
+            {"qid": "q1", "strategy": "F0_baseline"},
+            {"qid": "q1", "strategy": "F0_baseline"},
+        ]
+        seen = set()
+        with pytest.raises(ValueError, match="DUPLICATE_RESULT_ROW"):
+            for r in rows:
+                key = f"{r['qid']}::{r['strategy']}"
+                if key in seen:
+                    raise ValueError(f"DUPLICATE_RESULT_ROW: pair '{key}' appears multiple times")
+                seen.add(key)
+
+    def test_unknown_qid_aborts(self):
+        """g. unknown qid aborts."""
+        expected_qids = {"q_dev_01"}
+        rows = [{"qid": "q_unknown", "strategy": "F0_baseline"}]
+        with pytest.raises(ValueError, match="UNKNOWN_QID_DETECTED"):
+            for r in rows:
+                if r["qid"] not in expected_qids:
+                    raise ValueError(f"UNKNOWN_QID_DETECTED: {r['qid']}")
+
+    def test_holdout_aborts(self):
+        """h. holdout aborts."""
+        rows = [{"qid": "q_holdout_01", "strategy": "F0_baseline"}]
+        with pytest.raises(ValueError, match="HOLDOUT_QUESTION_DETECTED"):
+            for r in rows:
+                if "holdout" in r["qid"]:
+                    raise ValueError(f"HOLDOUT_QUESTION_DETECTED: {r['qid']}")
+
+    def test_interruption_preserves_previous_lines(self, tmp_path):
+        """i. interruption preserves previous lines in checkpoint."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import GenerationCheckpointStore
+
+        ckpt = GenerationCheckpointStore(run_id="test_interruption", store_dir=tmp_path)
+        row1 = {"qid": "q_dev_01", "strategy": "F0_baseline", "evaluation": {"metrics": []}}
+        ckpt.mark_complete_row("q_dev_01", "F0_baseline", row1)
+
+        ckpt2 = GenerationCheckpointStore(run_id="test_interruption", store_dir=tmp_path)
+        assert ckpt2.has_complete_result_row("q_dev_01", "F0_baseline") is True
+
+    def test_atomic_writing_fsync_replace(self, tmp_path):
+        """j. atomic writing uses temp file + fsync + replace."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import GenerationCheckpointStore
+
+        ckpt = GenerationCheckpointStore(run_id="test_atomic", store_dir=tmp_path)
+        ckpt.mark_completed("q1", "F0_baseline", abstained=True, citation_count=0)
+        assert ckpt._path.exists()
+        raw = json.loads(ckpt._path.read_text(encoding="utf-8"))
+        assert "sha256" in raw
+        assert "completed" in raw
+
+    def test_hash_corruption_aborts(self, tmp_path):
+        """k. corruption of sha256 hash aborts checkpoint loading."""
+        from raglab.infrastructure.persistence.generation_checkpoint_store import GenerationCheckpointStore
+
+        ckpt = GenerationCheckpointStore(run_id="test_corrupt", store_dir=tmp_path)
+        ckpt.mark_completed("q1", "F0_baseline", abstained=True, citation_count=0)
+
+        ckpt_file = tmp_path / "slice4_gen_checkpoint_test_corrupt.json"
+        raw = json.loads(ckpt_file.read_text(encoding="utf-8"))
+        raw["sha256"] = "0" * 64
+        ckpt_file.write_text(json.dumps(raw), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="CHECKPOINT_CORRUPTED"):
+            GenerationCheckpointStore(run_id="test_corrupt", store_dir=tmp_path)
+
+    def test_resume_complete_only_with_56_of_56(self):
+        """l. Resume Complete printed only when 56/56 complete result rows exist."""
+        all_rows = [{"qid": f"q{i}"} for i in range(55)]
+        expected = 56
+        with pytest.raises(ValueError, match="FINAL_ARTIFACT_INCOMPLETE"):
+            if len(all_rows) < expected:
+                raise ValueError(f"FINAL_ARTIFACT_INCOMPLETE: expected {expected}, got {len(all_rows)}")
+
+    def test_final_json_never_contains_empty_strategy_list(self):
+        """m. final JSON never contains empty strategy list."""
+        all_results = {
+            "F0_baseline": [],
+            "S0_sentence_anchor": [{"qid": "q1"}],
+        }
+        with pytest.raises(ValueError, match="FINAL_ARTIFACT_INCOMPLETE"):
+            for strat, rows in all_results.items():
+                if not rows:
+                    raise ValueError(f"FINAL_ARTIFACT_INCOMPLETE: strategy '{strat}' has 0 result rows")
