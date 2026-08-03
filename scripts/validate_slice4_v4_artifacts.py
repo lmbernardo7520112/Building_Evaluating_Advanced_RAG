@@ -1,7 +1,7 @@
 """Offline Artifact Auditor for Slice4 v4 Ground Truth v2 Benchmark Results.
 
 Validates positive smoke JSON and abstention smoke JSON against contract requirements
-without network, APIs, or credential access.
+data-driven without network, APIs, or credential access.
 Exits 0 if valid, non-zero if any contract invariant is violated.
 """
 
@@ -9,9 +9,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
+
+from raglab.evaluation.metrics.deterministic_v2 import (
+    compute_legacy_page_metrics,
+)
+
+# Ensure src is on sys.path if invoked as standalone script
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 
 def validate_positive_json(data: dict[str, Any]) -> list[str]:
@@ -38,8 +48,9 @@ def validate_positive_json(data: dict[str, Any]) -> list[str]:
         return errors
 
     # Check Sealed Holdout
-    if "holdout" in str(entry.get("qid", "")).lower():
-        errors.append(f"SEALED HOLDOUT VIOLATION: qid={entry.get('qid')}")
+    qid = str(entry.get("qid", ""))
+    if "holdout" in qid.lower():
+        errors.append(f"SEALED HOLDOUT VIOLATION: qid={qid}")
 
     # Ground Truth Subtree
     gt = entry.get("ground_truth", {})
@@ -49,9 +60,6 @@ def validate_positive_json(data: dict[str, Any]) -> list[str]:
         errors.append(f"Invalid source_schema: {gt.get('source_schema')}")
     if gt.get("provenance_status") != "LEGACY_METADATA_UNAVAILABLE":
         errors.append(f"Invalid provenance_status: {gt.get('provenance_status')}")
-    if gt.get("legacy_relevant_pages") != [92]:
-        pages = gt.get("legacy_relevant_pages")
-        errors.append(f"Invalid legacy_relevant_pages: {pages} != [92]")
     if gt.get("passage_qrels_status") != "NOT_ANNOTATED":
         errors.append(f"Invalid passage_qrels_status: {gt.get('passage_qrels_status')}")
     if gt.get("graded_qrels_status") != "NOT_ANNOTATED":
@@ -59,7 +67,48 @@ def validate_positive_json(data: dict[str, Any]) -> list[str]:
     if gt.get("gold_answer_status") != "NOT_ANNOTATED":
         errors.append(f"Invalid gold_answer_status: {gt.get('gold_answer_status')}")
 
-    # Evaluation Subtree
+    # Check synthetic passage_id manufactured from page numbers
+    relevant_evidences = gt.get("relevant_evidences", [])
+    if relevant_evidences:
+        for ev_item in relevant_evidences:
+            pid = str(
+                ev_item.get("passage_id", "")
+                if isinstance(ev_item, dict)
+                else getattr(ev_item, "passage_id", "")
+            )
+            if pid.startswith("p") and pid[1:].isdigit():
+                errors.append(f"SYNTHETIC PASSAGE_ID DETECTED: {pid}")
+
+    # Extract pages for data-driven recalculation
+    legacy_relevant_pages = gt.get("legacy_relevant_pages", [])
+    if not isinstance(legacy_relevant_pages, (list, tuple)):
+        errors.append("legacy_relevant_pages is not a list/tuple")
+        legacy_relevant_pages = []
+
+    citation_pages = entry.get("citation_pages")
+    if citation_pages is None:
+        cit_map = entry.get("citation_map", [])
+        citation_pages = [
+            c["page_number"]
+            for c in cit_map
+            if isinstance(c, dict) and "page_number" in c
+        ]
+
+    ret_ev = entry.get("retrieval_evidence", {})
+    cands = ret_ev.get("candidates", [])
+    retrieved_pages = [
+        c.get("page_number")
+        for c in cands
+        if isinstance(c, dict) and c.get("page_number") is not None
+    ]
+
+    # Recalculate metrics dynamically
+    recalculated = compute_legacy_page_metrics(
+        retrieved_pages=retrieved_pages,
+        relevant_pages=legacy_relevant_pages,
+        cited_pages=citation_pages,
+    )
+
     ev = entry.get("evaluation", {})
     if ev.get("protocol_version") != "raglab_v7_slice4_v3":
         errors.append(f"Invalid eval protocol_version: {ev.get('protocol_version')}")
@@ -67,16 +116,27 @@ def validate_positive_json(data: dict[str, Any]) -> list[str]:
         asv = ev.get("artifact_schema_version")
         errors.append(f"Invalid eval schema_version: {asv}")
 
-    legacy_page_metrics = ev.get("legacy_page_metrics", {})
-    if not legacy_page_metrics:
+    serialized_page_metrics = ev.get("legacy_page_metrics", {})
+    if not serialized_page_metrics:
         errors.append("Missing evaluation.legacy_page_metrics")
     else:
-        prec = legacy_page_metrics.get("citation_page_precision")
-        rec = legacy_page_metrics.get("citation_page_recall")
-        if prec is not None and abs(prec - (1.0 / 3.0)) > 1e-3:
-            errors.append(f"Unexpected citation_page_precision: {prec} != 1/3")
-        if rec is not None and abs(rec - 1.0) > 1e-3:
-            errors.append(f"Unexpected citation_page_recall: {rec} != 1.0")
+        for key in (
+            "page_hit_at_k",
+            "page_mrr",
+            "citation_page_precision",
+            "citation_page_recall",
+        ):
+            ser_val = serialized_page_metrics.get(key)
+            recalc_val = recalculated.get(key)
+            if ser_val is None:
+                errors.append(f"Missing serialized metric {key}")
+            elif (
+                recalc_val is not None
+                and not math.isclose(float(ser_val), float(recalc_val), abs_tol=1e-3)
+            ):
+                errors.append(
+                    f"Mismatch in {key}: {ser_val} != {recalc_val}"
+                )
 
     det_v2 = ev.get("deterministic_v2_metrics", {})
     if not det_v2:
@@ -115,8 +175,9 @@ def validate_abstention_json(data: dict[str, Any]) -> list[str]:
         return errors
 
     # Check Sealed Holdout
-    if "holdout" in str(entry.get("qid", "")).lower():
-        errors.append(f"SEALED HOLDOUT VIOLATION: qid={entry.get('qid')}")
+    qid = str(entry.get("qid", ""))
+    if "holdout" in qid.lower():
+        errors.append(f"SEALED HOLDOUT VIOLATION: qid={qid}")
 
     # Abstention fields
     if entry.get("abstained") is not True:
