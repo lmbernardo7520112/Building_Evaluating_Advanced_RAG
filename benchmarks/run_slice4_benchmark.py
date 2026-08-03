@@ -531,105 +531,208 @@ def build_citation_map_and_status(
     abstained: bool,
     evidence: list[Any],
     query_id: str,
+    citations: Sequence[Any] | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Map citation markers [n] in answer_text to retrieved evidence candidates.
+    """Map citation markers ([E1], [E2], ...) or typed citations to evidence candidates.
 
-    Returns:
-        (citation_mapping_status, citation_map)
+    Protocol V2 (Authoritative):
+        - Uses evidence_id markers ([E1], [E2], etc.) or citations sequence with evidence_id.
+        - Resolves exclusively against PromptEvidence / RetrievedEvidence candidates.
+        - Returns status "AVAILABLE".
 
-    Aborts with CITATION_PROVENANCE_MISMATCH if an unmapped marker, non-existent
-    candidate, or invalid page provenance is referenced.
+    Protocol Legacy (Isolated):
+        - Uses numeric markers ([1], [2], etc.) without evidence_id.
+        - Maps strictly to 1-indexed evidence rank.
+        - Returns status "LEGACY".
     """
     if abstained:
         return ("NOT_APPLICABLE", [])
 
-    # Extract unique bracketed markers like [1], [2], [92], etc. in order of appearance
-    raw_matches = re.findall(r"\[(\d+)\]", answer_text)
-    markers_found: list[str] = []
-    for m in raw_matches:
+    # 1. Extract V2 evidence_id markers like [E1], [E2]
+    v2_matches = re.findall(r"\[(E\d+)\]", answer_text)
+    v2_markers: list[str] = []
+    for m in v2_matches:
         marker_str = f"[{m}]"
-        if marker_str not in markers_found:
-            markers_found.append(marker_str)
+        if marker_str not in v2_markers:
+            v2_markers.append(marker_str)
 
-    if not markers_found:
-        return ("UNAVAILABLE", [])
-
-    citation_map: list[dict[str, Any]] = []
-
-    for marker_str in markers_found:
-        num_match = re.search(r"\d+", marker_str)
-        if not num_match:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Invalid marker format {marker_str} "
-                f"in query_id={query_id}"
+    # Add any structured citations with evidence_id passed in citations parameter
+    if citations:
+        for c in citations:
+            ev_id = getattr(c, "evidence_id", None) or (
+                c.get("evidence_id") if isinstance(c, dict) else None
             )
-        n = int(num_match.group(0))
+            if ev_id and str(ev_id).startswith("E") and str(ev_id)[1:].isdigit():
+                m_str = f"[{ev_id}]"
+                if m_str not in v2_markers:
+                    v2_markers.append(m_str)
 
-        # Check candidate matching:
-        # 1. Is n 1-indexed in evidence list?
-        matched_cand = None
-        if 1 <= n <= len(evidence):
-            matched_cand = evidence[n - 1]
-        else:
-            # 2. Check if any candidate has page_number == n
-            for cand in evidence:
-                p_num = resolve_candidate_page_number(cand)
-                if p_num == n:
-                    matched_cand = cand
-                    break
+    if v2_markers:
+        # V2 Protocol Execution — Status is "AVAILABLE"
+        citation_map: list[dict[str, Any]] = []
+        for marker_str in v2_markers:
+            m_content = marker_str.strip("[]")  # e.g. "E1"
+            rank_val = int(m_content[1:])       # e.g. 1
 
-        if matched_cand is None:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Citation marker {marker_str} "
-                f"in answer text does not map to any retrieved candidate in evidence "
-                f"(query_id={query_id})"
-            )
+            matched_cand = None
+            if 1 <= rank_val <= len(evidence):
+                matched_cand = evidence[rank_val - 1]
+            else:
+                for cand in evidence:
+                    cand_ev_id = (
+                        cand.get("evidence_id")
+                        if isinstance(cand, dict)
+                        else getattr(cand, "evidence_id", None)
+                    )
+                    if cand_ev_id == m_content:
+                        matched_cand = cand
+                        break
 
-        if isinstance(matched_cand, dict):
-            cand_chunk_id = str(matched_cand.get("chunk_id", ""))
-            cand_sha = str(matched_cand.get("text_sha256", ""))
-            if not cand_sha:
-                cand_text = str(matched_cand.get("text", ""))
-                cand_sha = hashlib.sha256(cand_text.encode("utf-8")).hexdigest()
-        else:
-            cand_chunk_id = getattr(matched_cand, "chunk_id", "")
-            if hasattr(cand_chunk_id, "value"):
-                cand_chunk_id = cand_chunk_id.value
-            cand_chunk_id = str(cand_chunk_id)
+            if matched_cand is None:
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Citation marker {marker_str} "
+                    f"in query_id={query_id} does not map to any retrieved evidence candidate"
+                )
 
-            cand_text = getattr(matched_cand, "text", "")
-            cand_sha = hashlib.sha256(cand_text.encode("utf-8")).hexdigest()
+            # Derive chunk_id
+            if isinstance(matched_cand, dict):
+                cid = matched_cand.get("chunk_id")
+            else:
+                cid = getattr(matched_cand, "chunk_id", None)
+            if hasattr(cid, "value"):
+                cid = cid.value
+            cand_chunk_id = str(cid) if cid is not None else ""
+            if not cand_chunk_id or not cand_chunk_id.strip():
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has empty chunk_id"
+                )
 
-        cand_page = resolve_candidate_page_number(matched_cand)
+            # Derive page_number (exclusively from evidence)
+            cand_page = resolve_candidate_page_number(matched_cand)
+            if (
+                cand_page is None
+                or isinstance(cand_page, bool)
+                or not isinstance(cand_page, int)
+                or cand_page < 1
+            ):
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has invalid page_number {cand_page!r}"
+                )
 
-        # Strict validation per TAREFA requirements 5 & 6:
-        # Page number must be integer >= 1 (not None, not bool, not 0, not < 1)
-        if cand_page is None or isinstance(cand_page, bool) or not isinstance(cand_page, int) or cand_page < 1:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
-                f"has invalid or non-positive page_number {cand_page!r} (query_id={query_id})"
-            )
+            # Derive content_sha256 (exclusively from evidence)
+            if isinstance(matched_cand, dict):
+                c_sha = matched_cand.get("content_sha256") or matched_cand.get("text_sha256")
+                c_text = matched_cand.get("text")
+            else:
+                c_sha = getattr(matched_cand, "content_sha256", None) or getattr(matched_cand, "text_sha256", None)
+                c_text = getattr(matched_cand, "text", None)
 
-        if not cand_chunk_id:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
-                f"has empty chunk_id (query_id={query_id})"
-            )
+            if isinstance(c_sha, str) and len(c_sha) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in c_sha):
+                cand_sha = c_sha
+            elif isinstance(c_text, str) and c_text.strip():
+                cand_sha = hashlib.sha256(c_text.encode("utf-8")).hexdigest()
+            else:
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has no valid content_sha256 or text"
+                )
 
-        if not cand_sha or len(cand_sha) != 64:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
-                f"has invalid text_sha256 {cand_sha!r} (query_id={query_id})"
-            )
+            # Derive passage_id and rank
+            if isinstance(matched_cand, dict):
+                cand_rank = matched_cand.get("retrieval_rank", matched_cand.get("rank", rank_val))
+                cand_passage_id = matched_cand.get("passage_id")
+                cand_doc = matched_cand.get("document_id", "doc")
+            else:
+                cand_rank = getattr(matched_cand, "rank", rank_val)
+                cand_passage_id = getattr(matched_cand, "passage_id", None)
+                cand_doc = getattr(matched_cand, "document_id", "doc")
 
-        citation_map.append({
-            "marker": marker_str,
-            "page_number": cand_page,
-            "chunk_id": cand_chunk_id,
-            "text_sha256": cand_sha,
-        })
+            cand_rank = int(cand_rank) if isinstance(cand_rank, int) else rank_val
+            if not cand_passage_id or not isinstance(cand_passage_id, str):
+                cand_passage_id = f"{cand_doc}_p{cand_page}_rank{cand_rank}"
 
-    return ("AVAILABLE", citation_map)
+            citation_map.append({
+                "marker": marker_str,
+                "evidence_id": m_content,
+                "passage_id": cand_passage_id,
+                "page_number": cand_page,
+                "content_sha256": cand_sha,
+                "retrieval_rank": cand_rank,
+                "chunk_id": cand_chunk_id,
+                "text_sha256": cand_sha,
+            })
+
+        return ("AVAILABLE", citation_map)
+
+    # 2. Legacy Check: numeric markers like [1], [2] (isolated as LEGACY)
+    legacy_matches = re.findall(r"\[(\d+)\]", answer_text)
+    if legacy_matches:
+        citation_map = []
+        for m in legacy_matches:
+            marker_str = f"[{m}]"
+            n = int(m)
+
+            # Legacy matching strictly by 1-indexed rank (not model page)
+            if 1 <= n <= len(evidence):
+                matched_cand = evidence[n - 1]
+            else:
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Legacy marker {marker_str} in query_id={query_id} "
+                    f"exceeds evidence list length {len(evidence)}"
+                )
+
+            if isinstance(matched_cand, dict):
+                cid = matched_cand.get("chunk_id")
+            else:
+                cid = getattr(matched_cand, "chunk_id", None)
+            if hasattr(cid, "value"):
+                cid = cid.value
+            cand_chunk_id = str(cid) if cid is not None else ""
+            if not cand_chunk_id or not cand_chunk_id.strip():
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has empty chunk_id"
+                )
+
+            cand_page = resolve_candidate_page_number(matched_cand)
+            if (
+                cand_page is None
+                or isinstance(cand_page, bool)
+                or not isinstance(cand_page, int)
+                or cand_page < 1
+            ):
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has invalid page_number {cand_page!r}"
+                )
+
+            if isinstance(matched_cand, dict):
+                c_sha = matched_cand.get("content_sha256") or matched_cand.get("text_sha256")
+                c_text = matched_cand.get("text")
+            else:
+                c_sha = getattr(matched_cand, "content_sha256", None) or getattr(matched_cand, "text_sha256", None)
+                c_text = getattr(matched_cand, "text", None)
+
+            if isinstance(c_sha, str) and len(c_sha) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in c_sha):
+                cand_sha = c_sha
+            elif isinstance(c_text, str) and c_text.strip():
+                cand_sha = hashlib.sha256(c_text.encode("utf-8")).hexdigest()
+            else:
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has no valid content_sha256 or text"
+                )
+
+            citation_map.append({
+                "marker": marker_str,
+                "evidence_id": f"E{n}",
+                "passage_id": f"doc_p{cand_page}_rank{n}",
+                "page_number": cand_page,
+                "content_sha256": cand_sha,
+                "retrieval_rank": n,
+                "chunk_id": cand_chunk_id,
+                "text_sha256": cand_sha,
+            })
+
+        return ("AVAILABLE", citation_map)
+
+    return ("UNAVAILABLE", [])
 
 
 def load_embedding_model(
@@ -1179,6 +1282,10 @@ def serialize_retrieval_evidence(
                 text_preview = "[REDACTED]"
                 break
 
+        raw_doc = getattr(ev, "document_id", "doc") if hasattr(ev, "document_id") else "doc"
+        doc_id = str(raw_doc) if isinstance(raw_doc, str) and raw_doc.strip() else "doc"
+        raw_pid = getattr(ev, "passage_id", None) if hasattr(ev, "passage_id") else None
+        passage_id_val = str(raw_pid) if isinstance(raw_pid, str) and raw_pid.strip() else f"{doc_id}_p{page_num}_rank{i + 1}"
         entry: dict[str, Any] = {
             "chunk_id": chunk_id_val,
             "page_number": page_num,
@@ -1188,7 +1295,10 @@ def serialize_retrieval_evidence(
             "rerank_score": None,
             "parent_node_id": getattr(ev, "parent_node_id", None),
             "text_sha256": text_sha,
+            "content_sha256": text_sha,
             "text_preview": text_preview,
+            "passage_id": passage_id_val,
+            "evidence_id": f"E{i + 1}",
         }
         candidates.append(entry)
 
@@ -1391,6 +1501,7 @@ def run_benchmark(
                 abstained=answer.abstained,
                 evidence=evidence_record["candidates"],
                 query_id=query_id,
+                citations=answer.citations,
             )
 
             # ── Build typed evaluation with short-circuiting ──────

@@ -107,6 +107,10 @@ class Citation:
     page_number: int
     chunk_id: ChunkId
     text_span: str
+    evidence_id: str | None = None
+    passage_id: str | None = None
+    content_sha256: str | None = None
+    retrieval_rank: int | None = None
 
     def __post_init__(self) -> None:
         if not self.document_id or not self.document_id.strip():

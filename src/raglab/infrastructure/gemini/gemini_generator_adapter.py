@@ -218,12 +218,24 @@ class GeminiGeneratorAdapter:
             if page_num is None:
                 page_num = _extract_page_from_doc_id(ev.document_id)
 
+            ev_passage_id = (
+                getattr(ev, "passage_id", None)
+                or f"{ev.document_id}_p{page_num}_rank{ev.rank}"
+            )
+            ev_sha = getattr(ev, "content_sha256", None) or hashlib.sha256(
+                ev.text.encode("utf-8")
+            ).hexdigest()
+
             citations_list.append(
                 Citation(
                     document_id=ev.document_id,
                     page_number=int(page_num),
                     chunk_id=ev.chunk_id,
                     text_span=ev.text[:40],
+                    evidence_id=cite_str,
+                    passage_id=ev_passage_id,
+                    content_sha256=ev_sha,
+                    retrieval_rank=ev.rank,
                 )
             )
 
@@ -334,4 +346,20 @@ def sanitize_answer_for_artifact(answer: GeneratedAnswer) -> dict[str, object]:
         "preview": text_val[:500] if len(text_val) > 500 else text_val,
         "abstained": answer.abstained,
         "citation_pages": [c.page_number for c in answer.citations],
+        "citations": [
+            {
+                "evidence_id": getattr(c, "evidence_id", None),
+                "passage_id": getattr(c, "passage_id", None),
+                "document_id": c.document_id,
+                "page_number": c.page_number,
+                "chunk_id": (
+                    c.chunk_id.value
+                    if hasattr(c.chunk_id, "value")
+                    else str(c.chunk_id)
+                ),
+                "content_sha256": getattr(c, "content_sha256", None),
+                "retrieval_rank": getattr(c, "retrieval_rank", None),
+            }
+            for c in answer.citations
+        ],
     }
