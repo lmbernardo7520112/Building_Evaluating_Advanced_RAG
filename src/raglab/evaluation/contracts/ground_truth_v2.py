@@ -17,6 +17,8 @@ class UnanswerableReason(str, Enum):  # noqa: UP042
     CONTRADICTORY_EVIDENCE = "CONTRADICTORY_EVIDENCE"
     AMBIGUOUS_QUERY = "AMBIGUOUS_QUERY"
     OUT_OF_SCOPE = "OUT_OF_SCOPE"
+    UNANSWERABLE_EXPECTED = "UNANSWERABLE_EXPECTED"
+    EXPLICIT_ABSTENTION_REQUIRED = "EXPLICIT_ABSTENTION_REQUIRED"
 
 
 ProvenanceStatus = Literal[
@@ -62,12 +64,13 @@ class GroundTruthItemV2:
     query_id: str
     query_text: str
     answerable: bool
-    unanswerable_reason: UnanswerableReason | None
+    unanswerable_reason: UnanswerableReason | str | None
     gold_answer: str | None
     relevant_evidences: tuple[CanonicalEvidence, ...]
     provenance_status: ProvenanceStatus
     annotation_completeness: dict[str, Any] = field(default_factory=dict)
     annotation_records: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    legacy_relevant_pages: tuple[int, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not self.query_id or not self.query_id.strip():

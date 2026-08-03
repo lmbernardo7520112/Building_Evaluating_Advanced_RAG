@@ -16,10 +16,10 @@ def compute_passage_recall_at_k(
     retrieved_passage_ids: Sequence[str],
     gold_evidences: Sequence[CanonicalEvidence],
     k: int = 3,
-) -> float:
+) -> str | float:
     """Compute Passage Recall@k."""
     if not gold_evidences:
-        return 1.0  # Empty gold set: default to 1.0
+        return "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS"
 
     gold_ids = {ev.passage_id for ev in gold_evidences}
     retrieved_k = set(retrieved_passage_ids[:k])
@@ -31,10 +31,10 @@ def compute_passage_recall_at_k(
 def compute_mrr(
     retrieved_passage_ids: Sequence[str],
     gold_evidences: Sequence[CanonicalEvidence],
-) -> float:
+) -> str | float:
     """Compute Mean Reciprocal Rank (MRR)."""
     if not gold_evidences:
-        return 1.0
+        return "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS"
 
     gold_ids = {ev.passage_id for ev in gold_evidences}
     for rank, pid in enumerate(retrieved_passage_ids, start=1):
@@ -51,11 +51,11 @@ def compute_ndcg_at_k(
     """Compute nDCG@k.
 
     EXECUTION GUARD 2:
-    If relevance_grade is None (unannotated/legacy binary qrels), returns
-    'NOT_COMPUTABLE_MISSING_GRADED_QRELS' rather than fabricating artificial grades.
+    If relevance_grade is None (unannotated/legacy binary qrels)
+    or gold_evidences is empty, returns 'NOT_COMPUTABLE_MISSING_GRADED_QRELS'.
     """
     if not gold_evidences:
-        return 1.0
+        return "NOT_COMPUTABLE_MISSING_GRADED_QRELS"
 
     for ev in gold_evidences:
         if ev.relevance_grade is None:
@@ -91,10 +91,16 @@ def compute_citation_precision_recall(
     cited_passage_ids: Sequence[str],
     retrieved_passage_ids: Sequence[str],
     gold_evidences: Sequence[CanonicalEvidence],
-) -> dict[str, float]:
+) -> dict[str, str | float]:
     """Compute Citation Precision and Citation Recall against gold evidence."""
+    if not gold_evidences:
+        return {
+            "citation_passage_precision": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
+            "citation_passage_recall": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
+        }
+
     if not cited_passage_ids:
-        return {"citation_precision": 0.0, "citation_recall": 0.0}
+        return {"citation_passage_precision": 0.0, "citation_passage_recall": 0.0}
 
     gold_ids = {ev.passage_id for ev in gold_evidences}
     retrieved_set = set(retrieved_passage_ids)
@@ -106,8 +112,56 @@ def compute_citation_precision_recall(
     recall = len(gold_hits) / len(gold_ids) if gold_ids else 1.0
 
     return {
-        "citation_precision": float(precision),
-        "citation_recall": float(recall),
+        "citation_passage_precision": float(precision),
+        "citation_passage_recall": float(recall),
+    }
+
+
+def compute_factual_correctness(
+    answer_text: str,
+    gold_answer: str | None,
+) -> str | float:
+    """Compute factual correctness against gold answer."""
+    if not gold_answer or not str(gold_answer).strip():
+        return "NOT_COMPUTABLE_MISSING_GOLD_ANSWER"
+    return "NOT_COMPUTABLE_MATCHER_NOT_CONFIGURED"
+
+
+def compute_legacy_page_metrics(
+    retrieved_pages: Sequence[int],
+    relevant_pages: Sequence[int],
+    cited_pages: Sequence[int],
+) -> dict[str, Any]:
+    """Compute legacy exploratory page-level metrics."""
+    rel_set = set(relevant_pages)
+    page_hit = 1.0 if any(p in rel_set for p in retrieved_pages) else 0.0
+
+    page_mrr = 0.0
+    for rank, p in enumerate(retrieved_pages, start=1):
+        if p in rel_set:
+            page_mrr = float(1.0 / rank)
+            break
+
+    if cited_pages:
+        cited_hits = [p for p in cited_pages if p in rel_set]
+        cit_prec = float(len(cited_hits) / len(cited_pages))
+    else:
+        cit_prec = 1.0
+
+    if relevant_pages:
+        rel_hits = [p for p in rel_set if p in cited_pages]
+        cit_rec = float(len(rel_hits) / len(relevant_pages))
+    else:
+        cit_rec = 1.0
+
+    return {
+        "granularity": "page",
+        "provenance_status": "LEGACY_METADATA_UNAVAILABLE",
+        "interpretation": "EXPLORATORY",
+        "page_hit_at_k": float(page_hit),
+        "page_mrr": float(page_mrr),
+        "citation_page_precision": float(cit_prec),
+        "citation_page_recall": float(cit_rec),
     }
 
 

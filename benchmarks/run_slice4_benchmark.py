@@ -68,12 +68,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
+from raglab.evaluation.contracts.ground_truth_v2 import (
+    GroundTruthItemV2,
+    UnanswerableReason,
+)
+from raglab.evaluation.metrics.deterministic_v2 import (
+    compute_legacy_page_metrics,
+)
+from raglab.evaluation.migration.legacy_to_gt_v2 import (
+    migrate_legacy_qrel_item,
+)
+
 # ─── Path setup ───────────────────────────────────────────────────
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 # ─── Constants ───────────────────────────────────────────────────
-PROTOCOL_VERSION = "raglab_v7_slice4_v2"
+PROTOCOL_VERSION = "raglab_v7_slice4_v3"
 EXPERIMENT_ID = "raglab_v7_slice4_v2_20260731T1230UTC"
 PDF_SHA256_EXPECTED = (
     "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254"
@@ -92,7 +103,7 @@ RESULTS_DIR = _REPO_ROOT / "benchmarks" / "results"
 CHECKPOINT_DIR = _REPO_ROOT / "checkpoints"
 PROVISION_MANIFEST_PATH = _REPO_ROOT / "benchmarks" / "provision_manifest.json"
 
-_EVAL_SCHEMA_VERSION = "slice4_v3"
+_EVAL_SCHEMA_VERSION = "slice4_v4"
 
 # ─── Evaluation metric status enum ───────────────────────────────
 # Typed states for each metric — replaces bare null
@@ -1756,11 +1767,51 @@ def run_benchmark(
             # ── Citation pages used by generator ────────────────
             citation_pages = [c["page_number"] for c in citation_map] if citation_map else []
 
+            # ── Ground Truth v2 & Legacy Page Metrics Adaptation (Gate A) ──────
+            gt_item = migrate_legacy_qrel_item(q)
+
+            retrieved_pages_raw = [
+                cand.get("page_number") if isinstance(cand, dict) else getattr(cand, "page_number", None)
+                for cand in evidence_record.get("candidates", [])
+            ]
+            retrieved_pages_valid = [p for p in retrieved_pages_raw if p is not None and isinstance(p, int)]
+
+            legacy_page_metrics = compute_legacy_page_metrics(
+                retrieved_pages=retrieved_pages_valid,
+                relevant_pages=relevant_pages,
+                cited_pages=citation_pages,
+            )
+
+            deterministic_v2_metrics = {
+                "passage_recall_at_k": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
+                "passage_mrr": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
+                "ndcg_at_k": "NOT_COMPUTABLE_MISSING_GRADED_QRELS",
+                "citation_passage_precision": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
+                "citation_passage_recall": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
+                "factual_correctness": "NOT_COMPUTABLE_MISSING_GOLD_ANSWER",
+            }
+
+            ground_truth_record = {
+                "contract_version": "v2",
+                "source_schema": "legacy_active_questions",
+                "provenance_status": gt_item.provenance_status,
+                "annotation_completeness": gt_item.annotation_completeness,
+                "answerable": gt_item.answerable,
+                "unanswerable_reason": gt_item.unanswerable_reason.value if isinstance(gt_item.unanswerable_reason, UnanswerableReason) else (gt_item.unanswerable_reason or None),
+                "legacy_relevant_pages": list(gt_item.legacy_relevant_pages),
+                "passage_qrels_status": "NOT_ANNOTATED",
+                "graded_qrels_status": "NOT_ANNOTATED",
+                "gold_answer_status": "NOT_ANNOTATED",
+            }
+
             evaluation_record = {
                 "protocol_version": PROTOCOL_VERSION,
                 "artifact_schema_version": _EVAL_SCHEMA_VERSION,
                 "schema_version": _EVAL_SCHEMA_VERSION,
                 "metrics": evaluation_metrics,
+                "legacy_page_metrics": legacy_page_metrics,
+                "deterministic_v2_metrics": deterministic_v2_metrics,
+                "rag_triad": evaluation_metrics,
             }
 
             result_entry = {
@@ -1775,6 +1826,7 @@ def run_benchmark(
                 "answer": sanitized_answer,
                 "citation_mapping_status": citation_mapping_status,
                 "citation_map": citation_map,
+                "ground_truth": ground_truth_record,
                 "evaluation": evaluation_record,
                 "retrieval_evidence": evidence_record,
                 "citation_pages": citation_pages,

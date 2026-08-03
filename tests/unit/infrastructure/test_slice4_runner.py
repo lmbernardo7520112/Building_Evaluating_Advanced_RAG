@@ -849,13 +849,13 @@ class TestSlice4SurgicalFixes:
         )
 
         data = json.loads(out.read_text(encoding="utf-8"))
-        assert data["protocol_version"] == "raglab_v7_slice4_v2"
-        assert data["artifact_schema_version"] == "slice4_v3"
-        assert data["schema"] == "slice4_v3"
+        assert data["protocol_version"] == runner.PROTOCOL_VERSION
+        assert data["artifact_schema_version"] == runner._EVAL_SCHEMA_VERSION
+        assert data["schema"] == runner._EVAL_SCHEMA_VERSION
         eval_rec = data["results"]["F0_baseline"][0]["evaluation"]
-        assert eval_rec["protocol_version"] == "raglab_v7_slice4_v2"
-        assert eval_rec["artifact_schema_version"] == "slice4_v3"
-        assert eval_rec["schema_version"] == "slice4_v3"
+        assert eval_rec["protocol_version"] == runner.PROTOCOL_VERSION
+        assert eval_rec["artifact_schema_version"] == runner._EVAL_SCHEMA_VERSION
+        assert eval_rec["schema_version"] == runner._EVAL_SCHEMA_VERSION
 
     def test_runbook_contains_separated_commands(self):
         """13: Runbook contains independent export and unset commands."""

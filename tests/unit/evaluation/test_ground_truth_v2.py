@@ -82,9 +82,8 @@ class TestLegacyMigration:
         }
         item = migrate_legacy_qrel_item(legacy)
         assert item.provenance_status == "LEGACY_METADATA_UNAVAILABLE"
-        assert len(item.relevant_evidences) == 2
-        # EXECUTION GUARD 2: relevance_grade is None for binary legacy qrels
-        assert item.relevant_evidences[0].relevance_grade is None
+        assert item.legacy_relevant_pages == (10, 12)
+        assert len(item.relevant_evidences) == 0
 
     def test_migrate_dataset_batch(self):
         items = migrate_legacy_dataset([{"query_id": "q1"}, {"query_id": "q2"}])
@@ -125,8 +124,8 @@ class TestDeterministicMetrics:
             retrieved_passage_ids=["p1", "p2"],
             gold_evidences=[ev1],
         )
-        assert res["citation_precision"] == 1.0
-        assert res["citation_recall"] == 1.0
+        assert res["citation_passage_precision"] == 1.0
+        assert res["citation_passage_recall"] == 1.0
 
     def test_abstention_matrix(self):
         res = compute_abstention_confusion_matrix(is_abstained=True, is_unanswerable=True)
