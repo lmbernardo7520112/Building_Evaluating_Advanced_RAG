@@ -120,6 +120,105 @@ class TestGeminiAdapterNotInstantiatedByAntigravity:
         """FakeGeneratorAdapter source must not import google.genai."""
         import inspect
 
+        import raglab.infrastructure.fakes.fake_generator_adapter as mod
+        source = inspect.getsource(mod)
+        assert "google.genai" not in source
+
+
+class TestGeminiGeneratorParsingAndCitations:
+    """Offline unit tests for parsing JSON responses and citation provenance checks."""
+
+    def test_citation_provenance_mismatch_raises_domain_error(self, monkeypatch):
+        """Citing an unknown evidence_id (e.g. E99) must raise CitationProvenanceMismatchError."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_key")
+
+        from raglab.domain.entities import RetrievedEvidence
+        from raglab.domain.errors import CitationProvenanceMismatchError
+        from raglab.domain.value_objects import ChunkId
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        adapter = GeminiGeneratorAdapter()
+        # Mock _call_with_retry to return JSON citing E99 (which is not in prompt snapshot)
+        monkeypatch.setattr(
+            adapter,
+            "_call_with_retry",
+            lambda qid, prompt: '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}',
+        )
+
+        ev1 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p1_c0"),
+            document_id="doc_p1",
+            text="Evidence 1 text",
+            rank=1,
+            score=0.9,
+        )
+
+        with pytest.raises(CitationProvenanceMismatchError, match="CITATION_PROVENANCE_MISMATCH"):
+            adapter.generate(query_id="q1", query="Query?", evidence=[ev1])
+
+    def test_valid_json_answer_parsing(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_key")
+
+        from raglab.domain.entities import RetrievedEvidence
+        from raglab.domain.value_objects import ChunkId
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        adapter = GeminiGeneratorAdapter()
+        monkeypatch.setattr(
+            adapter,
+            "_call_with_retry",
+            lambda qid, prompt: '{"status": "ANSWER", "answer": "Prova por indução", "citations": ["E1"]}',
+        )
+
+        ev1 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p1_c0"),
+            document_id="gersting_doc_p91",
+            text="Evidence 1 text",
+            rank=1,
+            score=0.9,
+        )
+
+        ans = adapter.generate(query_id="q1", query="Query?", evidence=[ev1])
+        assert ans.abstained is False
+        assert ans.text == "Prova por indução"
+        assert len(ans.citations) == 1
+        assert ans.citations[0].page_number == 91
+
+    def test_valid_json_abstain_parsing(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_key")
+
+        from raglab.domain.entities import RetrievedEvidence
+        from raglab.domain.value_objects import ChunkId
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        adapter = GeminiGeneratorAdapter()
+        monkeypatch.setattr(
+            adapter,
+            "_call_with_retry",
+            lambda qid, prompt: '{"status": "ABSTAIN", "answer": "", "citations": []}',
+        )
+
+        ev1 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p1_c0"),
+            document_id="gersting_doc_p91",
+            text="Evidence 1 text",
+            rank=1,
+            score=0.9,
+        )
+
+        ans = adapter.generate(query_id="q1", query="Query?", evidence=[ev1])
+        assert ans.abstained is True
+        assert ans.text == ""
+        assert len(ans.citations) == 0
+
+        import inspect
+
         from raglab.infrastructure.fakes.fake_generator_adapter import (
             FakeGeneratorAdapter,
         )

@@ -129,6 +129,8 @@ class RetrievedEvidence:
     text: str
     rank: int
     score: float
+    passage_id: str | None = None
+    content_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if not self.document_id or not self.document_id.strip():

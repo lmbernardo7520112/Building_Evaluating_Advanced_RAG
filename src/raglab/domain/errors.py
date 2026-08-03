@@ -82,6 +82,16 @@ class ConfigurationError(RagLabDomainError):
         super().__init__(f"Configuration error in '{field}': {reason}")
 
 
+class CitationProvenanceMismatchError(RagLabDomainError):
+    """Raised when a cited evidence_id cannot be found in the evidence snapshot."""
+
+    def __init__(self, citation_id: str) -> None:
+        super().__init__(
+            f"CITATION_PROVENANCE_MISMATCH: cited evidence_id '{citation_id}' "
+            "not present in prompt snapshot"
+        )
+
+
 def _is_finite(value: float) -> bool:
     """Check finiteness without importing math in the public API."""
     import math
