@@ -730,7 +730,7 @@ def build_citation_map_and_status(
                 "text_sha256": cand_sha,
             })
 
-        return ("AVAILABLE", citation_map)
+        return ("LEGACY", citation_map)
 
     return ("UNAVAILABLE", [])
 

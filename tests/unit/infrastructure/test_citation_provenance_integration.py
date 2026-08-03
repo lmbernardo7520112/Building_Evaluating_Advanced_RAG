@@ -196,6 +196,23 @@ class TestCitationProvenanceIntegration:
                 query_id="q1",
             )
 
+    def test_6b_legacy_numeric_marker_returns_status_legacy_never_available(self):
+        """Legacy numeric marker [1] returns status LEGACY, never AVAILABLE."""
+        cand = {
+            "chunk_id": "c1",
+            "page_number": 92,
+            "text": "Evidencia da pagina 92",
+        }
+        status, cit_map = build_citation_map_and_status(
+            answer_text="Segundo a regra [1]",
+            abstained=False,
+            evidence=[cand],
+            query_id="q1",
+        )
+        assert status == "LEGACY"
+        assert status != "AVAILABLE"
+        assert len(cit_map) == 1
+
     def test_7_citation_map_survives_checkpointing_and_rehydration(
         self, regression_fixture_w0_q_dev_01
     ):

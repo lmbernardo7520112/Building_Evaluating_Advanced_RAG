@@ -1052,7 +1052,7 @@ class TestSlice4V3ContractFixes:
             evidence=[cand1, cand2],
             query_id="q1",
         )
-        assert status == "AVAILABLE"
+        assert status == "LEGACY"
         assert len(cmap) == 2
         assert cmap[0]["marker"] == "[1]"
         assert cmap[0]["page_number"] == 92
@@ -1178,7 +1178,7 @@ class TestSlice4CitationPageProvenanceFixes:
             evidence=[cand1],
             query_id="q_dev_01",
         )
-        assert status == "AVAILABLE"
+        assert status == "LEGACY"
         assert len(cmap) == 1
         assert cmap[0]["marker"] == "[1]"
         assert cmap[0]["page_number"] == 92
@@ -1197,7 +1197,7 @@ class TestSlice4CitationPageProvenanceFixes:
             evidence=[cand1, cand2, cand3],
             query_id="q_dev_01",
         )
-        assert status == "AVAILABLE"
+        assert status == "LEGACY"
         assert len(cmap) == 3
         assert [c["marker"] for c in cmap] == ["[1]", "[2]", "[3]"]
         assert [c["page_number"] for c in cmap] == [92, 96, 101]
