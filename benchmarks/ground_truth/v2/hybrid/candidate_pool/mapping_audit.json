@@ -1,0 +1,12 @@
+{
+  "total_candidates": 11,
+  "mapped_exact": 11,
+  "mapped_by_offset": 0,
+  "mapped_by_hash": 0,
+  "mapped_by_exact_substring": 0,
+  "ambiguous": 0,
+  "unmapped": 0,
+  "unreported_mapping_loss": 0,
+  "problematic_items": [],
+  "mapping_coverage": 1.0
+}
