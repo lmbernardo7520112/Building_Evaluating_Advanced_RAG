@@ -2,76 +2,26 @@
   "schema_version": "2.0.0",
   "protocol_version": "raglab_v7_slice4_v3",
   "top_k_per_retriever": 10,
-  "unique_passages_in_pool": 91,
+  "unique_passages_in_pool": 107,
   "question_count": 8,
   "corpus_sha256": "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254",
   "passage_registry_sha256": "c2d1b31e5eaeb98e2a31094628cf2e4291c4ff73bb7ddb1f79929204163799e1",
-  "pool_sha256": "1e326736d7ef0df715944c3ee800f44abda384b507d095293e023550fbe1f609",
-  "blinded_pool_sha256": "a7a16c726d75012ffe77fe58badac17dc43c596d9310fc461e55e5d36ea1c51c",
-  "sources": [
-    {
-      "source_id": "F0_baseline",
-      "availability": "AVAILABLE",
-      "requested_depth": 10,
-      "returned_count": 0,
-      "unique_contribution_count": 0,
-      "execution_mode": "OFFLINE_RETRIEVAL_ONLY"
-    },
-    {
-      "source_id": "W0_sentence_window",
-      "availability": "AVAILABLE",
-      "requested_depth": 10,
-      "returned_count": 0,
-      "unique_contribution_count": 0,
-      "execution_mode": "OFFLINE_RETRIEVAL_ONLY"
-    },
-    {
-      "source_id": "W1_sentence_window_rerank",
-      "availability": "AVAILABLE",
-      "requested_depth": 10,
-      "returned_count": 0,
-      "unique_contribution_count": 0,
-      "execution_mode": "OFFLINE_RETRIEVAL_ONLY"
-    },
-    {
-      "source_id": "H0_hierarchical",
-      "availability": "NOT_AVAILABLE_OFFLINE",
-      "requested_depth": 10,
-      "returned_count": 0,
-      "unique_contribution_count": 0,
-      "execution_mode": "OFFLINE_RETRIEVAL_ONLY"
-    },
-    {
-      "source_id": "H1_hierarchical",
-      "availability": "NOT_AVAILABLE_OFFLINE",
-      "requested_depth": 10,
-      "returned_count": 0,
-      "unique_contribution_count": 0,
-      "execution_mode": "OFFLINE_RETRIEVAL_ONLY"
-    },
-    {
-      "source_id": "H2_hierarchical",
-      "availability": "NOT_AVAILABLE_OFFLINE",
-      "requested_depth": 10,
-      "returned_count": 0,
-      "unique_contribution_count": 0,
-      "execution_mode": "OFFLINE_RETRIEVAL_ONLY"
-    },
-    {
-      "source_id": "legacy_relevant_pages_pool",
-      "availability": "AVAILABLE",
-      "requested_depth": 10,
-      "returned_count": 11,
-      "unique_contribution_count": 11,
-      "execution_mode": "OFFLINE_RETRIEVAL_ONLY"
-    }
+  "pool_sha256": "bfb4a7dc604aff29b3b1a26b3614cf7c9e6cd049f8694d65f7a5e4476b7e38a4",
+  "blinded_pool_sha256": "0e0dd5fff1778f01e54969c354a59518840a205c4b948b480450a39c220a980e",
+  "multisystem_provenance_verified": true,
+  "independent_family_count": 4,
+  "active_families": [
+    "hierarchical",
+    "sentence_anchor",
+    "sentence_window",
+    "standard_chunking"
   ],
   "neighbor_expansion": true,
   "neighbor_policy": "adjacent_passage_same_page",
   "outside_pool_audit_policy": "max(10, ceil(0.10 * count))",
   "outside_pool_relevant_threshold": 0.05,
   "holdout_sealed": true,
-  "created_by": "deterministic_offline_builder",
+  "created_by": "reconciled_provenance_builder",
   "network_used": false,
   "api_used": false
 }

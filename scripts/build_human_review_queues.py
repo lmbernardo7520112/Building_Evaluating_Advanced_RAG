@@ -1,13 +1,13 @@
-"""Risk-Oriented Human Review Queue Builder (Gate B2 - Etapa 15).
+"""Risk-Oriented Human Review Queue Builder (Gate B2 Reconciliation - Etapa 8).
 
-Generates blinded review queues for Annotator A and Annotator B:
+Generates blinded review queues for Annotators A and B:
 - human_queues/annotator_a.jsonl
 - human_queues/annotator_b.jsonl
 - human_queues/adjudication.jsonl (template)
 - human_queues/routing_manifest.json
 
-Supports --without-silver-execution flag when silver triage has not been run.
-Enforces 15-25% planned overlap between Annotator A and Annotator B.
+Enforces risk routing rules. Mandatory risk items are never removed even if
+planned overlap exceeds 25%.
 """
 
 from __future__ import annotations
@@ -42,19 +42,36 @@ def build_human_queues(
     """Build blinded human review queues for Annotators A and B."""
     candidate_pool_dir = input_root / "candidate_pool"
     blinded_pool_file = candidate_pool_dir / "blinded_pool.jsonl"
+    audit_file = candidate_pool_dir / "mapping_audit.json"
 
     if not blinded_pool_file.exists():
         raise FileNotFoundError(f"Blinded pool not found at {blinded_pool_file}")
 
     silver_file = input_root / "silver" / "silver_annotations.jsonl"
-    has_silver = silver_file.exists() and not without_silver_execution
+    silver_manifest_file = input_root / "silver" / "silver_manifest.json"
 
+    is_real_silver = False
     silver_map: dict[tuple[str, str], dict] = {}
-    if has_silver:
-        for line in silver_file.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                rec = json.loads(line)
-                silver_map[(rec["question_id"], rec["passage_id"])] = rec
+
+    if silver_file.exists() and silver_manifest_file.exists() and not without_silver_execution:  # noqa: E501
+        sil_man = json.loads(silver_manifest_file.read_text(encoding="utf-8"))
+        if sil_man.get("authoritative", False) is True:
+            is_real_silver = True
+            for line in silver_file.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    rec = json.loads(line)
+                    silver_map[(rec["question_id"], rec["passage_id"])] = rec
+
+    mapping_audit = (
+        json.loads(audit_file.read_text(encoding="utf-8"))
+        if audit_file.exists()
+        else {}
+    )
+    problematic_chunks = {
+        item.get("chunk_id")
+        for item in mapping_audit.get("problematic_items", [])
+        if item.get("chunk_id")
+    }
 
     blinded_items = [
         json.loads(line)
@@ -62,7 +79,6 @@ def build_human_queues(
         if line.strip()
     ]
 
-    # Group blinded items by question_id
     items_by_q: dict[str, list[dict]] = {}
     for item in blinded_items:
         items_by_q.setdefault(item["question_id"], []).append(item)
@@ -81,7 +97,6 @@ def build_human_queues(
         # Annotator A gets ALL pool items for the question
         for item in q_items:
             ps_id = item["passage_id"]
-            sil_rec = silver_map.get((qid, ps_id), {})
 
             reasons_a = ["primary_pool_evaluation"]
             if item.get("is_outside_pool_audit"):
@@ -105,21 +120,22 @@ def build_human_queues(
             }
             queue_a_items.append(item_a)
 
-        # Queue B selection: Silver positives + Needs Review
-        # + Abstention + 20% random sample
+        # Annotator B Queue: Mandatory Risk Items
         b_selected_ids: set[str] = set()
 
-        if has_silver:
-            for item in q_items:
-                ps_id = item["passage_id"]
-                sil_rec = silver_map.get((qid, ps_id), {})
-                sil_grade = sil_rec.get("relevance_grade", 0)
-                needs_rev = sil_rec.get("needs_human_review", False)
+        for item in q_items:
+            ps_id = item["passage_id"]
+            sil_rec = silver_map.get((qid, ps_id), {})
+            sil_grade = sil_rec.get("relevance_grade", 0)
+            needs_rev = sil_rec.get("needs_human_review", False)
 
-                if sil_grade >= 1 or needs_rev:
-                    b_selected_ids.add(ps_id)
+            if is_real_silver and (sil_grade >= 1 or needs_rev):
+                b_selected_ids.add(ps_id)
 
-        # Target ~20% of total question items for Queue B overlap
+            if is_abstention or item.get("is_outside_pool_audit") or (ps_id in problematic_chunks):  # noqa: E501
+                b_selected_ids.add(ps_id)
+
+        # Ensure at least 15% (targeting 20%) random sample per question
         target_b_count = max(1, int(round(0.20 * len(q_items))))
         if len(b_selected_ids) < target_b_count:
             remaining_ids = [
@@ -157,7 +173,6 @@ def build_human_queues(
                 }
                 queue_b_items.append(item_b)
 
-                # Adjudication template item
                 adj_item = {
                     "question_id": qid,
                     "passage_id": ps_id,
@@ -215,22 +230,31 @@ def build_human_queues(
     )
 
     planned_overlap = round(overlap_count / max(1, total_pool_count), 4)
+    overlap_exceeded = planned_overlap > TARGET_OVERLAP_MAX
+
+    queue_status = (
+        "HUMAN_ROUTING_RISK_RULES_VERIFIED"
+        if is_real_silver
+        else "PROVISIONAL_WITHOUT_SILVER"
+    )
 
     manifest_payload = {
         "schema_version": SCHEMA_VERSION,
         "protocol_version": PROTOCOL_VERSION,
+        "queue_status": queue_status,
         "annotator_a_queue_count": len(ordered_a),
         "annotator_b_queue_count": len(ordered_b),
         "adjudication_template_count": len(adjudication_template_items),
         "total_candidate_pool_items": total_pool_count,
         "planned_overlap_rate": planned_overlap,
         "target_overlap_range": [TARGET_OVERLAP_MIN, TARGET_OVERLAP_MAX],
-        "silver_used_in_routing": has_silver,
+        "overlap_exceeded_due_to_mandatory_risk_cases": overlap_exceeded,
+        "silver_used_in_routing": is_real_silver,
         "file_a_sha256": hashlib.sha256(file_a.read_bytes()).hexdigest(),
         "file_b_sha256": hashlib.sha256(file_b.read_bytes()).hexdigest(),
         "file_adj_sha256": hashlib.sha256(file_adj.read_bytes()).hexdigest(),
         "holdout_sealed": True,
-        "created_by": "deterministic_offline_builder",
+        "created_by": "reconciled_routing_builder",
     }
 
     file_man.write_text(

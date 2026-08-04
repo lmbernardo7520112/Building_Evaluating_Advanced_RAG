@@ -5,11 +5,20 @@
   "policy_name": "HUMAN_VALIDATED_HYBRID_EVAL_SET",
   "corpus_sha256": "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254",
   "passage_registry_sha256": "c2d1b31e5eaeb98e2a31094628cf2e4291c4ff73bb7ddb1f79929204163799e1",
-  "pool_size": 178,
-  "mapped_exact_count": 178,
+  "pool_size": 107,
+  "mapped_exact_count": 48,
   "unmapped_count": 0,
+  "ambiguous_count": 0,
   "outside_pool_audit_count": 72,
   "holdout_sealed": true,
+  "multisystem_provenance_verified": true,
+  "independent_family_count": 4,
+  "active_families": [
+    "hierarchical",
+    "sentence_anchor",
+    "sentence_window",
+    "standard_chunking"
+  ],
   "silver_calibration_status": "SILVER_CALIBRATION_NOT_EXECUTED",
   "human_annotation_status": "HUMAN_ANNOTATION_NOT_EXECUTED",
   "gold_answers_status": "GOLD_ANSWERS_NOT_CREATED",
@@ -17,5 +26,5 @@
   "credentials_accessed": false,
   "network_used": false,
   "full_benchmark_executed": false,
-  "created_by": "deterministic_offline_builder"
+  "created_by": "reconciled_provenance_builder"
 }

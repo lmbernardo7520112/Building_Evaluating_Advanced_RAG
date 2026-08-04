@@ -1,12 +1,613 @@
 {
-  "total_candidates": 11,
-  "mapped_exact": 11,
+  "total_candidates": 168,
+  "mapped_exact": 0,
   "mapped_by_offset": 0,
   "mapped_by_hash": 0,
-  "mapped_by_exact_substring": 0,
+  "mapped_by_exact_substring": 48,
   "ambiguous": 0,
-  "unmapped": 0,
+  "unmapped": 120,
   "unreported_mapping_loss": 0,
-  "problematic_items": [],
-  "mapping_coverage": 1.0
+  "problematic_items": [
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p94_c1",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98_c3",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s36",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s20",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_s28",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s36",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s1",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s20",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "3ae31ba3-a97c-4b81-8af9-ccbb539c9cd9",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "ef90fad7-4ffb-4334-8a41-359254c3c6d8",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "a0cc51ba-70c1-4ae2-a9ab-09604ad7daf2",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "c397093b-1b14-495c-90df-cdea7a647d4d",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s36_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s20_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_c5",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_c0",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p95_c3",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s27",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s3",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s3",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "e1fc3d56-f5d3-4260-bfaa-67f38ed0705f",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "6eb3c6e9-e30b-4293-ada8-c263f6a95399",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "ad90dc42-48b3-482c-80d3-7979f0c950e2",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s27_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p95_s14_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_c3",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_c1",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108_c0",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s28",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111_s18",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s14",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_s4",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s38",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s13",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "1ed361ef-08b0-473a-b2c4-6fe629e79cc9",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "1bc5ce44-1ea7-42e1-9644-5029c56503b7",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "8fa6497e-a5c9-4516-85e7-c627f33a80c5",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "b31bdd83-6f9b-450c-b8ea-85c509e8e04d",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "8fce3c6f-7ff7-4c79-8689-4290a5dcda25",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_03",
+      "chunk_id": "f52c0816-479a-4f33-9dd9-d650671f04f2",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103_c3",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_c0",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104_c3",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98_s47",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p94_s25",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108_s13",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p94_s25",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "1ed361ef-08b0-473a-b2c4-6fe629e79cc9",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "ba4b8b52-22f2-4cf7-a7be-4c5c8ca492af",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "e297d07c-1064-4d77-a602-dc9d89780f0f",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "8fa6497e-a5c9-4516-85e7-c627f33a80c5",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "2fe5e58c-e9fb-46bf-b0b2-dd19b0a9fe6b",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "82c45f49-d60c-44a3-9e17-6d22c3b289a5",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "28a5bcf8-f610-42ce-9966-9f6390e58883",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "fb6436c8-2169-415c-862e-4c59438b4773",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "8fce3c6f-7ff7-4c79-8689-4290a5dcda25",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_dev_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p94_s25_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_c5",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_c7",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_c7",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s14",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99_s80",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "1ed361ef-08b0-473a-b2c4-6fe629e79cc9",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "1bc5ce44-1ea7-42e1-9644-5029c56503b7",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "8fa6497e-a5c9-4516-85e7-c627f33a80c5",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "b31bdd83-6f9b-450c-b8ea-85c509e8e04d",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "28a5bcf8-f610-42ce-9966-9f6390e58883",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "d5dadc20-ca2f-4650-ae3e-64d8373835f2",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "97d7c140-f92d-4503-b2a5-b5f3e5d4e844",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_01",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s14_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108_c0",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_c0",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_c7",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_s38",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s1",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s40",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s1",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s10",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "1ed361ef-08b0-473a-b2c4-6fe629e79cc9",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "3ae96986-6e58-429a-bf3f-0ac573c1d6ef",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "3ae31ba3-a97c-4b81-8af9-ccbb539c9cd9",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "8fa6497e-a5c9-4516-85e7-c627f33a80c5",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "01106c8a-8216-486c-b905-1e71db0cff47",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "ef90fad7-4ffb-4334-8a41-359254c3c6d8",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "28a5bcf8-f610-42ce-9966-9f6390e58883",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "8fce3c6f-7ff7-4c79-8689-4290a5dcda25",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "2af81bcc-77a1-4ae8-9f74-33e1c42a3e42",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_02",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_s38_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_c5",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_c8",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108_c0",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s31",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s17",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s40",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s29",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s10",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "3ae31ba3-a97c-4b81-8af9-ccbb539c9cd9",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "ef90fad7-4ffb-4334-8a41-359254c3c6d8",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "282ef63a-36ef-4172-b592-c5b6ec4cb69a",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s31_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s17_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_03",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s30_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_c0",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s41",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s14",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99_s34",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s14",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99_s34",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p109_s6",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "e92ea954-1f0e-4d11-9e5d-a889d790b17b",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "2c7733d1-2b78-485b-ad49-2fdf725ea0d1",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "5e151826-a96f-459e-a484-38047fc93060",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "6c00f0e8-6ec9-4519-a412-3e7ba940b6da",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "292dcdb2-6bbe-4ffa-bf59-db31c227697f",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "380154e8-f2f7-4f5c-a044-c60657f86b48",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    },
+    {
+      "qid": "q_test_04",
+      "chunk_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s41_anchor",
+      "status": "UNMAPPED_NEEDS_REVIEW"
+    }
+  ],
+  "mapping_coverage": 0.2857
 }
