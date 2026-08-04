@@ -1,13 +1,14 @@
-"""Risk-Oriented Human Review Queue Builder (Gate B2 Reconciliation - Etapa 8).
+"""Human Review Queue Builder consuming evidence v2 pool.
 
 Generates blinded review queues for Annotators A and B:
 - human_queues/annotator_a.jsonl
 - human_queues/annotator_b.jsonl
-- human_queues/adjudication.jsonl (template)
+- human_queues/adjudication.jsonl
 - human_queues/routing_manifest.json
 
-Enforces risk routing rules. Mandatory risk items are never removed even if
-planned overlap exceeds 25%.
+Queue A = full union of pool + outside audit.
+Queue B = risk items + random overlap sample (15-25%).
+No silver, no ground truth, no relevant_pages.
 """
 
 from __future__ import annotations
@@ -19,19 +20,30 @@ import random
 import sys
 from pathlib import Path
 
-# Ensure src and benchmarks are on sys.path
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT / "src"))
-if str(_REPO_ROOT / "benchmarks") not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT / "benchmarks"))
-
-from run_slice4_benchmark import ACTIVE_QUESTIONS  # noqa: E402
 
 PROTOCOL_VERSION = "raglab_v7_slice4_v3"
-SCHEMA_VERSION = "2.0.0"
+SCHEMA_VERSION = "3.0.0"
 TARGET_OVERLAP_MIN = 0.15
 TARGET_OVERLAP_MAX = 0.25
+
+# Fields that MUST NOT appear in blinded view
+BLINDING_FORBIDDEN_FIELDS = frozenset({
+    "source_provenance", "raw_retrieval_unit", "generation_context_unit",
+    "strategy", "retrieval_rank", "retrieval_score",
+    "pre_rerank_rank", "post_rerank_rank",
+    "selected_by_reranker", "dropped_by_reranker",
+    "relevant_pages", "gold_answer",
+})
+
+
+def _verify_blinding(item: dict) -> list[str]:
+    """Verify a queue item is recursively blinded."""
+    violations = []
+    for field in BLINDING_FORBIDDEN_FIELDS:
+        if field in item:
+            violations.append(f"Field '{field}' present in blinded item")
+    return violations
 
 
 def build_human_queues(
@@ -39,39 +51,11 @@ def build_human_queues(
     output_root: Path,
     without_silver_execution: bool = False,
 ) -> tuple[Path, Path, Path, Path]:
-    """Build blinded human review queues for Annotators A and B."""
-    candidate_pool_dir = input_root / "candidate_pool"
-    blinded_pool_file = candidate_pool_dir / "blinded_pool.jsonl"
-    audit_file = candidate_pool_dir / "mapping_audit.json"
+    """Build blinded human review queues."""
+    blinded_pool_file = input_root / "candidate_pool" / "blinded_pool.jsonl"
 
     if not blinded_pool_file.exists():
-        raise FileNotFoundError(f"Blinded pool not found at {blinded_pool_file}")
-
-    silver_file = input_root / "silver" / "silver_annotations.jsonl"
-    silver_manifest_file = input_root / "silver" / "silver_manifest.json"
-
-    is_real_silver = False
-    silver_map: dict[tuple[str, str], dict] = {}
-
-    if silver_file.exists() and silver_manifest_file.exists() and not without_silver_execution:  # noqa: E501
-        sil_man = json.loads(silver_manifest_file.read_text(encoding="utf-8"))
-        if sil_man.get("authoritative", False) is True:
-            is_real_silver = True
-            for line in silver_file.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    rec = json.loads(line)
-                    silver_map[(rec["question_id"], rec["passage_id"])] = rec
-
-    mapping_audit = (
-        json.loads(audit_file.read_text(encoding="utf-8"))
-        if audit_file.exists()
-        else {}
-    )
-    problematic_chunks = {
-        item.get("chunk_id")
-        for item in mapping_audit.get("problematic_items", [])
-        if item.get("chunk_id")
-    }
+        raise FileNotFoundError(f"Blinded pool not found: {blinded_pool_file}")
 
     blinded_items = [
         json.loads(line)
@@ -85,73 +69,56 @@ def build_human_queues(
 
     queue_a_items: list[dict] = []
     queue_b_items: list[dict] = []
-    adjudication_template_items: list[dict] = []
+    adjudication_items: list[dict] = []
 
     total_pool_count = len(blinded_items)
     overlap_count = 0
 
-    for qid, q_items in items_by_q.items():
-        q_obj = next((q for q in ACTIVE_QUESTIONS if q["qid"] == qid), None)
-        is_abstention = q_obj.get("abstention_expected", False) if q_obj else False
+    for qid in sorted(items_by_q.keys()):
+        q_items = items_by_q[qid]
 
-        # Annotator A gets ALL pool items for the question
+        # Queue A: ALL items
         for item in q_items:
-            ps_id = item["passage_id"]
-
-            reasons_a = ["primary_pool_evaluation"]
-            if item.get("is_outside_pool_audit"):
-                reasons_a.append("outside_pool_audit_sample")
-            if is_abstention:
-                reasons_a.append("abstention_question")
-
             item_a = {
                 "question_id": qid,
-                "passage_id": ps_id,
+                "passage_id": item["passage_id"],
                 "page_number": item["page_number"],
                 "text": item["text"],
                 "annotator_id": "annotator_a",
                 "priority_rank": 1,
-                "routing_reasons": reasons_a,
+                "routing_reasons": ["primary_pool_evaluation"],
                 "is_overlap_sample": False,
                 "relevance_grade": None,
                 "evidence_role": None,
                 "annotation_notes": "",
                 "status": "PENDING",
             }
+            if item.get("is_outside_pool_audit"):
+                item_a["routing_reasons"].append("outside_pool_audit_sample")
             queue_a_items.append(item_a)
 
-        # Annotator B Queue: Mandatory Risk Items
+        # Queue B: risk items + random overlap
         b_selected_ids: set[str] = set()
 
+        # Risk: outside audit items and abstention questions
         for item in q_items:
-            ps_id = item["passage_id"]
-            sil_rec = silver_map.get((qid, ps_id), {})
-            sil_grade = sil_rec.get("relevance_grade", 0)
-            needs_rev = sil_rec.get("needs_human_review", False)
+            if item.get("is_outside_pool_audit"):
+                b_selected_ids.add(item["passage_id"])
 
-            if is_real_silver and (sil_grade >= 1 or needs_rev):
-                b_selected_ids.add(ps_id)
-
-            if is_abstention or item.get("is_outside_pool_audit") or (ps_id in problematic_chunks):  # noqa: E501
-                b_selected_ids.add(ps_id)
-
-        # Ensure at least 15% (targeting 20%) random sample per question
-        target_b_count = max(1, int(round(0.20 * len(q_items))))
-        if len(b_selected_ids) < target_b_count:
-            remaining_ids = [
-                it["passage_id"]
-                for it in q_items
+        # Random overlap to target 20%
+        target_b = max(1, int(round(0.20 * len(q_items))))
+        if len(b_selected_ids) < target_b:
+            remaining = [
+                it["passage_id"] for it in q_items
                 if it["passage_id"] not in b_selected_ids
             ]
-            seed_b_sel = int(
+            seed = int(
                 hashlib.sha256(f"{qid}:b_overlap_seed".encode()).hexdigest()[:8], 16
             )
-            rng_b = random.Random(seed_b_sel)  # noqa: S311
-            needed = target_b_count - len(b_selected_ids)
-            additional_b = rng_b.sample(
-                remaining_ids, k=min(len(remaining_ids), needed)
-            )
-            b_selected_ids.update(additional_b)
+            rng = random.Random(seed)  # noqa: S311
+            needed = target_b - len(b_selected_ids)
+            additional = rng.sample(remaining, k=min(len(remaining), needed))
+            b_selected_ids.update(additional)
 
         for item in q_items:
             ps_id = item["passage_id"]
@@ -173,7 +140,7 @@ def build_human_queues(
                 }
                 queue_b_items.append(item_b)
 
-                adj_item = {
+                adj = {
                     "question_id": qid,
                     "passage_id": ps_id,
                     "annotator_a_grade": None,
@@ -184,29 +151,39 @@ def build_human_queues(
                     "reasoning": "",
                     "status": "PENDING_HUMAN_ANNOTATIONS",
                 }
-                adjudication_template_items.append(adj_item)
+                adjudication_items.append(adj)
 
-    # Deterministic reordering for A and B
-    def reorder_queue(items: list[dict], annotator_id: str) -> list[dict]:
+    # Deterministic reordering
+    def reorder(items: list[dict], annotator_id: str) -> list[dict]:
         by_q: dict[str, list[dict]] = {}
         for it in items:
             by_q.setdefault(it["question_id"], []).append(it)
         ordered: list[dict] = []
-        for qid in sorted(by_q.keys()):
+        for q in sorted(by_q.keys()):
             seed = int(
-                hashlib.sha256(f"{qid}:{annotator_id}".encode()).hexdigest()[:8],
-                16,
+                hashlib.sha256(f"{q}:{annotator_id}".encode()).hexdigest()[:8], 16
             )
-            q_list = list(by_q[qid])
+            q_list = list(by_q[q])
             random.Random(seed).shuffle(q_list)  # noqa: S311
             for rank, it in enumerate(q_list, 1):
                 it["priority_rank"] = rank
                 ordered.append(it)
         return ordered
 
-    ordered_a = reorder_queue(queue_a_items, "annotator_a")
-    ordered_b = reorder_queue(queue_b_items, "annotator_b")
+    ordered_a = reorder(queue_a_items, "annotator_a")
+    ordered_b = reorder(queue_b_items, "annotator_b")
 
+    # Verify recursive blinding
+    blinding_violations: list[str] = []
+    for it in ordered_a + ordered_b:
+        blinding_violations.extend(_verify_blinding(it))
+    if blinding_violations:
+        print(f"ERROR: {len(blinding_violations)} blinding violations:")
+        for v in blinding_violations[:10]:
+            print(f"  {v}")
+        sys.exit(1)
+
+    # Write files
     output_root.mkdir(parents=True, exist_ok=True)
     file_a = output_root / "annotator_a.jsonl"
     file_b = output_root / "annotator_b.jsonl"
@@ -221,44 +198,32 @@ def build_human_queues(
         "\n".join(json.dumps(it, ensure_ascii=False) for it in ordered_b) + "\n",
         encoding="utf-8",
     )
-    file_adj.write_text(
-        "\n".join(
-            json.dumps(it, ensure_ascii=False) for it in adjudication_template_items
-        )
-        + "\n",
-        encoding="utf-8",
+    adj_lines = "\n".join(
+        json.dumps(it, ensure_ascii=False) for it in adjudication_items
     )
+    file_adj.write_text(adj_lines + "\n", encoding="utf-8")
 
     planned_overlap = round(overlap_count / max(1, total_pool_count), 4)
-    overlap_exceeded = planned_overlap > TARGET_OVERLAP_MAX
 
-    queue_status = (
-        "HUMAN_ROUTING_RISK_RULES_VERIFIED"
-        if is_real_silver
-        else "PROVISIONAL_WITHOUT_SILVER"
-    )
-
-    manifest_payload = {
+    manifest = {
         "schema_version": SCHEMA_VERSION,
         "protocol_version": PROTOCOL_VERSION,
-        "queue_status": queue_status,
+        "queue_status": "PROVISIONAL_WITHOUT_SILVER",
         "annotator_a_queue_count": len(ordered_a),
         "annotator_b_queue_count": len(ordered_b),
-        "adjudication_template_count": len(adjudication_template_items),
+        "adjudication_template_count": len(adjudication_items),
         "total_candidate_pool_items": total_pool_count,
         "planned_overlap_rate": planned_overlap,
         "target_overlap_range": [TARGET_OVERLAP_MIN, TARGET_OVERLAP_MAX],
-        "overlap_exceeded_due_to_mandatory_risk_cases": overlap_exceeded,
-        "silver_used_in_routing": is_real_silver,
+        "blinding_verified": len(blinding_violations) == 0,
+        "silver_used_in_routing": False,
         "file_a_sha256": hashlib.sha256(file_a.read_bytes()).hexdigest(),
         "file_b_sha256": hashlib.sha256(file_b.read_bytes()).hexdigest(),
         "file_adj_sha256": hashlib.sha256(file_adj.read_bytes()).hexdigest(),
         "holdout_sealed": True,
-        "created_by": "reconciled_routing_builder",
     }
-
     file_man.write_text(
-        json.dumps(manifest_payload, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 
@@ -266,32 +231,21 @@ def build_human_queues(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Build risk-oriented human review queues"
-    )
+    parser = argparse.ArgumentParser(description="Build human review queues")
     parser.add_argument(
-        "--input-root",
-        type=Path,
+        "--input-root", type=Path,
         default=_REPO_ROOT / "benchmarks" / "ground_truth" / "v2" / "hybrid",
-        help="Input hybrid directory",
     )
     parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=_REPO_ROOT
-        / "benchmarks"
-        / "ground_truth"
-        / "v2"
-        / "hybrid"
-        / "human_queues",
-        help="Output human_queues directory",
+        "--output-root", type=Path,
+        default=(
+            _REPO_ROOT / "benchmarks" / "ground_truth"
+            / "v2" / "hybrid" / "human_queues"
+        ),
     )
     parser.add_argument(
-        "--without-silver-execution",
-        action="store_true",
-        help="Build queues without requiring silver triage execution",
+        "--without-silver-execution", action="store_true",
     )
-
     args = parser.parse_args()
 
     fa, fb, fadj, fman = build_human_queues(
@@ -299,12 +253,11 @@ def main() -> int:
         output_root=args.output_root,
         without_silver_execution=args.without_silver_execution,
     )
-
     print("HUMAN REVIEW QUEUES BUILT SUCCESSFULLY")
-    print(f"Queue A: {fa}")
-    print(f"Queue B: {fb}")
-    print(f"Adjudication Template: {fadj}")
-    print(f"Routing Manifest: {fman}")
+    print(f"Queue A: {fa} ({sum(1 for _ in fa.read_text().splitlines() if _.strip())} items)")
+    print(f"Queue B: {fb} ({sum(1 for _ in fb.read_text().splitlines() if _.strip())} items)")
+    print(f"Adjudication: {fadj}")
+    print(f"Manifest: {fman}")
     return 0
 
 

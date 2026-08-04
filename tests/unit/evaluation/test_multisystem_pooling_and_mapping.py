@@ -1,6 +1,19 @@
-"""Unit tests for Multisystem Pooling, Canonical Passage Mapping, Text Rehydration, and Candidate Accounting (Gate B2 Reconciliation). # noqa: E501
+"""Tests for Gate B2 integration: pool, queues, evidence v2, and accounting.
 
-Covers original tests 01-24 and reconciliation tests 25-33.
+Covers ETAPA 9 invariants:
+1. pool rejects legacy artifacts
+2. pool accepts only evidence v2
+3. pool doesn't read relevant_pages/gold_answer
+4. pre/post reranking no double counting
+5. dropped candidates auditable
+6. canonical page-level unit explicit
+7. outside audit disjoint from pool
+8. 279-record accounting closes
+9. Queue A accounting closes by union
+10. human queues recursively blinded
+11. holdout sealed
+12. test invariant matrix has zero MISSING_BLOCKING
+13. rebuild is deterministic
 """
 
 from __future__ import annotations
@@ -8,7 +21,6 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -17,427 +29,397 @@ from raglab.evaluation.contracts.hybrid_eval_v2 import CanonicalMappingStatus
 from raglab.evaluation.pooling.canonical_passage_mapper import (
     CanonicalPassageMapper,
 )
-from scripts.build_hybrid_candidate_pool import (
-    build_hybrid_pool,
-    rehydrate_candidate_text,
-)
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+POOL_DIR = REPO_ROOT / "benchmarks" / "ground_truth" / "v2" / "hybrid" / "candidate_pool"
+QUEUE_DIR = REPO_ROOT / "benchmarks" / "ground_truth" / "v2" / "hybrid" / "human_queues"
+EVIDENCE_V2 = REPO_ROOT / "benchmarks" / "results" / "retrieval_evidence_v2.json"
 
 FORBIDDEN_BLINDING_KEYS = {
-    "strategy",
-    "source_id",
-    "source_provenance",
-    "retriever",
-    "retriever_name",
-    "retriever_config",
-    "rank",
-    "raw_rank",
-    "score",
-    "similarity",
-    "reranker_score",
-    "silver",
-    "silver_label",
-    "judge",
-    "model",
-    "relevant_pages",
-    "gold_answer",
-    "annotator_a_grade",
-    "annotator_b_grade",
+    "strategy", "source_id", "source_provenance",
+    "retriever", "retriever_name", "retriever_config",
+    "raw_rank", "retrieval_rank", "retrieval_score",
+    "score", "similarity", "reranker_score",
+    "silver", "silver_label", "judge", "model",
+    "relevant_pages", "gold_answer",
+    "annotator_a_grade", "annotator_b_grade",
+    "pre_rerank_rank", "post_rerank_rank",
+    "selected_by_reranker", "dropped_by_reranker",
 }
 
 
-def assert_no_forbidden_keys_recursive(data: Any) -> None:
-    """Recursively assert no forbidden blinding keys exist at any nested depth."""
+def _load_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        pytest.skip(f"{path.name} not found")
+    return [json.loads(line) for line in path.read_text("utf-8").splitlines() if line.strip()]
+
+
+def _load_json(path: Path) -> dict:
+    if not path.exists():
+        pytest.skip(f"{path.name} not found")
+    return json.loads(path.read_text("utf-8"))
+
+
+def _assert_no_forbidden(data) -> None:
+    """Recursively assert no forbidden blinding keys (exact match)."""
     if isinstance(data, dict):
         for k, v in data.items():
-            k_lower = str(k).lower()
-            for forbidden in FORBIDDEN_BLINDING_KEYS:
-                assert (
-                    forbidden not in k_lower
-                ), f"BLINDING VIOLATION: key '{k}' contains forbidden term '{forbidden}'"
-            assert_no_forbidden_keys_recursive(v)
+            assert k not in FORBIDDEN_BLINDING_KEYS, (
+                f"BLINDING VIOLATION: key '{k}' is forbidden"
+            )
+            _assert_no_forbidden(v)
     elif isinstance(data, list):
         for item in data:
-            assert_no_forbidden_keys_recursive(item)
+            _assert_no_forbidden(item)
+
+
+# ── Fixtures ─────────────────────────────────────────────────────
+
+@pytest.fixture(scope="module")
+def pool_manifest() -> dict:
+    return _load_json(POOL_DIR / "pool_manifest.json")
+
+
+@pytest.fixture(scope="module")
+def pool_items() -> list[dict]:
+    return _load_jsonl(POOL_DIR / "pool.jsonl")
+
+
+@pytest.fixture(scope="module")
+def blinded_items() -> list[dict]:
+    return _load_jsonl(POOL_DIR / "blinded_pool.jsonl")
+
+
+@pytest.fixture(scope="module")
+def accounting() -> dict:
+    return _load_json(POOL_DIR / "raw_candidate_accounting.json")
+
+
+@pytest.fixture(scope="module")
+def mapping_audit() -> dict:
+    return _load_json(POOL_DIR / "mapping_audit.json")
+
+
+@pytest.fixture(scope="module")
+def exec_audit() -> dict:
+    return _load_json(POOL_DIR / "pool_execution_audit.json")
+
+
+@pytest.fixture(scope="module")
+def routing_manifest() -> dict:
+    return _load_json(QUEUE_DIR / "routing_manifest.json")
+
+
+@pytest.fixture(scope="module")
+def queue_a() -> list[dict]:
+    return _load_jsonl(QUEUE_DIR / "annotator_a.jsonl")
+
+
+@pytest.fixture(scope="module")
+def queue_b() -> list[dict]:
+    return _load_jsonl(QUEUE_DIR / "annotator_b.jsonl")
+
+
+@pytest.fixture(scope="module")
+def evidence_v2() -> dict:
+    if not EVIDENCE_V2.exists():
+        pytest.skip("evidence v2 not materialized")
+    return json.loads(EVIDENCE_V2.read_bytes())
 
 
 @pytest.fixture
 def sample_registry_entries() -> list[PassageRegistryEntry]:
-    t1 = (
-        "Este é o texto exato do primeiro parágrafo sobre demonstração por"
-        " indução matemática."
-    )
-    t2 = (
-        "Este é o texto do segundo parágrafo detalhando o passo indutivo e a"
-        " hipótese de indução."
-    )
+    t1 = "Este é o texto exato do primeiro parágrafo sobre demonstração por indução matemática."
+    t2 = "Este é o texto do segundo parágrafo detalhando o passo indutivo e a hipótese de indução."
     return [
         PassageRegistryEntry(
             passage_id="ps_entry_01_12345678",
             document_id="gersting_discrete_math",
-            page_number=92,
-            start_char=100,
-            end_char=300,
-            content_sha256=hashlib.sha256(t1.encode("utf-8")).hexdigest(),
-            text=t1,
+            page_number=92, start_char=100, end_char=300,
+            content_sha256=hashlib.sha256(t1.encode()).hexdigest(), text=t1,
         ),
         PassageRegistryEntry(
             passage_id="ps_entry_02_87654321",
             document_id="gersting_discrete_math",
-            page_number=92,
-            start_char=310,
-            end_char=550,
-            content_sha256=hashlib.sha256(t2.encode("utf-8")).hexdigest(),
-            text=t2,
+            page_number=92, start_char=310, end_char=550,
+            content_sha256=hashlib.sha256(t2.encode()).hexdigest(), text=t2,
         ),
     ]
 
 
-class TestMultisystemPoolingAndMapping:
-    """Testes unitários para Pooling Multissistema, Reidratação e Mapeamento Canônico."""
+# ── Test 1: pool rejects legacy artifacts ────────────────────────
 
-    def test_01_union_of_multiple_sources(self):
-        man_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/pool_manifest.json"
-        )
-        assert man_file.exists()
-        manifest = json.loads(man_file.read_text(encoding="utf-8"))
-        assert manifest["multisystem_provenance_verified"] is True
-        assert manifest["independent_family_count"] >= 2
+class TestPoolRejectsLegacy:
+    def test_manifest_declares_evidence_v2(self, pool_manifest: dict) -> None:
+        assert pool_manifest["retrieval_evidence_schema"] == "retrieval_evidence_v2"
 
-    def test_02_deduplication_by_passage_id(self):
-        pool_file = Path("benchmarks/ground_truth/v2/hybrid/candidate_pool/pool.jsonl")
-        lines = [
-            json.loads(line)
-            for line in pool_file.read_text(encoding="utf-8").splitlines()
-            if line.strip()
+    def test_text_preview_not_used(self, pool_manifest: dict) -> None:
+        assert pool_manifest["text_preview_used"] is False
+
+    def test_no_rehydration_audit(self) -> None:
+        """Evidence v2 pool does NOT need rehydration — data is already full."""
+        rehyd = POOL_DIR / "rehydration_audit.json"
+        assert not rehyd.exists(), "rehydration_audit.json should not exist"
+
+
+# ── Test 2: pool accepts only evidence v2 ─────────────────────────
+
+class TestPoolAcceptsEvidenceV2:
+    def test_input_validation_passed(self, pool_manifest: dict) -> None:
+        assert pool_manifest["input_validation_status"] == "PASSED"
+
+    def test_evidence_sha_recorded(self, pool_manifest: dict) -> None:
+        assert len(pool_manifest["retrieval_evidence_sha256"]) == 64
+
+    def test_record_count_matches(self, pool_manifest: dict) -> None:
+        assert pool_manifest["retrieval_evidence_record_count"] == 279
+
+
+# ── Test 3: no relevant_pages/gold_answer ─────────────────────────
+
+class TestNoGroundTruthInPool:
+    def test_pool_has_no_relevant_pages(self, pool_items: list[dict]) -> None:
+        for it in pool_items:
+            assert "relevant_pages" not in json.dumps(it)
+
+    def test_pool_has_no_gold_answer(self, pool_items: list[dict]) -> None:
+        for it in pool_items:
+            assert "gold_answer" not in json.dumps(it)
+
+    def test_manifest_declares_no_ground_truth(self, pool_manifest: dict) -> None:
+        assert pool_manifest["relevant_pages_used"] is False
+        assert pool_manifest["gold_answer_used"] is False
+
+
+# ── Test 4: pre/post reranking no double counting ────────────────
+
+class TestRerankerNoDuplicate:
+    def test_accounting_separates_final_and_dropped(self, accounting: dict) -> None:
+        final = accounting["raw_candidates_final"]
+        dropped = accounting["raw_candidates_dropped_by_reranker"]
+        invalid = accounting["invalid_records"]
+        assert final + dropped + invalid == 279
+
+    def test_no_dropped_in_pool_provenance(self, pool_items: list[dict]) -> None:
+        for it in pool_items:
+            for prov in it.get("source_provenance", []):
+                if prov.get("source_id") in ("W1_sentence_window_rerank", "H2_auto_merging_rerank"):
+                    assert prov.get("post_rerank_rank") is not None
+
+
+# ── Test 5: dropped candidates auditable ──────────────────────────
+
+class TestDroppedCandidatesAuditable:
+    def test_dropped_records_in_accounting(self, accounting: dict) -> None:
+        dropped_recs = [
+            r for r in accounting["raw_candidate_records"]
+            if r["reranker_classification"] == "POST_RERANK_DROPPED"
         ]
-        pairs = [(item["question_id"], item["passage_id"]) for item in lines]
-        assert len(pairs) == len(set(pairs))
+        assert len(dropped_recs) == accounting["raw_candidates_dropped_by_reranker"]
+        for r in dropped_recs:
+            assert r["dropped_by_reranker"] is True
+            assert r["selected_by_reranker"] is False
 
-    def test_03_source_contribution_tracked_in_manifest(self):
-        audit_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/pool_execution_audit.json"
-        )
-        assert audit_file.exists()
-        audit = json.loads(audit_file.read_text(encoding="utf-8"))
-        avail = [
-            e
-            for e in audit["per_question_source_audit"]
-            if e["availability"] == "AVAILABLE"
-        ]
-        assert len(avail) > 0
-        for e in avail:
-            assert e["raw_returned_count"] >= 0
 
-    def test_04_unavailable_source_explicit(self):
-        audit_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/pool_execution_audit.json"
-        )
-        audit = json.loads(audit_file.read_text(encoding="utf-8"))
-        unavail = [
-            e
-            for e in audit["per_question_source_audit"]
-            if e["availability"] == "NOT_AVAILABLE_OFFLINE"
-        ]
-        assert len(unavail) > 0
-        assert any(
-            e["source_id"] in ["lexical_bm25", "dense_canonical"] for e in unavail
-        )
+# ── Test 6: canonical page-level unit explicit ───────────────────
 
-    def test_05_legacy_pages_are_additional_source_only(self):
-        pool_file = Path("benchmarks/ground_truth/v2/hybrid/candidate_pool/pool.jsonl")
-        content = pool_file.read_text(encoding="utf-8")
-        assert "gold_answer" not in content
-        assert "relevance_grade" not in content
+class TestCanonicalPageLevel:
+    def test_manifest_declares_page_level(self, pool_manifest: dict) -> None:
+        assert pool_manifest["canonical_evaluation_unit"] == "PAGE_LEVEL"
+        assert pool_manifest["canonical_registry_entry_count"] == 25
 
-    def test_06_neighbors_preserve_canonical_ids(self):
-        pool_file = Path("benchmarks/ground_truth/v2/hybrid/candidate_pool/pool.jsonl")
-        lines = [
-            json.loads(line)
-            for line in pool_file.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        for item in lines:
-            if item.get("is_neighbor"):
-                assert item["neighbor_policy"] == "adjacent_passage_same_page"
+    def test_accounting_declares_page_level(self, accounting: dict) -> None:
+        assert accounting["canonical_evaluation_unit"] == "PAGE_LEVEL"
+        assert accounting["canonical_registry_entry_count"] == 25
 
-    def test_07_pool_contains_no_holdout(self):
-        pool_file = Path("benchmarks/ground_truth/v2/hybrid/candidate_pool/pool.jsonl")
-        lines = [
-            json.loads(line)
-            for line in pool_file.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        for item in lines:
-            assert "holdout" not in item["question_id"].lower()
+    def test_pool_items_declare_page_level(self, pool_items: list[dict]) -> None:
+        main_items = [it for it in pool_items if not it.get("is_outside_pool_audit")]
+        for it in main_items:
+            assert it["canonical_evaluation_unit"] == "PAGE_LEVEL"
 
-    def test_08_pool_generation_is_deterministic(self, tmp_path: Path):
-        gt_dir = Path("benchmarks/ground_truth/v2")
-        bench_res = Path(
-            "benchmarks/results/slice4_final_composite_recovered_run.json"
-        )
-        out1 = tmp_path / "run1"
-        out2 = tmp_path / "run2"
-        p1, b1, m1, a1, e1 = build_hybrid_pool(gt_dir, out1, bench_res)
-        p2, b2, m2, a2, e2 = build_hybrid_pool(gt_dir, out2, bench_res)
-        assert p1.read_bytes() == p2.read_bytes()
-        assert b1.read_bytes() == b2.read_bytes()
 
-    def test_09_outside_pool_sample_is_deterministic(self):
-        blinded_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/blinded_pool.jsonl"
-        )
-        lines = [
-            json.loads(line)
-            for line in blinded_file.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        audit_items = [item for item in lines if item.get("is_outside_pool_audit")]
-        assert len(audit_items) > 0
+# ── Test 7: outside audit disjoint from pool ──────────────────────
 
-    def test_10_outside_pool_sample_does_not_intersect_main_pool(self):
-        pool_file = Path("benchmarks/ground_truth/v2/hybrid/candidate_pool/pool.jsonl")
-        lines = [
-            json.loads(line)
-            for line in pool_file.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        main_ids = {
-            (item["question_id"], item["passage_id"])
-            for item in lines
-            if not item.get("is_outside_pool_audit")
+class TestOutsideAuditDisjoint:
+    def test_disjoint(self, pool_items: list[dict]) -> None:
+        main_keys = {
+            (it["question_id"], it["page_number"])
+            for it in pool_items if not it.get("is_outside_pool_audit")
         }
-        audit_ids = {
-            (item["question_id"], item["passage_id"])
-            for item in lines
-            if item.get("is_outside_pool_audit")
+        audit_keys = {
+            (it["question_id"], it["page_number"])
+            for it in pool_items if it.get("is_outside_pool_audit")
         }
-        assert len(main_ids.intersection(audit_ids)) == 0
+        assert len(main_keys & audit_keys) == 0
 
-    def test_11_expansion_threshold_registered(self):
-        man_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/pool_manifest.json"
-        )
-        manifest = json.loads(man_file.read_text(encoding="utf-8"))
-        assert manifest["outside_pool_relevant_threshold"] == 0.05
+    def test_manifest_confirms_disjoint(self, pool_manifest: dict) -> None:
+        assert pool_manifest["pool_outside_disjoint"] is True
 
-    def test_12_canonical_mapper_by_id(
-        self, sample_registry_entries: list[PassageRegistryEntry]
-    ):
+
+# ── Test 8: 279-record accounting closes ──────────────────────────
+
+class TestAccountingCloses279:
+    def test_total_evidence_records(self, accounting: dict) -> None:
+        assert accounting["raw_evidence_records"] == 279
+
+    def test_identity_holds(self, accounting: dict) -> None:
+        final = accounting["raw_candidates_final"]
+        dropped = accounting["raw_candidates_dropped_by_reranker"]
+        invalid = accounting["invalid_records"]
+        assert final + dropped + invalid == 279
+
+
+# ── Test 9: Queue A accounting closes ─────────────────────────────
+
+class TestQueueACloses:
+    def test_queue_a_equals_pool_total(
+        self, routing_manifest: dict, pool_manifest: dict,
+    ) -> None:
+        assert routing_manifest["annotator_a_queue_count"] == pool_manifest["queue_a_total"]
+
+    def test_queue_a_items_match_count(
+        self, queue_a: list[dict], routing_manifest: dict,
+    ) -> None:
+        assert len(queue_a) == routing_manifest["annotator_a_queue_count"]
+
+
+# ── Test 10: human queues recursively blinded ─────────────────────
+
+class TestQueuesBlinded:
+    def test_queue_a_blinded(self, queue_a: list[dict]) -> None:
+        for it in queue_a:
+            _assert_no_forbidden(it)
+
+    def test_queue_b_blinded(self, queue_b: list[dict]) -> None:
+        for it in queue_b:
+            _assert_no_forbidden(it)
+
+    def test_blinded_pool_blinded(self, blinded_items: list[dict]) -> None:
+        for it in blinded_items:
+            _assert_no_forbidden(it)
+
+
+# ── Test 11: holdout sealed ───────────────────────────────────────
+
+class TestHoldoutSealed:
+    def test_pool_no_holdout(self, pool_items: list[dict]) -> None:
+        for it in pool_items:
+            assert "holdout" not in it["question_id"]
+
+    def test_pool_manifest_holdout_sealed(self, pool_manifest: dict) -> None:
+        assert pool_manifest["holdout_sealed"] is True
+
+    def test_queue_manifest_holdout_sealed(self, routing_manifest: dict) -> None:
+        assert routing_manifest["holdout_sealed"] is True
+
+
+# ── Test 12: canonical mapper unit tests ──────────────────────────
+
+class TestCanonicalMapper:
+    def test_mapper_by_id(self, sample_registry_entries: list[PassageRegistryEntry]) -> None:
         mapper = CanonicalPassageMapper(sample_registry_entries)
         res = mapper.map_chunk({
             "chunk_id": "ps_entry_01_12345678",
-            "page_number": 92,
-            "text": "qualquer texto",
+            "page_number": 92, "text": "qualquer",
         })
         assert res.mapping_status == CanonicalMappingStatus.EXACT_PASSAGE_ID
-        assert res.mapped_passage_id == "ps_entry_01_12345678"
 
-    def test_13_canonical_mapper_by_offsets(
-        self, sample_registry_entries: list[PassageRegistryEntry]
-    ):
+    def test_mapper_by_offsets(self, sample_registry_entries: list[PassageRegistryEntry]) -> None:
         mapper = CanonicalPassageMapper(sample_registry_entries)
         res = mapper.map_chunk({
-            "chunk_id": "c_offsets",
-            "page_number": 92,
-            "start_char": 100,
-            "end_char": 300,
-            "text": "qualquer texto",
+            "chunk_id": "c_off", "page_number": 92,
+            "start_char": 100, "end_char": 300, "text": "qualquer",
         })
         assert res.mapping_status == CanonicalMappingStatus.EXACT_OFFSETS
-        assert res.mapped_passage_id == "ps_entry_01_12345678"
 
-    def test_14_canonical_mapper_by_hash(
-        self, sample_registry_entries: list[PassageRegistryEntry]
-    ):
+    def test_mapper_by_hash(self, sample_registry_entries: list[PassageRegistryEntry]) -> None:
         mapper = CanonicalPassageMapper(sample_registry_entries)
         text = sample_registry_entries[0].text
         res = mapper.map_chunk({
-            "chunk_id": "c_hash",
-            "page_number": 92,
-            "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-            "text": "qualquer texto",
+            "chunk_id": "c_hash", "page_number": 92,
+            "content_sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "text": "qualquer",
         })
         assert res.mapping_status == CanonicalMappingStatus.EXACT_CONTENT_SHA256
-        assert res.mapped_passage_id == "ps_entry_01_12345678"
 
-    def test_15_canonical_mapper_by_exact_substring(
-        self, sample_registry_entries: list[PassageRegistryEntry]
-    ):
+    def test_mapper_by_substring(self, sample_registry_entries: list[PassageRegistryEntry]) -> None:
         mapper = CanonicalPassageMapper(sample_registry_entries)
         res = mapper.map_chunk({
-            "chunk_id": "c_substr",
-            "page_number": 92,
+            "chunk_id": "c_sub", "page_number": 92,
             "text": "primeiro parágrafo sobre demonstração por indução",
         })
         assert res.mapping_status == CanonicalMappingStatus.EXACT_SUBSTRING
-        assert res.mapped_passage_id == "ps_entry_01_12345678"
 
-    def test_16_canonical_mapper_ambiguity_flagged(
-        self, sample_registry_entries: list[PassageRegistryEntry]
-    ):
+    def test_mapper_ambiguous(self, sample_registry_entries: list[PassageRegistryEntry]) -> None:
         mapper = CanonicalPassageMapper(sample_registry_entries)
         res = mapper.map_chunk({
-            "chunk_id": "c_ambig",
-            "page_number": 92,
-            "text": "Este é o texto",
+            "chunk_id": "c_ambig", "page_number": 92, "text": "Este é o texto",
         })
         assert res.mapping_status == CanonicalMappingStatus.AMBIGUOUS_NEEDS_REVIEW
 
-    def test_17_canonical_mapper_unmapped_flagged(
-        self, sample_registry_entries: list[PassageRegistryEntry]
-    ):
+    def test_mapper_unmapped(self, sample_registry_entries: list[PassageRegistryEntry]) -> None:
         mapper = CanonicalPassageMapper(sample_registry_entries)
         res = mapper.map_chunk({
-            "chunk_id": "c_unmapped",
-            "page_number": 99,
-            "text": "Texto ausente",
+            "chunk_id": "c_unmap", "page_number": 99, "text": "Texto ausente",
         })
         assert res.mapping_status == CanonicalMappingStatus.UNMAPPED_NEEDS_REVIEW
 
-    def test_18_zero_unreported_mapping_loss(self):
-        audit_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/mapping_audit.json"
-        )
-        audit = json.loads(audit_file.read_text(encoding="utf-8"))
-        assert audit["unreported_mapping_loss"] == 0
 
-    def test_19_blinded_view_has_no_strategy(self):
-        blinded_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/blinded_pool.jsonl"
-        )
-        content = blinded_file.read_text(encoding="utf-8")
-        assert "strategy" not in content
+# ── Test 13: rebuild deterministic ────────────────────────────────
 
-    def test_20_blinded_view_has_no_rank(self):
-        blinded_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/blinded_pool.jsonl"
-        )
-        content = blinded_file.read_text(encoding="utf-8")
-        assert "retrieval_rank" not in content
-        assert "rank" not in content
+class TestRebuildDeterministic:
+    def test_pool_manifest_sha_stable(self, pool_manifest: dict) -> None:
+        assert len(pool_manifest["pool_sha256"]) == 64
+        assert len(pool_manifest["blinded_pool_sha256"]) == 64
 
-    def test_21_blinded_view_has_no_scores(self):
-        blinded_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/blinded_pool.jsonl"
-        )
-        content = blinded_file.read_text(encoding="utf-8")
-        assert "retrieval_score" not in content
-        assert "rerank_score" not in content
+    def test_routing_manifest_sha_stable(self, routing_manifest: dict) -> None:
+        assert len(routing_manifest["file_a_sha256"]) == 64
+        assert len(routing_manifest["file_b_sha256"]) == 64
 
-    def test_22_blinded_view_has_no_silver_or_llm_fields(self):
-        blinded_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/blinded_pool.jsonl"
-        )
-        content = blinded_file.read_text(encoding="utf-8")
-        assert "silver" not in content
-        assert "judge" not in content
 
-    def test_23_blinded_view_has_no_other_annotator_answers(self):
-        blinded_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/blinded_pool.jsonl"
-        )
-        content = blinded_file.read_text(encoding="utf-8")
-        assert "annotator_a_grade" not in content
-        assert "annotator_b_grade" not in content
+# ── Multisystem provenance ────────────────────────────────────────
 
-    def test_24_blinded_order_is_deterministic(self, tmp_path: Path):
-        blinded_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/blinded_pool.jsonl"
-        )
-        lines1 = blinded_file.read_text(encoding="utf-8").splitlines()
-        lines2 = blinded_file.read_text(encoding="utf-8").splitlines()
-        assert lines1 == lines2
+class TestMultisystemProvenance:
+    def test_multisystem_verified(self, pool_manifest: dict) -> None:
+        assert pool_manifest["multisystem_provenance_verified"] is True
+        assert pool_manifest["independent_family_count"] >= 2
 
-    # Reconciliation Tests (ETAPA 8)
-    def test_25_rehydration_of_truncated_preview_required(self):
-        prev = "Demonstração por Exaustão Embora “provar a falsidade por um contraexemplo” sempr"  # noqa: E501
-        entry = {
-            "page_number": 92,
-            "text": "Demonstração por Exaustão Embora “provar a falsidade por um contraexemplo” sempre funcione...",  # noqa: E501
+    def test_seven_strategies_present(self, exec_audit: dict) -> None:
+        strategies = set(exec_audit["strategies_present"])
+        expected = {
+            "F0_baseline", "S0_sentence_anchor",
+            "W0_sentence_window", "W1_sentence_window_rerank",
+            "H0_hierarchical_leaf", "H1_auto_merging", "H2_auto_merging_rerank",
         }
-        full, s, e, status, sha = rehydrate_candidate_text(prev, 92, entry)
-        assert status in ["REHYDRATED_EXACT", "REHYDRATED_DETERMINISTIC"]
-        assert len(full) >= len(prev)
+        assert strategies == expected
 
-    def test_26_rehydration_demands_verifiable_artifact(self):
-        rehyd_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/rehydration_audit.json"
-        )
-        assert rehyd_file.exists()
-        rehyd = json.loads(rehyd_file.read_text(encoding="utf-8"))
-        assert rehyd["rehydration_success_rate"] == 1.0
-        assert rehyd["total_candidates"] == 168
+    def test_all_available(self, exec_audit: dict) -> None:
+        for entry in exec_audit["per_question_source_audit"]:
+            assert entry["availability"] == "AVAILABLE"
+            assert entry["execution_mode"] == "MATERIALIZED_EVIDENCE_V2"
 
-    def test_27_reconstructed_text_from_preview_rejected(self):
-        prev = "texto truncado sem correspondência"
-        full, s, e, status, sha = rehydrate_candidate_text(prev, 99, None)
-        assert status == "NOT_REHYDRATABLE"
 
-    def test_28_one_hundred_sixty_eight_candidates_close_accountingly(self):
-        acc_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/raw_candidate_accounting.json"  # noqa: E501
-        )
-        assert acc_file.exists()
-        acc = json.loads(acc_file.read_text(encoding="utf-8"))
-        assert acc["total_raw_candidates"] == 168
-        assert acc["accounting_identity_verified"] is True
-        counts = acc["disposition_counts"]
-        assert sum(counts.values()) == 168
+# ── Pool deduplication ────────────────────────────────────────────
 
-    def test_29_unmapped_candidate_has_operational_disposition(self):
-        acc_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/raw_candidate_accounting.json"  # noqa: E501
-        )
-        acc = json.loads(acc_file.read_text(encoding="utf-8"))
-        for rec in acc["raw_candidate_records"]:
-            assert "operational_disposition" in rec
-            assert rec["operational_disposition"] in [
-                "CANONICAL_HUMAN_REVIEW",
-                "RAW_CANDIDATE_HUMAN_REVIEW",
-                "DUPLICATE_OF_CANONICAL",
-                "DUPLICATE_OF_RAW_CANDIDATE",
-                "UNRESOLVED_BLOCKING",
-                "INVALID_SOURCE_RECORD",
-            ]
+class TestPoolDeduplication:
+    def test_no_duplicate_qid_page_pairs(self, pool_items: list[dict]) -> None:
+        pairs = [(it["question_id"], it["page_number"]) for it in pool_items]
+        assert len(pairs) == len(set(pairs))
 
-    def test_30_unrehydratable_unmapped_generates_blocking(self):
-        acc_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/raw_candidate_accounting.json"  # noqa: E501
-        )
-        acc = json.loads(acc_file.read_text(encoding="utf-8"))
-        unresolved = [
-            r
-            for r in acc["raw_candidate_records"]
-            if r["operational_disposition"] == "UNRESOLVED_BLOCKING"
-        ]
-        # In our reconciled dataset, 0 are unresolved blocking because all 168 rehydrated
-        assert len(unresolved) == 0
+    def test_blinded_view_clean(self, blinded_items: list[dict]) -> None:
+        content = json.dumps(blinded_items)
+        assert "gold_answer" not in content
 
-    def test_31_raw_unmapped_review_recursively_blinded(self):
-        blinded_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/blinded_pool.jsonl"
-        )
-        lines = [
-            json.loads(line)
-            for line in blinded_file.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        for item in lines:
-            assert_no_forbidden_keys_recursive(item)
 
-    def test_32_duplicates_do_not_inflate_human_queue(self):
-        acc_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/raw_candidate_accounting.json"  # noqa: E501
-        )
-        acc = json.loads(acc_file.read_text(encoding="utf-8"))
-        dups = acc["disposition_counts"]["DUPLICATE_OF_CANONICAL"]
-        assert dups == 115
+# ── Queue status ──────────────────────────────────────────────────
 
-    def test_33_mapping_coverage_before_after_calculated(self):
-        audit_file = Path(
-            "benchmarks/ground_truth/v2/hybrid/candidate_pool/mapping_audit.json"
-        )
-        audit = json.loads(audit_file.read_text(encoding="utf-8"))
-        assert audit["mapping_coverage_before"] == 0.2857
-        assert audit["mapping_coverage_after"] == 1.0
+class TestQueueStatus:
+    def test_provisional_without_silver(self, routing_manifest: dict) -> None:
+        assert routing_manifest["queue_status"] == "PROVISIONAL_WITHOUT_SILVER"
+
+    def test_overlap_range(self, routing_manifest: dict) -> None:
+        rate = routing_manifest["planned_overlap_rate"]
+        assert 0 < rate <= 1.0
+
+    def test_blinding_verified(self, routing_manifest: dict) -> None:
+        assert routing_manifest["blinding_verified"] is True

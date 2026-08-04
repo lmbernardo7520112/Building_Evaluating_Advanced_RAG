@@ -1,14 +1,2030 @@
 {
-  "total_candidates": 168,
-  "mapped_exact": 0,
-  "mapped_by_offset": 0,
-  "mapped_by_hash": 0,
-  "mapped_by_exact_substring": 168,
-  "overlapping_canonical_passages": 0,
-  "ambiguous": 0,
-  "unmapped": 0,
-  "mapping_coverage_before": 0.2857,
-  "mapping_coverage_after": 1.0,
-  "unreported_mapping_loss": 0,
-  "problematic_items": []
+  "schema_version": "3.0.0",
+  "total_final_candidates": 168,
+  "mapping_status_counts": {
+    "EXACT_CANONICAL_PAGE": 168,
+    "MULTI_PAGE_CANONICAL_COVERAGE": 0,
+    "PAGE_METADATA_MISSING": 0
+  },
+  "canonical_registry_entry_count": 25,
+  "canonical_evaluation_unit": "PAGE_LEVEL",
+  "note": "raw_retrieval_unit ≠ canonical_evaluation_unit. Retrievers produce sub-page chunks/sentences/windows. Canonical evaluation is at PAGE_LEVEL (25 pages, 91-115).",
+  "mapping_results": [
+    {
+      "qid": "q_dev_01",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_c10",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p94_c1",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98_c3",
+      "page_numbers": [
+        98
+      ],
+      "canonical_page_ids": [
+        "ps_page_98"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_c5",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_c0",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p95_c3",
+      "page_numbers": [
+        95
+      ],
+      "canonical_page_ids": [
+        "ps_page_95"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_c3",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_c1",
+      "page_numbers": [
+        101
+      ],
+      "canonical_page_ids": [
+        "ps_page_101"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108_c0",
+      "page_numbers": [
+        108
+      ],
+      "canonical_page_ids": [
+        "ps_page_108"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103_c3",
+      "page_numbers": [
+        103
+      ],
+      "canonical_page_ids": [
+        "ps_page_103"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_c0",
+      "page_numbers": [
+        107
+      ],
+      "canonical_page_ids": [
+        "ps_page_107"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p104_c3",
+      "page_numbers": [
+        104
+      ],
+      "canonical_page_ids": [
+        "ps_page_104"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_c5",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_c7",
+      "page_numbers": [
+        107
+      ],
+      "canonical_page_ids": [
+        "ps_page_107"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_c7",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108_c0",
+      "page_numbers": [
+        108
+      ],
+      "canonical_page_ids": [
+        "ps_page_108"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_c0",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_c7",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_c5",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_c8",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108_c0",
+      "page_numbers": [
+        108
+      ],
+      "canonical_page_ids": [
+        "ps_page_108"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_c0",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111_c6",
+      "page_numbers": [
+        111
+      ],
+      "canonical_page_ids": [
+        "ps_page_111"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "F0_baseline",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_c7",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s36_anchor",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s20_anchor",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_s28_anchor",
+      "page_numbers": [
+        101
+      ],
+      "canonical_page_ids": [
+        "ps_page_101"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s27_anchor",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s3_anchor",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p95_s14_anchor",
+      "page_numbers": [
+        95
+      ],
+      "canonical_page_ids": [
+        "ps_page_95"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s28_anchor",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s30_anchor",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111_s18_anchor",
+      "page_numbers": [
+        111
+      ],
+      "canonical_page_ids": [
+        "ps_page_111"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39_anchor",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98_s47_anchor",
+      "page_numbers": [
+        98
+      ],
+      "canonical_page_ids": [
+        "ps_page_98"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p94_s25_anchor",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39_anchor",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s14_anchor",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99_s80_anchor",
+      "page_numbers": [
+        99
+      ],
+      "canonical_page_ids": [
+        "ps_page_99"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_s38_anchor",
+      "page_numbers": [
+        107
+      ],
+      "canonical_page_ids": [
+        "ps_page_107"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s1_anchor",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s40_anchor",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s31_anchor",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s17_anchor",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s30_anchor",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s41_anchor",
+      "page_numbers": [
+        110
+      ],
+      "canonical_page_ids": [
+        "ps_page_110"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s14_anchor",
+      "page_numbers": [
+        110
+      ],
+      "canonical_page_ids": [
+        "ps_page_110"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "S0_sentence_anchor",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99_s34_anchor",
+      "page_numbers": [
+        99
+      ],
+      "canonical_page_ids": [
+        "ps_page_99"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s36",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s20",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_s28",
+      "page_numbers": [
+        101
+      ],
+      "canonical_page_ids": [
+        "ps_page_101"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s27",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s3",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p95_s14",
+      "page_numbers": [
+        95
+      ],
+      "canonical_page_ids": [
+        "ps_page_95"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s28",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111_s18",
+      "page_numbers": [
+        111
+      ],
+      "canonical_page_ids": [
+        "ps_page_111"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s14",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p98_s47",
+      "page_numbers": [
+        98
+      ],
+      "canonical_page_ids": [
+        "ps_page_98"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p94_s25",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s14",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99_s80",
+      "page_numbers": [
+        99
+      ],
+      "canonical_page_ids": [
+        "ps_page_99"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_s38",
+      "page_numbers": [
+        107
+      ],
+      "canonical_page_ids": [
+        "ps_page_107"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s1",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s40",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s31",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s17",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s40",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s41",
+      "page_numbers": [
+        110
+      ],
+      "canonical_page_ids": [
+        "ps_page_110"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s14",
+      "page_numbers": [
+        110
+      ],
+      "canonical_page_ids": [
+        "ps_page_110"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "W0_sentence_window",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99_s34",
+      "page_numbers": [
+        99
+      ],
+      "canonical_page_ids": [
+        "ps_page_99"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s36",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s1",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s20",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p96_s3",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_s5",
+      "page_numbers": [
+        101
+      ],
+      "canonical_page_ids": [
+        "ps_page_101"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s13",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_s4",
+      "page_numbers": [
+        101
+      ],
+      "canonical_page_ids": [
+        "ps_page_101"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s38",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s13",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p108_s13",
+      "page_numbers": [
+        108
+      ],
+      "canonical_page_ids": [
+        "ps_page_108"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p103_s9",
+      "page_numbers": [
+        103
+      ],
+      "canonical_page_ids": [
+        "ps_page_103"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p94_s25",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p107_s39",
+      "page_numbers": [
+        107
+      ],
+      "canonical_page_ids": [
+        "ps_page_107"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p111_s38",
+      "page_numbers": [
+        111
+      ],
+      "canonical_page_ids": [
+        "ps_page_111"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p105_s39",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s1",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p91_s10",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p101_s0",
+      "page_numbers": [
+        101
+      ],
+      "canonical_page_ids": [
+        "ps_page_101"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p100_s29",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p92_s10",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p110_s14",
+      "page_numbers": [
+        110
+      ],
+      "canonical_page_ids": [
+        "ps_page_110"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p99_s34",
+      "page_numbers": [
+        99
+      ],
+      "canonical_page_ids": [
+        "ps_page_99"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "W1_sentence_window_rerank",
+      "raw_candidate_id": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting)_p109_s6",
+      "page_numbers": [
+        109
+      ],
+      "canonical_page_ids": [
+        "ps_page_109"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "764e3d25-51dc-436d-95db-b3688872b289",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "52811238-dd18-46e8-873d-3a2485f76b5e",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "380d2384-9848-4463-bbcd-8f5c253e0ca4",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "108ca204-52c3-44a8-8927-ad71f2bf1da7",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "380d2384-9848-4463-bbcd-8f5c253e0ca4",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "a383c04b-6f30-4c52-99a4-a6b1c1773d72",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "b9adb1a1-c057-430f-895d-9a08de9c1af9",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "8ef9204c-6fdd-4be3-be59-70dc5b146397",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "8c3f9c14-be9d-41b0-b6d1-cfd514b72b2a",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "b9adb1a1-c057-430f-895d-9a08de9c1af9",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "1a532e4c-c139-43b9-9d9a-935f09d6d24a",
+      "page_numbers": [
+        102
+      ],
+      "canonical_page_ids": [
+        "ps_page_102"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "7ef3cb44-2f19-4a86-8e41-dd4cb52e6452",
+      "page_numbers": [
+        101
+      ],
+      "canonical_page_ids": [
+        "ps_page_101"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "b9adb1a1-c057-430f-895d-9a08de9c1af9",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "8ef9204c-6fdd-4be3-be59-70dc5b146397",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "859194ef-ab49-44aa-884c-924c46e458f3",
+      "page_numbers": [
+        114
+      ],
+      "canonical_page_ids": [
+        "ps_page_114"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "b9adb1a1-c057-430f-895d-9a08de9c1af9",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "58a4c922-d48d-40d9-9bf0-14eabd767854",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "52811238-dd18-46e8-873d-3a2485f76b5e",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "3d8bcddb-3acc-41fc-8562-ad63837e204f",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "52811238-dd18-46e8-873d-3a2485f76b5e",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "380d2384-9848-4463-bbcd-8f5c253e0ca4",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "8e450f0c-5340-4586-bd00-e0343e7c1fe6",
+      "page_numbers": [
+        111
+      ],
+      "canonical_page_ids": [
+        "ps_page_111"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "cae21441-aab1-4b80-b498-872d41ce5a8e",
+      "page_numbers": [
+        110
+      ],
+      "canonical_page_ids": [
+        "ps_page_110"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H0_hierarchical_leaf",
+      "raw_candidate_id": "c228caf0-b7d8-49a4-82a8-e496b9f27b40",
+      "page_numbers": [
+        115
+      ],
+      "canonical_page_ids": [
+        "ps_page_115"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "25cf4487-acd0-4033-87d7-b3bf96b9b973",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "5b0a78e1-36b8-48b5-bb3f-2f7a628a1c4e",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "5bdc1792-1290-49a0-938c-b44cf4e886a5",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "e84f55ae-5f93-4933-98e6-1731300dd044",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "5bdc1792-1290-49a0-938c-b44cf4e886a5",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "a4f8961c-54b8-4489-bf6a-8b5faa11c76d",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "d5cd376b-1a55-4b10-86ef-a781716c8ef3",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "7f74fbf7-a435-44c6-8ec0-9a7b85e87101",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "b48c4e23-7036-4bd0-821e-ec103486e008",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "d5cd376b-1a55-4b10-86ef-a781716c8ef3",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "ec25a2ba-6f8e-430e-a15d-7772ff800967",
+      "page_numbers": [
+        102
+      ],
+      "canonical_page_ids": [
+        "ps_page_102"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "16e690c3-255c-4cd7-9fa3-73072d39e3d5",
+      "page_numbers": [
+        101
+      ],
+      "canonical_page_ids": [
+        "ps_page_101"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "d5cd376b-1a55-4b10-86ef-a781716c8ef3",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "7f74fbf7-a435-44c6-8ec0-9a7b85e87101",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "00a34e3b-f63f-4039-93ed-999e4601e975",
+      "page_numbers": [
+        114
+      ],
+      "canonical_page_ids": [
+        "ps_page_114"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "d5cd376b-1a55-4b10-86ef-a781716c8ef3",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "5cbb060a-bed1-4519-acb7-9fe333608987",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "5b0a78e1-36b8-48b5-bb3f-2f7a628a1c4e",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "9db9f27b-b4fa-4914-96c7-22834e289631",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "5b0a78e1-36b8-48b5-bb3f-2f7a628a1c4e",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "5bdc1792-1290-49a0-938c-b44cf4e886a5",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "9d1c403a-aa90-4c2f-9f2c-f1491e35d5be",
+      "page_numbers": [
+        111
+      ],
+      "canonical_page_ids": [
+        "ps_page_111"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "77a70625-725e-496b-b7b9-8c3b8d257cad",
+      "page_numbers": [
+        110
+      ],
+      "canonical_page_ids": [
+        "ps_page_110"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H1_auto_merging",
+      "raw_candidate_id": "f85583b6-c8cb-493c-abaf-199169bd16c1",
+      "page_numbers": [
+        115
+      ],
+      "canonical_page_ids": [
+        "ps_page_115"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "420dbd1c-82b2-4505-8285-e65cc2867a4b",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "b241cf12-e50e-4808-b99a-2fbbb622963c",
+      "page_numbers": [
+        94
+      ],
+      "canonical_page_ids": [
+        "ps_page_94"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_01",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "43b37a5d-9b95-4a1c-81e4-cf1cd30d7a5a",
+      "page_numbers": [
+        104
+      ],
+      "canonical_page_ids": [
+        "ps_page_104"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "b9f8fb04-b780-4677-b954-8c6ea90d4ea2",
+      "page_numbers": [
+        96
+      ],
+      "canonical_page_ids": [
+        "ps_page_96"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "632cc8b2-7078-44b2-9268-fedb8c28a787",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_02",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "420dbd1c-82b2-4505-8285-e65cc2867a4b",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "ec6fe47e-93aa-4368-a93d-83dd39659473",
+      "page_numbers": [
+        108
+      ],
+      "canonical_page_ids": [
+        "ps_page_108"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "5ed610ff-6dd9-436e-93f7-596ef45ef0b7",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_03",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "4f474732-65e9-47b9-8445-61ce38fcd33b",
+      "page_numbers": [
+        98
+      ],
+      "canonical_page_ids": [
+        "ps_page_98"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "d9b1bd6b-a0dc-4376-96be-f5b23596922a",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "48207176-13e6-43d0-86cb-8b2d461a3ad2",
+      "page_numbers": [
+        107
+      ],
+      "canonical_page_ids": [
+        "ps_page_107"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_dev_04",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "ec6fe47e-93aa-4368-a93d-83dd39659473",
+      "page_numbers": [
+        108
+      ],
+      "canonical_page_ids": [
+        "ps_page_108"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "d9b1bd6b-a0dc-4376-96be-f5b23596922a",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "e3b2f99b-d31e-44ee-a7b3-ffccaf974eb2",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_01",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "9e5464c2-a96a-4e84-adfd-ef5840850194",
+      "page_numbers": [
+        107
+      ],
+      "canonical_page_ids": [
+        "ps_page_107"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "d9b1bd6b-a0dc-4376-96be-f5b23596922a",
+      "page_numbers": [
+        105
+      ],
+      "canonical_page_ids": [
+        "ps_page_105"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "ec6fe47e-93aa-4368-a93d-83dd39659473",
+      "page_numbers": [
+        108
+      ],
+      "canonical_page_ids": [
+        "ps_page_108"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_02",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "c87fa21d-b249-4e76-bae5-c24c7541a3c1",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "420dbd1c-82b2-4505-8285-e65cc2867a4b",
+      "page_numbers": [
+        92
+      ],
+      "canonical_page_ids": [
+        "ps_page_92"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "632cc8b2-7078-44b2-9268-fedb8c28a787",
+      "page_numbers": [
+        100
+      ],
+      "canonical_page_ids": [
+        "ps_page_100"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_03",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "c403cc65-13a6-4696-a5ce-5d0ea0a39347",
+      "page_numbers": [
+        91
+      ],
+      "canonical_page_ids": [
+        "ps_page_91"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "6b50a83f-488b-4fe1-8f2c-30d2dfe35695",
+      "page_numbers": [
+        110
+      ],
+      "canonical_page_ids": [
+        "ps_page_110"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "a2f355bd-a1d5-4780-a606-1541cc78f8bc",
+      "page_numbers": [
+        111
+      ],
+      "canonical_page_ids": [
+        "ps_page_111"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    },
+    {
+      "qid": "q_test_04",
+      "strategy": "H2_auto_merging_rerank",
+      "raw_candidate_id": "15a39c31-ff79-4a80-b769-6901b7096b37",
+      "page_numbers": [
+        107
+      ],
+      "canonical_page_ids": [
+        "ps_page_107"
+      ],
+      "mapping_status": "EXACT_CANONICAL_PAGE"
+    }
+  ]
 }

@@ -1,21 +1,20 @@
 {
-  "schema_version": "2.0.0",
+  "schema_version": "3.0.0",
   "protocol_version": "raglab_v7_slice4_v3",
   "queue_status": "PROVISIONAL_WITHOUT_SILVER",
-  "annotator_a_queue_count": 133,
-  "annotator_b_queue_count": 88,
-  "adjudication_template_count": 88,
-  "total_candidate_pool_items": 133,
-  "planned_overlap_rate": 0.6617,
+  "annotator_a_queue_count": 69,
+  "annotator_b_queue_count": 16,
+  "adjudication_template_count": 16,
+  "total_candidate_pool_items": 69,
+  "planned_overlap_rate": 0.2319,
   "target_overlap_range": [
     0.15,
     0.25
   ],
-  "overlap_exceeded_due_to_mandatory_risk_cases": true,
+  "blinding_verified": true,
   "silver_used_in_routing": false,
-  "file_a_sha256": "4adf3e3b75ebe66183c94e4a48cd4b4b8d4b7f8a5d64575933dd3bdcfd4bf5c5",
-  "file_b_sha256": "06e98ed2326ac5f6e0bb3777ee30efb1f0b92eeef40342b567f2591b940ba110",
-  "file_adj_sha256": "a084f7d0bd5072d65cd5213e608c407727b53548c9b2654c116fad73bbf06957",
-  "holdout_sealed": true,
-  "created_by": "reconciled_routing_builder"
+  "file_a_sha256": "7137fc52b3a5fff086be07387425632b5434e3b8592f7217a6cadc29bc7cc0a3",
+  "file_b_sha256": "f5171260d144dce60d3043da29ce7aa0309c247f9079104d538664e4ba2993df",
+  "file_adj_sha256": "441d0578c898330452a14afcf39b24fee8c34b2f49c236bde9c07fc60c450bc7",
+  "holdout_sealed": true
 }
