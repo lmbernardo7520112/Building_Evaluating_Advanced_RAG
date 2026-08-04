@@ -1,0 +1,19 @@
+{
+  "schema_version": "2.0.0",
+  "protocol_version": "raglab_v7_slice4_v3",
+  "annotator_a_queue_count": 91,
+  "annotator_b_queue_count": 17,
+  "adjudication_template_count": 17,
+  "total_candidate_pool_items": 91,
+  "planned_overlap_rate": 0.1868,
+  "target_overlap_range": [
+    0.15,
+    0.25
+  ],
+  "silver_used_in_routing": false,
+  "file_a_sha256": "ed7a613235776aea0345e4aa062079f0f3fa752bdf1be2ca0e22afbfa0881bbb",
+  "file_b_sha256": "6da545b2eaef95fd02253b59449cdb71095b8c04d0367817ee84262e25348de4",
+  "file_adj_sha256": "3132c716d41dbf69649572cae5116137ca920bfdc13d25ebec9ce4e9abe0bb6a",
+  "holdout_sealed": true,
+  "created_by": "deterministic_offline_builder"
+}

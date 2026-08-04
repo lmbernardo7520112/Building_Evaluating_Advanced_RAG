@@ -1,0 +1,12 @@
+{
+  "schema_version": "2.0.0",
+  "protocol_version": "raglab_v7_slice4_v3",
+  "judge_independence_status": "CORRELATED_SINGLE_PROVIDER",
+  "mode": "validate-only",
+  "total_records": 91,
+  "silver_file_sha256": "c19cf5dca74f8e08e5087529fadce6913d34225b13edb2576f6e569c9fb10d4c",
+  "network_used": false,
+  "api_used": false,
+  "credentials_accessed": false,
+  "holdout_sealed": true
+}
