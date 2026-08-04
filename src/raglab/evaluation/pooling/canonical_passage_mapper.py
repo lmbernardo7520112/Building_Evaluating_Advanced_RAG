@@ -83,8 +83,8 @@ class CanonicalPassageMapper:
         page_num = int(chunk_data.get("page_number", 0))
         text = str(chunk_data.get("text", "")).strip()
 
-        # Rule 1: Exact passage_id match
-        ps_id = chunk_data.get("passage_id")
+        # Rule 1: Exact passage_id / chunk_id match
+        ps_id = chunk_data.get("passage_id") or chunk_data.get("chunk_id")
         if ps_id and ps_id in self.by_id:
             return CanonicalMappingResult(
                 source_chunk_id=chunk_id,
@@ -117,21 +117,22 @@ class CanonicalPassageMapper:
                 )
 
         # Rule 3: Exact content_sha256 match
-        if text:
+        text_sha = chunk_data.get("content_sha256")
+        if not text_sha and text:
             text_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
-            if text_sha in self.by_sha:
-                candidates = self.by_sha[text_sha]
-                if len(candidates) == 1:
-                    entry = candidates[0]
-                    return CanonicalMappingResult(
-                        source_chunk_id=chunk_id,
-                        document_id=doc_id,
-                        page_number=entry.page_number,
-                        mapped_passage_id=entry.passage_id,
-                        mapping_status=CanonicalMappingStatus.EXACT_CONTENT_SHA256,
-                        confidence=1.0,
-                        notes="Matched by exact content_sha256 digest",
-                    )
+        if text_sha and text_sha in self.by_sha:
+            candidates = self.by_sha[text_sha]
+            if len(candidates) == 1:
+                entry = candidates[0]
+                return CanonicalMappingResult(
+                    source_chunk_id=chunk_id,
+                    document_id=doc_id,
+                    page_number=entry.page_number,
+                    mapped_passage_id=entry.passage_id,
+                    mapping_status=CanonicalMappingStatus.EXACT_CONTENT_SHA256,
+                    confidence=1.0,
+                    notes="Matched by exact content_sha256 digest",
+                )
 
         # Rule 4 & 5: Exact substring match on same page
         if page_num > 0 and text:
