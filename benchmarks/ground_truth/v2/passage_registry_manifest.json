@@ -1,0 +1,21 @@
+{
+  "schema_version": "2.0.0",
+  "registry_version": "2.0.0",
+  "corpus_filename": "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf",
+  "corpus_sha256": "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254",
+  "page_range": [
+    91,
+    115
+  ],
+  "extraction_adapter": "PyPdfExtractorAdapter",
+  "segmentation_policy": "paragraph_split_with_min_50_chars",
+  "segmentation_parameters": {
+    "min_chars": 50,
+    "split_regex": "(\\n\\s*\\n+)"
+  },
+  "passage_count": 25,
+  "registry_sha256": "c2d1b31e5eaeb98e2a31094628cf2e4291c4ff73bb7ddb1f79929204163799e1",
+  "created_by": "deterministic_offline_builder",
+  "network_used": false,
+  "api_used": false
+}
