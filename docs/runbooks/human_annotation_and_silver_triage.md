@@ -119,13 +119,44 @@ python scripts/validate_human_annotations.py \
   --work-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/annotator_a_work.jsonl \
   --export-file benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_a_final.jsonl
 
-# E. Validar e Exportar Anotações Concluídas (Anotador B):
+# E. Validar e Exportar Anotações Concluídas (Anotador B - Fila Original 53):
 python scripts/validate_human_annotations.py \
   --annotator-id annotator_b \
   --queue-file benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b.jsonl \
   --questions-file benchmarks/questions/controlled_chapter2.json \
   --work-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/annotator_b_work.jsonl \
   --export-file benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_final.jsonl
+
+# F. Construir Fila Suplementar Cegada de Cobertura para Anotador B (16 itens A-only):
+python scripts/build_supplemental_b_queue.py \
+  --full-queue-a benchmarks/ground_truth/v2/hybrid/human_queues/annotator_a.jsonl \
+  --original-queue-b benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b.jsonl \
+  --output-queue benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b_supplemental.jsonl \
+  --output-manifest benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b_supplemental_manifest.json
+
+# G. Iniciar Anotação Suplementar para Anotador B (16 itens, Porta 8502):
+python scripts/annotate_human_queue.py \
+  --annotator-id annotator_b \
+  --queue-file benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b_supplemental.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --output-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/annotator_b_supplemental_work.jsonl \
+  --port 8502
+
+# H. Validar e Exportar Anotações Suplementares Concluídas (Anotador B - 16 itens):
+python scripts/validate_human_annotations.py \
+  --annotator-id annotator_b \
+  --queue-file benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b_supplemental.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --work-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/annotator_b_supplemental_work.jsonl \
+  --export-file benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_supplemental_final.jsonl
+
+# I. Combinar Export Original (53) + Export Suplementar (16) do Anotador B (69 itens):
+python scripts/merge_human_annotations_b.py \
+  --original-export-b benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_final.jsonl \
+  --supplemental-export-b benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_supplemental_final.jsonl \
+  --full-queue-a benchmarks/ground_truth/v2/hybrid/human_queues/annotator_a.jsonl \
+  --output-combined benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_combined_final.jsonl \
+  --output-manifest benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_combined_manifest.json
 ```
 
 ---

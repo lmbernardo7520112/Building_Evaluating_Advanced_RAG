@@ -358,7 +358,7 @@ def validate_annotation_record(
 
     if mode == "completed" and answerability is True and not has_positive_evidence:
         errors.append(
-            f"[{qid}] Completed ANSWERABLE question must have relevant passage"
+            f"[{qid}] Completed ANSWERABLE question must have at least one relevant passage (grade >= 1)"  # noqa: E501
         )
 
     ev_sets = record.get("evidence_sets", [])
