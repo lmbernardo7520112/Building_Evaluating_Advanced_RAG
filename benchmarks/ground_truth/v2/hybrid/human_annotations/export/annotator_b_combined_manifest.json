@@ -1,0 +1,16 @@
+{
+  "schema_version": "3.0.0",
+  "protocol_version": "raglab_v7_slice4_v3",
+  "created_at_utc": "2026-08-05T15:39:19.809266+00:00",
+  "annotator_id": "annotator_b",
+  "original_b_export_sha256": "4207ccffb8a72dc03ec7aee9326a72994c83051d3a17c31460121d00c2b4b02b",
+  "supplemental_b_export_sha256": "439965a785d93efec71215a2a997b926f79e8fbbd7c1248a9cdf43147c025299",
+  "queue_a_file_sha256": "7137fc52b3a5fff086be07387425632b5434e3b8592f7217a6cadc29bc7cc0a3",
+  "combined_export_sha256": "df2e2f83682548810069c2b03173cdfbfa323ca170cb61a7482ca5162045d017",
+  "original_count": 53,
+  "supplemental_count": 16,
+  "total_combined_count": 69,
+  "matches_queue_a_coverage": true,
+  "holdout_sealed": true,
+  "export_status": "VALIDATED_COMBINED_HUMAN_QRELS"
+}
