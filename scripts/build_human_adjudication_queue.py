@@ -10,7 +10,7 @@ CLI:
     --output-manifest PATH
 
 Calculates the deduplicated union of grade disagreements (21) and structural abstention
-audit questions (10), anonymizes A & B into Reviewer 1 & 2 via deterministic pair hashing,
+audit questions (10), anonymizes A & B into Reviewer 1 & 2 via domain-separated SHA-256,
 and outputs a blinded adjudication queue and manifest.
 """
 
@@ -30,6 +30,9 @@ from typing import Any, Final
 PROTOCOL_VERSION: Final[str] = "raglab_v7_slice4_v3"
 SCHEMA_VERSION: Final[str] = "3.0.0"
 HOLDOUT_QIDS: Final[frozenset[str]] = frozenset({"q_holdout_01", "q_holdout_02"})
+
+REVIEWER_ORDER_DOMAIN: Final[str] = "raglab:v7:adjudication-reviewer-order"
+REVIEWER_ORDER_ALGORITHM: Final[str] = "sha256-domain-separated-v1"
 
 BLINDING_FORBIDDEN_FIELDS: Final[frozenset[str]] = frozenset(
     {
@@ -56,6 +59,17 @@ BLINDING_FORBIDDEN_FIELDS: Final[frozenset[str]] = frozenset(
 
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def should_swap_reviewers(question_id: str, passage_id: str) -> bool:
+    """Determine whether to swap Reviewer 1 (A) and Reviewer 2 (B) for a given pair.
+
+    Uses SHA-256 digest with domain separation to ensure cryptographic stability
+    and reproducibility across Python processes regardless of PYTHONHASHSEED.
+    """
+    payload = f"{REVIEWER_ORDER_DOMAIN}:{question_id}\x00{passage_id}".encode("utf-8")
+    digest = hashlib.sha256(payload).digest()
+    return int.from_bytes(digest[:8], "big") % 2 == 1
 
 
 def atomic_write_json(target_path: Path, data: Any, is_jsonl: bool = False) -> None:
@@ -91,17 +105,11 @@ def atomic_write_json(target_path: Path, data: Any, is_jsonl: bool = False) -> N
         raise
 
 
-def load_and_validate_export(
-    file_path: Path, expected_annotator_id: str
-) -> dict[tuple[str, str], dict[str, Any]]:
+def load_and_validate_export(file_path: Path, expected_annotator_id: str) -> dict[tuple[str, str], dict[str, Any]]:
     if not file_path.exists():
         raise FileNotFoundError(f"Export file not found: {file_path}")
 
-    lines = [
-        line.strip()
-        for line in file_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    lines = [line.strip() for line in file_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if not lines:
         raise ValueError(f"Export file is empty: {file_path}")
 
@@ -111,9 +119,7 @@ def load_and_validate_export(
         try:
             rec = json.loads(line)
         except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"Invalid JSON on line {line_num} of {file_path}: {exc}"
-            ) from exc
+            raise ValueError(f"Invalid JSON on line {line_num} of {file_path}: {exc}") from exc
 
         ann_id = rec.get("annotator_id")
         if ann_id != expected_annotator_id:
@@ -125,9 +131,7 @@ def load_and_validate_export(
         ps_id = str(rec.get("passage_id", "")).strip()
 
         if not qid or not ps_id:
-            raise ValueError(
-                f"Missing question_id or passage_id on line {line_num} of {file_path}"
-            )
+            raise ValueError(f"Missing question_id or passage_id on line {line_num} of {file_path}")
 
         if qid in HOLDOUT_QIDS or "holdout" in qid.lower():
             raise ValueError(f"HOLDOUT VIOLATION: item '{qid}' found in {file_path}")
@@ -138,9 +142,7 @@ def load_and_validate_export(
 
         for forbidden in BLINDING_FORBIDDEN_FIELDS:
             if forbidden in rec:
-                raise ValueError(
-                    f"BLINDING VIOLATION: forbidden field '{forbidden}' in {file_path}"
-                )
+                raise ValueError(f"BLINDING VIOLATION: forbidden field '{forbidden}' in {file_path}")
 
         records[pair] = rec
 
@@ -157,18 +159,12 @@ def build_adjudication_queue(
 ) -> tuple[Path, Path]:
     """Build blinded human adjudication queue from A & B export files and questions file."""
 
-    map_a = load_and_validate_export(
-        annotator_a_path, expected_annotator_id="annotator_a"
-    )
-    map_b = load_and_validate_export(
-        annotator_b_path, expected_annotator_id="annotator_b"
-    )
+    map_a = load_and_validate_export(annotator_a_path, expected_annotator_id="annotator_a")
+    map_b = load_and_validate_export(annotator_b_path, expected_annotator_id="annotator_b")
 
     # Load passage text map from full Queue A file
     if full_queue_a_path is None:
-        full_queue_a_path = Path(
-            "benchmarks/ground_truth/v2/hybrid/human_queues/annotator_a.jsonl"
-        )
+        full_queue_a_path = Path("benchmarks/ground_truth/v2/hybrid/human_queues/annotator_a.jsonl")
 
     text_map: dict[tuple[str, str], str] = {}
     if full_queue_a_path.exists():
@@ -195,10 +191,7 @@ def build_adjudication_queue(
 
     abstention_qids: set[str] = set()
     for qid, q_obj in q_dict.items():
-        if (
-            q_obj.get("is_abstention") is True
-            or q_obj.get("question_type") == "abstention"
-        ):
+        if q_obj.get("is_abstention") is True or q_obj.get("question_type") == "abstention":
             abstention_qids.add(qid)
 
     # Calculate union of disagreements and structural abstention pairs
@@ -218,7 +211,6 @@ def build_adjudication_queue(
     union_pairs = sorted(disagreement_pairs | abstention_pairs)
 
     adjudication_items: list[dict[str, Any]] = []
-    anonymization_mapping: list[dict[str, Any]] = []
 
     for qid, ps_id in union_pairs:
         rec_a = map_a[(qid, ps_id)]
@@ -230,32 +222,16 @@ def build_adjudication_queue(
         if (qid, ps_id) in abstention_pairs:
             reasons.append("structural_abstention_audit")
 
-        # Position bias prevention: deterministic hash modulo 2 for reviewer order
-        pair_hash = hashlib.sha256(f"{qid}:{ps_id}".encode("utf-8")).hexdigest()
-        is_even = int(pair_hash, 16) % 2 == 0
-
-        if is_even:
-            rev_1_grade, rev_2_grade = (
-                rec_a["relevance_grade"],
-                rec_b["relevance_grade"],
-            )
-            rev_1_role, rev_2_role = rec_a["evidence_role"], rec_b["evidence_role"]
-            mapping_str = "reviewer_1=A, reviewer_2=B"
-        else:
-            rev_1_grade, rev_2_grade = (
-                rec_b["relevance_grade"],
-                rec_a["relevance_grade"],
-            )
+        # Reproducible position bias prevention using domain-separated SHA-256
+        swap = should_swap_reviewers(qid, ps_id)
+        if swap:
+            rev_1_grade, rev_2_grade = rec_b["relevance_grade"], rec_a["relevance_grade"]
             rev_1_role, rev_2_role = rec_b["evidence_role"], rec_a["evidence_role"]
-            mapping_str = "reviewer_1=B, reviewer_2=A"
+        else:
+            rev_1_grade, rev_2_grade = rec_a["relevance_grade"], rec_b["relevance_grade"]
+            rev_1_role, rev_2_role = rec_a["evidence_role"], rec_b["evidence_role"]
 
-        anonymization_mapping.append(
-            {"question_id": qid, "passage_id": ps_id, "mapping": mapping_str}
-        )
-
-        q_text = q_dict.get(qid, {}).get("question") or q_dict.get(qid, {}).get(
-            "text", ""
-        )
+        q_text = q_dict.get(qid, {}).get("question") or q_dict.get(qid, {}).get("text", "")
 
         adj_item = {
             "question_id": qid,
@@ -275,7 +251,6 @@ def build_adjudication_queue(
             "status": "PENDING",
         }
 
-        # Double check no forbidden fields remain
         for forbidden in BLINDING_FORBIDDEN_FIELDS:
             if forbidden in adj_item:
                 adj_item.pop(forbidden)
@@ -298,15 +273,14 @@ def build_adjudication_queue(
         "questions_file_sha256": hash_q,
         "total_disagreement_pairs": len(disagreement_pairs),
         "total_abstention_pairs": len(abstention_pairs),
-        "overlap_disagreement_abstention_count": len(
-            disagreement_pairs & abstention_pairs
-        ),
+        "overlap_disagreement_abstention_count": len(disagreement_pairs & abstention_pairs),
         "total_adjudication_queue": len(adjudication_items),
         "abstention_detection_mechanism": "question_attribute_is_abstention_or_type_abstention",
+        "reviewer_order_algorithm": REVIEWER_ORDER_ALGORITHM,
+        "reviewer_order_domain": REVIEWER_ORDER_DOMAIN,
         "anonymization_verified": True,
         "holdout_sealed": True,
         "adjudication_queue_sha256": sha256_file(output_queue_path),
-        "anonymization_provenance": anonymization_mapping,
     }
 
     # Atomic write of manifest
@@ -316,39 +290,12 @@ def build_adjudication_queue(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Build Blinded Human Adjudication Queue (Gate B)"
-    )
-    parser.add_argument(
-        "--annotator-a",
-        type=Path,
-        required=True,
-        help="Path to Annotator A final export",
-    )
-    parser.add_argument(
-        "--annotator-b-combined",
-        type=Path,
-        required=True,
-        help="Path to Annotator B combined export",
-    )
-    parser.add_argument(
-        "--questions-file",
-        type=Path,
-        required=True,
-        help="Path to controlled questions JSON",
-    )
-    parser.add_argument(
-        "--output-queue",
-        type=Path,
-        required=True,
-        help="Path to output adjudication queue file",
-    )
-    parser.add_argument(
-        "--output-manifest",
-        type=Path,
-        required=True,
-        help="Path to output manifest file",
-    )
+    parser = argparse.ArgumentParser(description="Build Blinded Human Adjudication Queue (Gate B)")
+    parser.add_argument("--annotator-a", type=Path, required=True, help="Path to Annotator A final export")
+    parser.add_argument("--annotator-b-combined", type=Path, required=True, help="Path to Annotator B combined export")
+    parser.add_argument("--questions-file", type=Path, required=True, help="Path to controlled questions JSON")
+    parser.add_argument("--output-queue", type=Path, required=True, help="Path to output adjudication queue file")
+    parser.add_argument("--output-manifest", type=Path, required=True, help="Path to output manifest file")
     args = parser.parse_args()
 
     try:
