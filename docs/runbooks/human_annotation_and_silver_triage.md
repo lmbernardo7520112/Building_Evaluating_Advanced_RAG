@@ -90,14 +90,43 @@ python scripts/build_human_review_queues.py \
 
 ---
 
-## 4. Anotação Humana Independente e Blinded View
+## 4. Anotação Humana Independente e Interface Local Offline
 
-1. Os anotadores A e B devem abrir exclusivamente seus respectivos arquivos cegos:
-   - `benchmarks/ground_truth/v2/hybrid/human_queues/annotator_a.jsonl`
-   - `benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b.jsonl`
-2. Julgar as passagens segundo o manual `benchmarks/ground_truth/v2/annotation_guidelines.md`.
-3. Preencher `relevance_grade` (0 a 3) e `evidence_role`.
-4. Salvar os arquivos preenchidos.
+```bash
+# A. Iniciar Anotação para Anotador A (Porta 8501):
+python scripts/annotate_human_queue.py \
+  --annotator-id annotator_a \
+  --queue-file benchmarks/ground_truth/v2/hybrid/human_queues/annotator_a.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --output-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/annotator_a_work.jsonl
+
+# B. Iniciar Anotação para Anotador B (Porta 8502):
+python scripts/annotate_human_queue.py \
+  --annotator-id annotator_b \
+  --queue-file benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --output-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/annotator_b_work.jsonl \
+  --port 8502
+
+# C. Retomar Sessão Interrompida:
+# Executar exatamente o mesmo comando anterior. O servidor lê o arquivo de trabalho e retoma atomicamente.
+
+# D. Validar e Exportar Anotações Concluídas (Anotador A):
+python scripts/validate_human_annotations.py \
+  --annotator-id annotator_a \
+  --queue-file benchmarks/ground_truth/v2/hybrid/human_queues/annotator_a.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --work-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/annotator_a_work.jsonl \
+  --export-file benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_a_final.jsonl
+
+# E. Validar e Exportar Anotações Concluídas (Anotador B):
+python scripts/validate_human_annotations.py \
+  --annotator-id annotator_b \
+  --queue-file benchmarks/ground_truth/v2/hybrid/human_queues/annotator_b.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --work-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/annotator_b_work.jsonl \
+  --export-file benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_final.jsonl
+```
 
 ---
 

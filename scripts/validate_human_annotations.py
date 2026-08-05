@@ -1,37 +1,275 @@
-"""Human Annotation Offline Validator (Gate B1 - Etapa 5).
+"""Offline Human Annotations Validator and Sanitized Exporter (Gate B).
 
-Validates blinded annotation templates, completed human annotations,
-and adjudication records.
+CLI:
+  python scripts/validate_human_annotations.py \\
+    --annotator-id annotator_a|annotator_b \\
+    --queue-file PATH \\
+    --questions-file PATH \\
+    --work-file PATH \\
+    --export-file PATH
 
-Modes:
-- --mode template: Accepts PENDING status and null grades.
-- --mode completed: Requires full completion (COMPLETED status, non-null grades).
-- --mode adjudicated: Validates resolved adjudication items preserving original grades.
+Validates 100% coverage, atomic integrity, grade/role consistency, literal spans,
+blinding, and exports sanitized human qrels.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import hashlib
 import json
+import os
 import sys
+import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
-# Ensure src is on sys.path
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT / "src"))
+PROTOCOL_VERSION: Final[str] = "raglab_v7_slice4_v3"
+SCHEMA_VERSION: Final[str] = "3.0.0"
+HOLDOUT_QIDS: Final[frozenset[str]] = frozenset({"q_holdout_01", "q_holdout_02"})
+
+BLINDING_FORBIDDEN_FIELDS: Final[frozenset[str]] = frozenset(
+    {
+        "confidence",
+        "reasoning",
+        "supporting_span",
+        "judge_model",
+        "judge_provider",
+        "judge_id",
+        "label_source",
+        "strategy",
+        "retrieval_rank",
+        "retrieval_score",
+        "pre_rerank_rank",
+        "post_rerank_rank",
+        "selected_by_reranker",
+        "dropped_by_reranker",
+        "relevant_pages",
+        "gold_answer",
+    }
+)
+
+VALID_GRADES: Final[frozenset[int]] = frozenset({0, 1, 2, 3})
+VALID_ROLES: Final[frozenset[str]] = frozenset(
+    {"NEGATIVE_CONTROL", "CONTEXTUAL", "SUPPORTING", "PRIMARY"}
+)
+
+DEFAULT_ROLE_FOR_GRADE: Final[dict[int, str]] = {
+    0: "NEGATIVE_CONTROL",
+    1: "CONTEXTUAL",
+    2: "SUPPORTING",
+    3: "PRIMARY",
+}
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def atomic_write_jsonl(target_path: Path, records: list[dict[str, Any]]) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_fd, tmp_path_str = tempfile.mkstemp(
+        dir=target_path.parent, prefix=f".tmp_{target_path.name}_"
+    )
+    tmp_path = Path(tmp_path_str)
+
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            for rec in records:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(tmp_path, target_path)
+
+        try:
+            parent_fd = os.open(str(target_path.parent), os.O_RDONLY)
+            try:
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
+        except OSError:
+            pass
+    except Exception:
+        if tmp_path.exists():
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
+        raise
+
+
+def validate_and_export_human_annotations(
+    annotator_id: str,
+    queue_file: Path,
+    questions_file: Path,
+    work_file: Path,
+    export_file: Path,
+) -> Path:
+    """Validate human work annotations fail-closed and export sanitized qrels."""
+
+    if annotator_id not in ("annotator_a", "annotator_b"):
+        msg = f"Invalid annotator_id '{annotator_id}'."
+        raise ValueError(msg)
+
+    if not queue_file.exists():
+        raise FileNotFoundError(f"Queue file not found: {queue_file}")
+    if not questions_file.exists():
+        raise FileNotFoundError(f"Questions file not found: {questions_file}")
+    if not work_file.exists():
+        raise FileNotFoundError(f"Work file not found: {work_file}")
+
+    queue_sha = sha256_file(queue_file)
+    questions_sha = sha256_file(questions_file)
+
+    # 1. Load queue items
+    queue_lines = [
+        json.loads(line)
+        for line in queue_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    queue_pairs = {(it["question_id"], it["passage_id"]): it for it in queue_lines}
+
+    # Check for holdout in queue
+    for qid, _ps_id in queue_pairs:
+        if qid in HOLDOUT_QIDS or "holdout" in qid.lower():
+            raise ValueError(f"HOLDOUT VIOLATION: item {qid} in queue file")
+
+    # 2. Load work file records
+    work_bytes = work_file.read_bytes()
+    if not work_bytes.strip():
+        raise ValueError(f"Work file is empty: {work_file}")
+
+    work_records: list[dict[str, Any]] = []
+    for line_num, line in enumerate(work_bytes.decode("utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            work_records.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Invalid JSON in work file at line {line_num}: {exc}"
+            ) from exc
+
+    # 3. Fail-Closed Inspections
+    seen_work_pairs: set[tuple[str, str]] = set()
+    sanitized_export_records: list[dict[str, Any]] = []
+
+    for r_idx, r in enumerate(work_records, 1):
+        # Identity check
+        rec_ann = r.get("annotator_id")
+        if rec_ann != annotator_id:
+            raise ValueError(
+                f"Record {r_idx} annotator_id mismatch: '{rec_ann}' != '{annotator_id}'"
+            )
+
+        # Hashes check
+        if r.get("queue_file_sha256") != queue_sha:
+            raise ValueError(f"Record {r_idx} queue_file_sha256 mismatch")
+        if r.get("questions_file_sha256") != questions_sha:
+            raise ValueError(f"Record {r_idx} questions_file_sha256 mismatch")
+
+        # Status check
+        if r.get("status") != "COMPLETED":
+            raise ValueError(
+                f"Record {r_idx} ({r.get('question_id')}) is not COMPLETED"
+            )
+
+        qid = str(r.get("question_id", ""))
+        ps_id = str(r.get("passage_id", ""))
+
+        if qid in HOLDOUT_QIDS or "holdout" in qid.lower():
+            raise ValueError(
+                f"HOLDOUT VIOLATION: record {r_idx} contains holdout '{qid}'"
+            )
+
+        pair = (qid, ps_id)
+        if pair in seen_work_pairs:
+            raise ValueError(f"Duplicate record for pair {pair} in work file")
+        seen_work_pairs.add(pair)
+
+        if pair not in queue_pairs:
+            raise ValueError(
+                f"Unexpected pair {pair} in work file (not present in input queue file)"
+            )
+
+        # Blinding checks
+        for forbidden in BLINDING_FORBIDDEN_FIELDS:
+            if forbidden in r:
+                msg = f"BLINDING VIOLATION: '{forbidden}' in record {pair}"
+                raise ValueError(msg)
+
+        # Grade and Role validation
+        grade = r.get("relevance_grade")
+        if not isinstance(grade, int) or grade not in VALID_GRADES:
+            raise ValueError(f"Invalid relevance_grade '{grade}' in record {pair}")
+
+        role = str(r.get("evidence_role") or "").strip().upper()
+        if role not in VALID_ROLES:
+            raise ValueError(f"Invalid evidence_role '{role}' in record {pair}")
+
+        exp_role = DEFAULT_ROLE_FOR_GRADE[grade]
+        notes = str(r.get("annotation_notes") or "").strip()
+        if role != exp_role and not notes:
+            raise ValueError(
+                f"Divergent evidence_role '{role}' for grade {grade} in record {pair} "
+                f"requires non-empty annotation_notes"
+            )
+
+        # Literal span validation
+        span = str(r.get("supporting_span_human") or "").strip()
+        queue_item = queue_pairs[pair]
+        passage_text = queue_item["text"]
+
+        if span and span not in passage_text:
+            raise ValueError(
+                f"Literal span violation in record {pair}: supporting_span_human "
+                f"is not a literal substring of passage_text"
+            )
+
+        # Construct sanitized export record
+        export_rec = {
+            "schema_version": SCHEMA_VERSION,
+            "protocol_version": PROTOCOL_VERSION,
+            "annotator_id": annotator_id,
+            "question_id": qid,
+            "passage_id": ps_id,
+            "page_number": queue_item.get("page_number", 0),
+            "relevance_grade": grade,
+            "evidence_role": role,
+            "supporting_span_human": span,
+            "annotation_notes": notes,
+            "annotated_at_utc": r.get(
+                "annotated_at_utc", datetime.now(UTC).isoformat()
+            ),
+            "queue_file_sha256": queue_sha,
+            "questions_file_sha256": questions_sha,
+            "export_status": "VALIDATED_HUMAN_QRELS",
+        }
+        sanitized_export_records.append(export_rec)
+
+    # Coverage check: work file must contain ALL queue pairs
+    if set(queue_pairs.keys()) != seen_work_pairs:
+        missing = set(queue_pairs.keys()) - seen_work_pairs
+        raise ValueError(
+            f"Incomplete annotation coverage: missing {len(missing)} items"
+        )
+
+    # Atomic write to export_file
+    atomic_write_jsonl(export_file, sanitized_export_records)
+
+    return export_file
+
+
+# ─────────────────────────────────────────────────────────────────
+# Legacy Gate B1 Backward Compatibility Helpers
+# ─────────────────────────────────────────────────────────────────
 
 
 def load_registry_ids(root_dir: Path) -> set[str]:
-    """Load valid passage_ids from passage_registry.jsonl."""
     reg_file = root_dir / "passage_registry.jsonl"
-    if not reg_file.exists():
-        raise FileNotFoundError(f"Passage registry not found at {reg_file}")
-
     passage_ids: set[str] = set()
-    with reg_file.open("r", encoding="utf-8") as f:
-        for line in f:
+    if reg_file.exists():
+        for line in reg_file.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 item = json.loads(line)
                 passage_ids.add(item["passage_id"])
@@ -42,12 +280,10 @@ def validate_annotation_record(
     record: dict[str, Any], valid_passage_ids: set[str], mode: str
 ) -> list[str]:
     errors: list[str] = []
-
     qid = record.get("question_id")
     if not qid or not str(qid).strip():
         errors.append("Missing or empty question_id")
 
-    # Check Sealed Holdout
     if qid and "holdout" in str(qid).lower():
         errors.append(f"SEALED HOLDOUT VIOLATION: question_id={qid}")
 
@@ -65,7 +301,6 @@ def validate_annotation_record(
             f"[{qid}] Completed mode requires status='COMPLETED', got {status}"
         )
 
-    # Check for forbidden strategy/score leakage
     forbidden_keys = (
         "strategy",
         "original_rank",
@@ -90,7 +325,7 @@ def validate_annotation_record(
             if key in cand:
                 errors.append(f"[{qid}] FORBIDDEN LEAKAGE in candidate: '{key}'")
 
-        ps_id = cand.get("passage_id")
+        ps_id = str(cand.get("passage_id") or "")
         if not ps_id or ps_id not in valid_passage_ids:
             errors.append(f"[{qid}] Unknown or missing passage_id: {ps_id}")
 
@@ -114,20 +349,18 @@ def validate_annotation_record(
         errors.append(f"[{qid}] Missing answerability in completed mode")
 
     if answerability is False:
-        # UNANSWERABLE cannot have gold answer or positive evidence
         if record.get("gold_answer") is not None:
             errors.append(f"[{qid}] Unanswerable question cannot have gold_answer")
         if has_positive_evidence and mode == "completed":
             errors.append(
-                f"[{qid}] Unanswerable question cannot have positive evidence (grade >= 1)"  # noqa: E501
+                f"[{qid}] Unanswerable question cannot have evidence grade >= 1"
             )
 
     if mode == "completed" and answerability is True and not has_positive_evidence:
         errors.append(
-            f"[{qid}] Completed ANSWERABLE question must have at least one relevant passage (grade >= 1)"  # noqa: E501
+            f"[{qid}] Completed ANSWERABLE question must have relevant passage"
         )
 
-    # Validate evidence_sets
     ev_sets = record.get("evidence_sets", [])
     for ev_set in ev_sets:
         if isinstance(ev_set, dict):
@@ -143,7 +376,6 @@ def validate_annotation_record(
                         f"[{qid}] Evidence set contains unknown passage_id: {pid}"
                     )
 
-    # Validate gold_supporting_passage_ids
     gold_cits = record.get("gold_supporting_passage_ids", [])
     for g_id in gold_cits:
         if g_id not in valid_passage_ids:
@@ -174,7 +406,6 @@ def validate_adjudication_record(
 def validate_annotation_packages(root_dir: Path, mode: str = "template") -> list[str]:
     valid_passage_ids = load_registry_ids(root_dir)
     pkg_dir = root_dir / "annotation_packages"
-
     all_errors: list[str] = []
 
     if mode in ("template", "completed"):
@@ -225,30 +456,57 @@ def validate_annotation_packages(root_dir: Path, mode: str = "template") -> list
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate human annotation packages")
-    parser.add_argument(
-        "--mode",
-        choices=["template", "completed", "adjudicated"],
-        default="template",
-        help="Validation mode",
+    parser = argparse.ArgumentParser(
+        description="Validate and Export Human Annotations (Gate B)"
     )
     parser.add_argument(
-        "--root",
+        "--annotator-id",
+        required=True,
+        choices=["annotator_a", "annotator_b"],
+        help="Annotator identity",
+    )
+    parser.add_argument(
+        "--queue-file",
         type=Path,
-        default=_REPO_ROOT / "benchmarks" / "ground_truth" / "v2",
-        help="Root ground_truth/v2 directory",
+        required=True,
+        help="Path to input blinded queue file",
+    )
+    parser.add_argument(
+        "--questions-file",
+        type=Path,
+        required=True,
+        help="Path to input questions file",
+    )
+    parser.add_argument(
+        "--work-file",
+        type=Path,
+        required=True,
+        help="Path to work annotations file",
+    )
+    parser.add_argument(
+        "--export-file",
+        type=Path,
+        required=True,
+        help="Path to output sanitized export file",
     )
     args = parser.parse_args()
 
-    errors = validate_annotation_packages(root_dir=args.root, mode=args.mode)
-    if errors:
-        print(f"ANNOTATION VALIDATION FAILED ({len(errors)} errors):", file=sys.stderr)
-        for err in errors:
-            print(f"  - {err}", file=sys.stderr)
+    try:
+        exported = validate_and_export_human_annotations(
+            annotator_id=args.annotator_id,
+            queue_file=args.queue_file,
+            questions_file=args.questions_file,
+            work_file=args.work_file,
+            export_file=args.export_file,
+        )
+        print("HUMAN ANNOTATIONS VALIDATED AND EXPORTED SUCCESSFULLY")
+        count = sum(1 for _ in exported.read_text("utf-8").splitlines() if _.strip())
+        print(f"Annotator: {args.annotator_id}")
+        print(f"Export File: {exported} ({count} items)")
+        return 0
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
-
-    print(f"ANNOTATION VALIDATION PASSED (mode={args.mode})")
-    return 0
 
 
 if __name__ == "__main__":
