@@ -75,8 +75,17 @@ python scripts/run_silver_annotation.py --mode resume --run-id <RUN_ID>
 ## 3. Geração de Filas Cegas para Anotadores A e B
 
 ```bash
-# Reconstruir filas cegas orientadas por risco:
-python scripts/build_human_review_queues.py --input-root benchmarks/ground_truth/v2/hybrid
+# Execução definitiva (consumindo o resultado da triagem silver real):
+python scripts/build_human_review_queues.py \
+  --input-root benchmarks/ground_truth/v2/hybrid \
+  --output-root benchmarks/ground_truth/v2/hybrid/human_queues \
+  --silver-file benchmarks/ground_truth/v2/hybrid/silver/runs/<RUN_ID>/silver_annotations.jsonl
+
+# Execução provisória (sem triagem silver prévia):
+python scripts/build_human_review_queues.py \
+  --input-root benchmarks/ground_truth/v2/hybrid \
+  --output-root benchmarks/ground_truth/v2/hybrid/human_queues \
+  --without-silver-execution
 ```
 
 ---

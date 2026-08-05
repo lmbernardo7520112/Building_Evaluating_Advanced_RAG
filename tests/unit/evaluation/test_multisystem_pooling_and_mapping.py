@@ -414,8 +414,11 @@ class TestPoolDeduplication:
 # ── Queue status ──────────────────────────────────────────────────
 
 class TestQueueStatus:
-    def test_provisional_without_silver(self, routing_manifest: dict) -> None:
-        assert routing_manifest["queue_status"] == "PROVISIONAL_WITHOUT_SILVER"
+    def test_queue_status_valid(self, routing_manifest: dict) -> None:
+        assert routing_manifest["queue_status"] in (
+            "DEFINITIVE_HUMAN_REVIEW",
+            "PROVISIONAL_WITHOUT_SILVER",
+        )
 
     def test_overlap_range(self, routing_manifest: dict) -> None:
         rate = routing_manifest["planned_overlap_rate"]
