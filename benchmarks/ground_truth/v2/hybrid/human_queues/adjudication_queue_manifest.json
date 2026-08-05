@@ -1,0 +1,158 @@
+{
+  "schema_version": "3.0.0",
+  "protocol_version": "raglab_v7_slice4_v3",
+  "created_at_utc": "2026-08-05T16:04:30.669475+00:00",
+  "annotator_a_file_sha256": "4fb500b062f6991d11c76f3071ff35af3fd531a8e49712ee8ea8a23d84a28a57",
+  "annotator_b_file_sha256": "df2e2f83682548810069c2b03173cdfbfa323ca170cb61a7482ca5162045d017",
+  "questions_file_sha256": "90b0079e6f1f60461966812ef130e2679493eef84183a8d0943a889b909ba7b0",
+  "total_disagreement_pairs": 21,
+  "total_abstention_pairs": 10,
+  "overlap_disagreement_abstention_count": 3,
+  "total_adjudication_queue": 28,
+  "abstention_detection_mechanism": "question_attribute_is_abstention_or_type_abstention",
+  "anonymization_verified": true,
+  "holdout_sealed": true,
+  "adjudication_queue_sha256": "51912b6421400c31bfa0c60d1e9be6c22d2028c1b31e47bd8f5918733c40e0e1",
+  "anonymization_provenance": [
+    {
+      "question_id": "q_dev_01",
+      "passage_id": "ps_145f1419009e8265",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_dev_01",
+      "passage_id": "ps_c4d57e6f9d754554",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_dev_02",
+      "passage_id": "ps_145f1419009e8265",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_dev_02",
+      "passage_id": "ps_279ee1b2580ebe69",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_dev_02",
+      "passage_id": "ps_e393b0fbb5261d13",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_dev_03",
+      "passage_id": "ps_145f1419009e8265",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_dev_03",
+      "passage_id": "ps_749024a8adeea46b",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_dev_03",
+      "passage_id": "ps_e393b0fbb5261d13",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_dev_03",
+      "passage_id": "ps_f15b4e7465988c72",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_dev_04",
+      "passage_id": "ps_946846d2ba5e3175",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_dev_04",
+      "passage_id": "ps_f15b4e7465988c72",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_01",
+      "passage_id": "ps_946846d2ba5e3175",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_01",
+      "passage_id": "ps_c4d57e6f9d754554",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_01",
+      "passage_id": "ps_e393b0fbb5261d13",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_test_02",
+      "passage_id": "ps_1af4600bd2b680f7",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_test_02",
+      "passage_id": "ps_946846d2ba5e3175",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_test_02",
+      "passage_id": "ps_e393b0fbb5261d13",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_test_03",
+      "passage_id": "ps_145f1419009e8265",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_1af4600bd2b680f7",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_1e8ae016ba7f2e40",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_45af805e930f10d9",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_55f15187d5485909",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_7b3ebd8a8904cd4d",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_946846d2ba5e3175",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_999b917f94ca673a",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_a0934080984fd9e1",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_a2a6816f6c931f27",
+      "mapping": "reviewer_1=A, reviewer_2=B"
+    },
+    {
+      "question_id": "q_test_04",
+      "passage_id": "ps_d60e40555bec4616",
+      "mapping": "reviewer_1=B, reviewer_2=A"
+    }
+  ]
+}

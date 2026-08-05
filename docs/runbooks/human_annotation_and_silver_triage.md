@@ -161,7 +161,45 @@ python scripts/merge_human_annotations_b.py \
 
 ---
 
-## 5. Calibração Humano–Máquina e Varredura de Segurança
+## 5. Adjudicação Humana Cegada e Consolidação dos Qrels Graduados
+
+```bash
+# A. Calcular Relatório de Concordância Inter-Anotadores (69 itens A vs B combinado):
+python scripts/compute_human_agreement.py \
+  --annotator-a benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_a_final.jsonl \
+  --annotator-b benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_combined_final.jsonl \
+  --output-report benchmarks/ground_truth/v2/hybrid/human_annotations/agreement_report.json \
+  --output-disagreements benchmarks/ground_truth/v2/hybrid/human_annotations/disagreements_report.json
+
+# B. Construir Fila Cegada de Adjudicação (28 itens: 21 divergências + 10 abstenção - 3 sobreposição):
+python scripts/build_human_adjudication_queue.py \
+  --annotator-a benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_a_final.jsonl \
+  --annotator-b-combined benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_combined_final.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --output-queue benchmarks/ground_truth/v2/hybrid/human_queues/adjudication_queue.jsonl \
+  --output-manifest benchmarks/ground_truth/v2/hybrid/human_queues/adjudication_queue_manifest.json
+
+# C. Iniciar Interface Localhost HTTP de Adjudicação (Porta 8503):
+python scripts/adjudicate_human_queue.py \
+  --adjudicator-id adjudicator_lead \
+  --queue-file benchmarks/ground_truth/v2/hybrid/human_queues/adjudication_queue.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --output-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/adjudication_work.jsonl \
+  --port 8503
+
+# D. Consolidação Final de Qrels Graduados (Após conclusão humana da adjudicação):
+python scripts/build_final_human_qrels.py \
+  --annotator-a benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_a_final.jsonl \
+  --annotator-b-combined benchmarks/ground_truth/v2/hybrid/human_annotations/export/annotator_b_combined_final.jsonl \
+  --questions-file benchmarks/questions/controlled_chapter2.json \
+  --adjudication-file benchmarks/ground_truth/v2/hybrid/human_annotations/work/adjudication_work.jsonl \
+  --output-qrels benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_final.jsonl \
+  --output-manifest benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_manifest.json
+```
+
+---
+
+## 6. Calibração Humano–Máquina e Varredura de Segurança
 
 ```bash
 # A. Calibração de concordância:
