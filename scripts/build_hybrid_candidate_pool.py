@@ -33,15 +33,24 @@ SCHEMA_VERSION = "3.0.0"
 
 HOLDOUT_QIDS = frozenset({"q_holdout_01", "q_holdout_02"})
 
-EXPECTED_STRATEGIES = frozenset({
-    "F0_baseline", "S0_sentence_anchor",
-    "W0_sentence_window", "W1_sentence_window_rerank",
-    "H0_hierarchical_leaf", "H1_auto_merging", "H2_auto_merging_rerank",
-})
+EXPECTED_STRATEGIES = frozenset(
+    {
+        "F0_baseline",
+        "S0_sentence_anchor",
+        "W0_sentence_window",
+        "W1_sentence_window_rerank",
+        "H0_hierarchical_leaf",
+        "H1_auto_merging",
+        "H2_auto_merging_rerank",
+    }
+)
 
-RERANKED_STRATEGIES = frozenset({
-    "W1_sentence_window_rerank", "H2_auto_merging_rerank",
-})
+RERANKED_STRATEGIES = frozenset(
+    {
+        "W1_sentence_window_rerank",
+        "H2_auto_merging_rerank",
+    }
+)
 
 
 def sha256_text(text: str) -> str:
@@ -53,6 +62,7 @@ def sha256_bytes(data: bytes) -> str:
 
 
 # ── Input Validation (ETAPA 2) ──────────────────────────────────
+
 
 def validate_evidence_v2(data: dict[str, Any]) -> tuple[bool, list[str]]:
     """Validate evidence v2 artifact. Returns (ok, errors)."""
@@ -92,6 +102,7 @@ def validate_evidence_v2(data: dict[str, Any]) -> tuple[bool, list[str]]:
 
 # ── Page Mapping (ETAPA 4) ───────────────────────────────────────
 
+
 def map_record_to_canonical_pages(
     record: dict[str, Any],
     registry_pages: set[int],
@@ -119,6 +130,7 @@ def map_record_to_canonical_pages(
 
 # ── Pool Builder (ETAPAS 2–6) ────────────────────────────────────
 
+
 def build_hybrid_pool(
     registry_dir: Path,
     output_root: Path,
@@ -144,7 +156,10 @@ def build_hybrid_pool(
 
     records: list[dict[str, Any]] = ev2_data["records"]
     total_evidence_records = len(records)
-    print(f"Evidence v2 validated: {total_evidence_records} records, SHA={ev2_sha[:16]}...")
+    print(
+        f"Evidence v2 validated: {total_evidence_records}"
+        f" records, SHA={ev2_sha[:16]}..."
+    )
 
     # ── Load passage registry ────────────────────────────────────
     registry_file = registry_dir / "passage_registry.jsonl"
@@ -172,7 +187,10 @@ def build_hybrid_pool(
 
     canonical_registry_entry_count = len(registry_entries)
     canonical_evaluation_unit = "PAGE_LEVEL"
-    print(f"Registry: {canonical_registry_entry_count} entries ({canonical_evaluation_unit})")
+    print(
+        f"Registry: {canonical_registry_entry_count}"
+        f" entries ({canonical_evaluation_unit})"
+    )
 
     # ── Classify records (ETAPA 3) ───────────────────────────────
     # Separate: final candidates vs pre-rerank-only dropped candidates
@@ -193,32 +211,39 @@ def build_hybrid_pool(
 
     # Verify accounting identity: 279 = final + dropped + invalid
     identity_check = len(final_records) + len(dropped_records) + len(invalid_records)
-    assert identity_check == total_evidence_records, (
-        f"Identity: {identity_check} != {total_evidence_records}"
-    )
+    if identity_check != total_evidence_records:
+        raise RuntimeError(f"Identity: {identity_check} != {total_evidence_records}")
 
-    print(f"Classification: {len(final_records)} final, "
-          f"{len(dropped_records)} dropped, {len(invalid_records)} invalid")
+    print(
+        f"Classification: {len(final_records)} final, "
+        f"{len(dropped_records)} dropped, {len(invalid_records)} invalid"
+    )
 
     # ── Per-question reranker stats (ETAPA 3) ────────────────────
     reranker_stats: list[dict[str, Any]] = []
     for strategy in sorted(RERANKED_STRATEGIES):
         for qid in sorted({r["qid"] for r in records}):
-            strat_q_recs = [r for r in records
-                           if r["strategy"] == strategy and r["qid"] == qid]
+            strat_q_recs = [
+                r for r in records if r["strategy"] == strategy and r["qid"] == qid
+            ]
             pre_count = len(strat_q_recs)
-            post_selected = [r for r in strat_q_recs
-                            if r.get("post_rerank_rank") is not None]
-            post_dropped = [r for r in strat_q_recs
-                           if r.get("post_rerank_rank") is None]
-            reranker_stats.append({
-                "strategy": strategy,
-                "qid": qid,
-                "pre_rerank_count": pre_count,
-                "post_rerank_selected_count": len(post_selected),
-                "post_rerank_dropped_count": len(post_dropped),
-                "relevant_candidate_dropped_count": 0,  # no relevance info available
-            })
+            post_selected = [
+                r for r in strat_q_recs if r.get("post_rerank_rank") is not None
+            ]
+            post_dropped = [
+                r for r in strat_q_recs if r.get("post_rerank_rank") is None
+            ]
+            reranker_stats.append(
+                {
+                    "strategy": strategy,
+                    "qid": qid,
+                    "pre_rerank_count": pre_count,
+                    "post_rerank_selected_count": len(post_selected),
+                    "post_rerank_dropped_count": len(post_dropped),
+                    # no relevance info available
+                    "relevant_candidate_dropped_count": 0,
+                }
+            )
 
     # ── Map to canonical evaluation units (ETAPA 4) ──────────────
     candidate_pool_dir = output_root / "candidate_pool"
@@ -228,11 +253,13 @@ def build_hybrid_pool(
     # We build per-question pools
     pool_by_q: dict[str, set[int]] = {}
     mapping_results: list[dict[str, Any]] = []
-    mapping_stats = Counter({
-        "EXACT_CANONICAL_PAGE": 0,
-        "MULTI_PAGE_CANONICAL_COVERAGE": 0,
-        "PAGE_METADATA_MISSING": 0,
-    })
+    mapping_stats = Counter(
+        {
+            "EXACT_CANONICAL_PAGE": 0,
+            "MULTI_PAGE_CANONICAL_COVERAGE": 0,
+            "PAGE_METADATA_MISSING": 0,
+        }
+    )
 
     raw_accounting: list[dict[str, Any]] = []
     duplicates_within_strategy = 0
@@ -302,14 +329,16 @@ def build_hybrid_pool(
         }
         raw_accounting.append(raw_acc)
 
-        mapping_results.append({
-            "qid": qid,
-            "strategy": strategy,
-            "raw_candidate_id": r["raw_candidate_id"],
-            "page_numbers": pages_hit,
-            "canonical_page_ids": page_ids,
-            "mapping_status": status,
-        })
+        mapping_results.append(
+            {
+                "qid": qid,
+                "strategy": strategy,
+                "raw_candidate_id": r["raw_candidate_id"],
+                "page_numbers": pages_hit,
+                "canonical_page_ids": page_ids,
+                "mapping_status": status,
+            }
+        )
 
     # Also account for dropped records
     for r in dropped_records:
@@ -399,7 +428,10 @@ def build_hybrid_pool(
         if not outside_pages:
             continue
 
-        sample_size = max(1, min(len(outside_pages), math.ceil(0.10 * len(outside_pages))))
+        sample_size = max(
+            1,
+            min(len(outside_pages), math.ceil(0.10 * len(outside_pages))),
+        )
         seed_key = f"{corpus_sha}:{registry_sha}:{qid}:{PROTOCOL_VERSION}"
         seed = int(hashlib.sha256(seed_key.encode("utf-8")).hexdigest()[:8], 16)
         rng = random.Random(seed)  # noqa: S311
@@ -435,7 +467,8 @@ def build_hybrid_pool(
     main_keys = {(it["question_id"], it["page_number"]) for it in internal_pool}
     outside_keys = {(it["question_id"], it["page_number"]) for it in outside_pool_items}
     intersection = main_keys & outside_keys
-    assert len(intersection) == 0, f"Pool ∩ Outside != ∅: {intersection}"
+    if intersection:
+        raise RuntimeError(f"Pool and Outside not disjoint: {intersection}")
 
     all_internal = internal_pool + outside_pool_items
     all_blinded = blinded_pool + outside_pool_blinded
@@ -444,8 +477,12 @@ def build_hybrid_pool(
     pool_file = candidate_pool_dir / "pool.jsonl"
     blinded_file = candidate_pool_dir / "blinded_pool.jsonl"
 
-    pool_content = "\n".join(json.dumps(it, ensure_ascii=False) for it in all_internal) + "\n"
-    blinded_content = "\n".join(json.dumps(it, ensure_ascii=False) for it in all_blinded) + "\n"
+    pool_content = (
+        "\n".join(json.dumps(it, ensure_ascii=False) for it in all_internal) + "\n"
+    )
+    blinded_content = (
+        "\n".join(json.dumps(it, ensure_ascii=False) for it in all_blinded) + "\n"
+    )
 
     pool_file.write_text(pool_content, encoding="utf-8")
     blinded_file.write_text(blinded_content, encoding="utf-8")
@@ -483,15 +520,21 @@ def build_hybrid_pool(
         "raw_candidates_final": final_count,
         "raw_candidates_dropped_by_reranker": dropped_count,
         "invalid_records": invalid_count,
-        "identity_279": f"{final_count} + {dropped_count} + {invalid_count} = {identity_check}",
-        "unique_raw_candidates": len({(r["qid"], r["raw_candidate_id"]) for r in final_records}),
+        "identity_279": (
+            f"{final_count} + {dropped_count} + {invalid_count} = {identity_check}"
+        ),
+        "unique_raw_candidates": len(
+            {(r["qid"], r["raw_candidate_id"]) for r in final_records}
+        ),
         "canonical_pool_items": main_canonical_pool_count,
         "outside_pool_audit_items": outside_pool_audit_count,
         "duplicates_within_strategy": duplicates_within_strategy,
         "duplicates_across_strategies": duplicates_across_strategies,
         "multi_page_mappings": multi_page_mappings,
         "unmapped_records": unmapped_count,
-        "sum_before_deduplication": main_canonical_pool_count + outside_pool_audit_count,
+        "sum_before_deduplication": (
+            main_canonical_pool_count + outside_pool_audit_count
+        ),
         "intersection_count": len(intersection),
         "duplicate_count": 0,
         "union_count": queue_a_total,
@@ -537,19 +580,29 @@ def build_hybrid_pool(
     for qid in sorted({r["qid"] for r in records}):
         for strat in sorted(EXPECTED_STRATEGIES):
             strat_q = [r for r in records if r["qid"] == qid and r["strategy"] == strat]
-            final_q = [r for r in strat_q if r.get("post_rerank_rank") is not None
-                       or r["strategy"] not in RERANKED_STRATEGIES]
-            dropped_q = [r for r in strat_q if r["strategy"] in RERANKED_STRATEGIES
-                         and r.get("post_rerank_rank") is None]
-            per_q_source.append({
-                "question_id": qid,
-                "source_id": strat,
-                "availability": "AVAILABLE" if strat_q else "NOT_AVAILABLE",
-                "total_records": len(strat_q),
-                "final_candidates": len(final_q),
-                "dropped_candidates": len(dropped_q),
-                "execution_mode": "MATERIALIZED_EVIDENCE_V2",
-            })
+            final_q = [
+                r
+                for r in strat_q
+                if r.get("post_rerank_rank") is not None
+                or r["strategy"] not in RERANKED_STRATEGIES
+            ]
+            dropped_q = [
+                r
+                for r in strat_q
+                if r["strategy"] in RERANKED_STRATEGIES
+                and r.get("post_rerank_rank") is None
+            ]
+            per_q_source.append(
+                {
+                    "question_id": qid,
+                    "source_id": strat,
+                    "availability": "AVAILABLE" if strat_q else "NOT_AVAILABLE",
+                    "total_records": len(strat_q),
+                    "final_candidates": len(final_q),
+                    "dropped_candidates": len(dropped_q),
+                    "execution_mode": "MATERIALIZED_EVIDENCE_V2",
+                }
+            )
 
     exec_audit = {
         "schema_version": SCHEMA_VERSION,
@@ -602,7 +655,7 @@ def build_hybrid_pool(
         encoding="utf-8",
     )
 
-    print(f"\nPool built:")
+    print("\nPool built:")
     print(f"  Main canonical pool: {main_canonical_pool_count}")
     print(f"  Outside audit: {outside_pool_audit_count}")
     print(f"  Queue A total: {queue_a_total}")

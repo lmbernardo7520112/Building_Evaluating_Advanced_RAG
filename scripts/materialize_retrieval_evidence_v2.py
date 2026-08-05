@@ -32,9 +32,7 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 sys.path.insert(0, str(_REPO_ROOT))
 
 # ─── Constants (identical to run_slice4_benchmark.py) ───────────
-PDF_SHA256_EXPECTED = (
-    "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254"
-)
+PDF_SHA256_EXPECTED = "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254"
 PAGES_START = 91
 PAGES_END = 115
 CHUNK_SIZE = 512
@@ -55,23 +53,53 @@ VALID_STRATEGIES = (
 )
 
 ACTIVE_QUESTIONS: list[dict[str, Any]] = [
-    {"qid": "q_dev_01", "split": "development",
-     "query": "O que é demonstração por exaustão e quando é aplicável?"},
-    {"qid": "q_dev_02", "split": "development",
-     "query": "Como o método de prova por contradição funciona em matemática discreta?"},
-    {"qid": "q_dev_03", "split": "development",
-     "query": "Quais são as etapas do princípio da indução matemática?"},
-    {"qid": "q_dev_04", "split": "development",
-     "query": "Como funciona a indução forte comparada à indução fraca?"},
-    {"qid": "q_test_01", "split": "test",
-     "query": "Qual é a diferença entre indução fraca e indução forte?"},
-    {"qid": "q_test_02", "split": "test",
-     "query": "Como se define a base e o passo indutivo em demonstração por indução?"},
-    {"qid": "q_test_03", "split": "test",
-     "query": "Quais são os passos para provar uma afirmação usando indução completa?"},
-    {"qid": "q_test_04", "split": "test",
-     "query": "Qual é a capital da França?",
-     "abstention_expected": True},
+    {
+        "qid": "q_dev_01",
+        "split": "development",
+        "query": "O que é demonstração por exaustão e quando é aplicável?",
+    },
+    {
+        "qid": "q_dev_02",
+        "split": "development",
+        "query": (
+            "Como o método de prova por contradição funciona em matemática discreta?"
+        ),
+    },
+    {
+        "qid": "q_dev_03",
+        "split": "development",
+        "query": "Quais são as etapas do princípio da indução matemática?",
+    },
+    {
+        "qid": "q_dev_04",
+        "split": "development",
+        "query": "Como funciona a indução forte comparada à indução fraca?",
+    },
+    {
+        "qid": "q_test_01",
+        "split": "test",
+        "query": "Qual é a diferença entre indução fraca e indução forte?",
+    },
+    {
+        "qid": "q_test_02",
+        "split": "test",
+        "query": (
+            "Como se define a base e o passo indutivo em demonstração por indução?"
+        ),
+    },
+    {
+        "qid": "q_test_03",
+        "split": "test",
+        "query": (
+            "Quais são os passos para provar uma afirmação usando indução completa?"
+        ),
+    },
+    {
+        "qid": "q_test_04",
+        "split": "test",
+        "query": "Qual é a capital da França?",
+        "abstention_expected": True,
+    },
 ]
 
 HOLDOUT_QIDS = frozenset({"q_holdout_01", "q_holdout_02"})
@@ -81,6 +109,7 @@ OUTPUT_PATH = RESULTS_DIR / "retrieval_evidence_v2.json"
 
 
 # ─── Helpers ────────────────────────────────────────────────────
+
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -131,6 +160,7 @@ def _classify_node_type(strategy: str, is_reranked: bool = False) -> str:
 def _resolve_page_number(evidence: object) -> int | None:
     """Extract page number from evidence.document_id or chunk_id."""
     import re
+
     doc_id = getattr(evidence, "document_id", "")
     if "_p" in doc_id:
         try:
@@ -152,6 +182,7 @@ def _resolve_page_number(evidence: object) -> int | None:
 
 # ─── Main ───────────────────────────────────────────────────────
 
+
 def main() -> None:
     # ── Security: reject credentials ─────────────────────────────
     for var in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
@@ -170,14 +201,15 @@ def main() -> None:
     if not pdf_path_str:
         # Try common location
         candidate = (
-            _REPO_ROOT.parent
-            / "Fundamentos matemáticos para a ciência da computação "
-              "Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
+            _REPO_ROOT.parent / "Fundamentos matemáticos para a ciência da computação "
+            "Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
         )
         if candidate.exists():
             pdf_path_str = str(candidate)
         else:
-            print("ERROR: RAGLAB_PDF_PATH not set and PDF not found at default location")
+            print(
+                "ERROR: RAGLAB_PDF_PATH not set and PDF not found at default location"
+            )
             sys.exit(1)
     pdf_path = Path(pdf_path_str)
     if not pdf_path.exists():
@@ -193,8 +225,11 @@ def main() -> None:
     from raglab.infrastructure.pdf_parsers.pdf_parser_adapter import (
         PyPdfExtractorAdapter,
     )
+
     adapter = PyPdfExtractorAdapter()
-    pages = adapter.read_document(str(pdf_path), page_start=PAGES_START, page_end=PAGES_END)
+    pages = adapter.read_document(
+        str(pdf_path), page_start=PAGES_START, page_end=PAGES_END
+    )
     print(f"Extracted {len(pages)} pages (pages {PAGES_START}–{PAGES_END})")
     corpus_sha = sha256_text(
         "".join(p.text for p in sorted(pages, key=lambda p: p.page_number))
@@ -205,6 +240,7 @@ def main() -> None:
         FastEmbedEmbeddingAdapter,
         resolve_cache_dir,
     )
+
     cache_dir = str(resolve_cache_dir())
     embed_model = FastEmbedEmbeddingAdapter(
         model_name=EMBEDDING_MODEL,
@@ -237,8 +273,13 @@ def main() -> None:
         retrieval_family = _classify_retrieval_family(strategy_label)
         node_type = _classify_node_type(strategy_label)
         retrieval_config = build_retrieval_configuration(strategy_label)
-        retriever_config_sha = compute_retrieval_configuration_sha256(retrieval_config)
-        is_reranked = strategy_label in ("W1_sentence_window_rerank", "H2_auto_merging_rerank")
+        retriever_config_sha = compute_retrieval_configuration_sha256(
+            retrieval_config,
+        )
+        is_reranked = strategy_label in (
+            "W1_sentence_window_rerank",
+            "H2_auto_merging_rerank",
+        )
 
         for q in ACTIVE_QUESTIONS:
             qid = q["qid"]
@@ -247,14 +288,16 @@ def main() -> None:
             # For reranked strategies, get both pre- and post-rerank
             if is_reranked and hasattr(retriever, "_base"):
                 # Get pre-rerank candidates
-                pre_rerank_candidates = retriever._base.retrieve(query, top_k=CANDIDATE_K)
+                pre_rerank_candidates = retriever._base.retrieve(
+                    query,
+                    top_k=CANDIDATE_K,
+                )
                 # Get post-rerank results
                 post_rerank_candidates = retriever.retrieve(query, top_k=TOP_K)
 
                 # Build pre-rerank lookup by chunk_id
                 pre_rank_map = {
-                    c.chunk_id.value: (c.rank, c.score)
-                    for c in pre_rerank_candidates
+                    c.chunk_id.value: (c.rank, c.score) for c in pre_rerank_candidates
                 }
 
                 for rank_idx, ev in enumerate(post_rerank_candidates):
@@ -280,19 +323,27 @@ def main() -> None:
                         "start_char": None,
                         "end_char": None,
                         "retrieval_rank": rank_idx + 1,
-                        "retrieval_score": round(ev.score, 6) if ev.score is not None else None,
+                        "retrieval_score": (
+                            round(ev.score, 6) if ev.score is not None else None
+                        ),
                         "pre_rerank_rank": pre_info[0],
-                        "pre_rerank_score": round(pre_info[1], 6) if pre_info[1] is not None else None,
+                        "pre_rerank_score": (
+                            round(pre_info[1], 6) if pre_info[1] is not None else None
+                        ),
                         "post_rerank_rank": rank_idx + 1,
-                        "post_rerank_score": round(ev.score, 6) if ev.score is not None else None,
+                        "post_rerank_score": (
+                            round(ev.score, 6) if ev.score is not None else None
+                        ),
                         "parent_node_id": None,
                         "child_node_ids": [],
                         "window_metadata": None,
-                        "parser_config_sha256": sha256_dict({
-                            "pages_start": PAGES_START,
-                            "pages_end": PAGES_END,
-                            "chunk_size": CHUNK_SIZE,
-                        }),
+                        "parser_config_sha256": sha256_dict(
+                            {
+                                "pages_start": PAGES_START,
+                                "pages_end": PAGES_END,
+                                "chunk_size": CHUNK_SIZE,
+                            }
+                        ),
                         "retriever_config_sha256": retriever_config_sha,
                         "embedding_fingerprint": embed_fingerprint,
                         "corpus_sha256": corpus_sha,
@@ -323,19 +374,29 @@ def main() -> None:
                             "start_char": None,
                             "end_char": None,
                             "retrieval_rank": pre_ev.rank,
-                            "retrieval_score": round(pre_ev.score, 6) if pre_ev.score is not None else None,
+                            "retrieval_score": (
+                                round(pre_ev.score, 6)
+                                if pre_ev.score is not None
+                                else None
+                            ),
                             "pre_rerank_rank": pre_ev.rank,
-                            "pre_rerank_score": round(pre_ev.score, 6) if pre_ev.score is not None else None,
+                            "pre_rerank_score": (
+                                round(pre_ev.score, 6)
+                                if pre_ev.score is not None
+                                else None
+                            ),
                             "post_rerank_rank": None,  # dropped by reranker
                             "post_rerank_score": None,
                             "parent_node_id": None,
                             "child_node_ids": [],
                             "window_metadata": None,
-                            "parser_config_sha256": sha256_dict({
-                                "pages_start": PAGES_START,
-                                "pages_end": PAGES_END,
-                                "chunk_size": CHUNK_SIZE,
-                            }),
+                            "parser_config_sha256": sha256_dict(
+                                {
+                                    "pages_start": PAGES_START,
+                                    "pages_end": PAGES_END,
+                                    "chunk_size": CHUNK_SIZE,
+                                }
+                            ),
                             "retriever_config_sha256": retriever_config_sha,
                             "embedding_fingerprint": embed_fingerprint,
                             "corpus_sha256": corpus_sha,
@@ -376,7 +437,9 @@ def main() -> None:
                         "start_char": None,
                         "end_char": None,
                         "retrieval_rank": ev.rank,
-                        "retrieval_score": round(ev.score, 6) if ev.score is not None else None,
+                        "retrieval_score": (
+                            round(ev.score, 6) if ev.score is not None else None
+                        ),
                         "pre_rerank_rank": None,
                         "pre_rerank_score": None,
                         "post_rerank_rank": None,
@@ -384,11 +447,13 @@ def main() -> None:
                         "parent_node_id": None,
                         "child_node_ids": [],
                         "window_metadata": window_meta,
-                        "parser_config_sha256": sha256_dict({
-                            "pages_start": PAGES_START,
-                            "pages_end": PAGES_END,
-                            "chunk_size": CHUNK_SIZE,
-                        }),
+                        "parser_config_sha256": sha256_dict(
+                            {
+                                "pages_start": PAGES_START,
+                                "pages_end": PAGES_END,
+                                "chunk_size": CHUNK_SIZE,
+                            }
+                        ),
                         "retriever_config_sha256": retriever_config_sha,
                         "embedding_fingerprint": embed_fingerprint,
                         "corpus_sha256": corpus_sha,
@@ -436,11 +501,12 @@ def main() -> None:
     # ── Verify written file ──────────────────────────────────────
     with open(OUTPUT_PATH, encoding="utf-8") as f:
         verify = json.load(f)
-    assert verify["records_sha256"] == artifact_sha, "SHA-256 verification failed"
+    if verify["records_sha256"] != artifact_sha:
+        raise RuntimeError("SHA-256 verification failed")
 
     # ── Summary ──────────────────────────────────────────────────
-    print(f"\n{'='*60}")
-    print(f"Retrieval Evidence v2 materialized successfully")
+    print(f"\n{'=' * 60}")
+    print("Retrieval Evidence v2 materialized successfully")
     print(f"  Output: {OUTPUT_PATH}")
     print(f"  Total records: {len(all_records)}")
     print(f"  Records SHA-256: {artifact_sha[:16]}...")
@@ -448,6 +514,7 @@ def main() -> None:
 
     # Per-strategy summary
     from collections import Counter
+
     strat_counts = Counter(r["strategy"] for r in all_records)
     for s in VALID_STRATEGIES:
         c = strat_counts.get(s, 0)
@@ -460,8 +527,12 @@ def main() -> None:
     print(f"  Records with text ≤ 80 chars: {len(preview_only)}")
     if preview_only:
         for r in preview_only:
-            print(f"    {r['strategy']} {r['qid']} rank={r['retrieval_rank']} len={r['text_length']}")
-    print(f"{'='*60}")
+            print(
+                f"    {r['strategy']} {r['qid']}"
+                f" rank={r['retrieval_rank']}"
+                f" len={r['text_length']}"
+            )
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":

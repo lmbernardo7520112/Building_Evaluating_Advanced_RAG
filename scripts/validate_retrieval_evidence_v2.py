@@ -28,20 +28,36 @@ from typing import Any
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 EVIDENCE_V2_PATH = _REPO_ROOT / "benchmarks" / "results" / "retrieval_evidence_v2.json"
-COMPOSITE_PATH = _REPO_ROOT / "benchmarks" / "results" / "slice4_final_composite_recovered_run.json"
+COMPOSITE_PATH = (
+    _REPO_ROOT / "benchmarks" / "results" / "slice4_final_composite_recovered_run.json"
+)
 
 HOLDOUT_QIDS = frozenset({"q_holdout_01", "q_holdout_02"})
 
-EXPECTED_STRATEGIES = frozenset({
-    "F0_baseline", "S0_sentence_anchor",
-    "W0_sentence_window", "W1_sentence_window_rerank",
-    "H0_hierarchical_leaf", "H1_auto_merging", "H2_auto_merging_rerank",
-})
+EXPECTED_STRATEGIES = frozenset(
+    {
+        "F0_baseline",
+        "S0_sentence_anchor",
+        "W0_sentence_window",
+        "W1_sentence_window_rerank",
+        "H0_hierarchical_leaf",
+        "H1_auto_merging",
+        "H2_auto_merging_rerank",
+    }
+)
 
-EXPECTED_QIDS = frozenset({
-    "q_dev_01", "q_dev_02", "q_dev_03", "q_dev_04",
-    "q_test_01", "q_test_02", "q_test_03", "q_test_04",
-})
+EXPECTED_QIDS = frozenset(
+    {
+        "q_dev_01",
+        "q_dev_02",
+        "q_dev_03",
+        "q_dev_04",
+        "q_test_01",
+        "q_test_02",
+        "q_test_03",
+        "q_test_04",
+    }
+)
 
 PDF_SHA256_EXPECTED = "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254"
 
@@ -76,15 +92,21 @@ def validate(evidence_path: Path) -> tuple[list[str], list[str]]:
     strategy_qid_counts: Counter[tuple[str, str]] = Counter()
 
     for i, r in enumerate(records):
-        prefix = f"record[{i}] ({r.get('strategy','?')} {r.get('qid','?')})"
+        prefix = f"record[{i}] ({r.get('strategy', '?')} {r.get('qid', '?')})"
 
         # Schema
         if r.get("schema") != "retrieval_evidence_v2":
             errors.append(f"{prefix}: schema != retrieval_evidence_v2")
 
         # Required fields
-        for field in ("strategy", "qid", "raw_candidate_id", "full_text",
-                       "full_text_sha256", "document_id"):
+        for field in (
+            "strategy",
+            "qid",
+            "raw_candidate_id",
+            "full_text",
+            "full_text_sha256",
+            "document_id",
+        ):
             if not r.get(field):
                 errors.append(f"{prefix}: missing or empty {field}")
 
@@ -141,11 +163,15 @@ def validate(evidence_path: Path) -> tuple[list[str], list[str]]:
             count = strategy_qid_counts.get((strat, qid), 0)
             if count < 1:
                 errors.append(f"No records for {strat} × {qid}")
-            if strat not in ("W1_sentence_window_rerank", "H2_auto_merging_rerank"):
-                if count != 3:
-                    warnings.append(
-                        f"Expected 3 records for {strat} × {qid}, got {count}"
-                    )
+            if (
+                strat
+                not in (
+                    "W1_sentence_window_rerank",
+                    "H2_auto_merging_rerank",
+                )
+                and count != 3
+            ):
+                warnings.append(f"Expected 3 records for {strat} × {qid}, got {count}")
 
     # ── Compare with historical composite ────────────────────────
     divergences: list[str] = []
@@ -155,7 +181,9 @@ def validate(evidence_path: Path) -> tuple[list[str], list[str]]:
 
         for strat in EXPECTED_STRATEGIES:
             if strat not in composite.get("results", {}):
-                divergences.append(f"Strategy {strat} missing from historical composite")
+                divergences.append(
+                    f"Strategy {strat} missing from historical composite"
+                )
                 continue
 
             hist_results = composite["results"][strat]
@@ -166,11 +194,16 @@ def validate(evidence_path: Path) -> tuple[list[str], list[str]]:
 
                 # Find matching v2 records
                 v2_matches = [
-                    r for r in records
-                    if r["strategy"] == strat and r["qid"] == h_qid
+                    r
+                    for r in records
+                    if r["strategy"] == strat
+                    and r["qid"] == h_qid
                     and r.get("post_rerank_rank") is not None  # final candidates
-                    or (r["strategy"] == strat and r["qid"] == h_qid
-                        and r.get("pre_rerank_rank") is None)  # non-reranked
+                    or (
+                        r["strategy"] == strat
+                        and r["qid"] == h_qid
+                        and r.get("pre_rerank_rank") is None
+                    )  # non-reranked
                 ]
 
                 # Check page compatibility
@@ -179,8 +212,7 @@ def validate(evidence_path: Path) -> tuple[list[str], list[str]]:
                     # Find matching v2 record by rank
                     h_rank = hc.get("retrieval_rank")
                     matching_v2 = [
-                        r for r in v2_matches
-                        if r.get("retrieval_rank") == h_rank
+                        r for r in v2_matches if r.get("retrieval_rank") == h_rank
                     ]
                     if matching_v2:
                         v2_pages = matching_v2[0].get("page_numbers", [])
@@ -219,7 +251,7 @@ def main() -> None:
         print(f"\n✗ {len(errors)} ERRORS:")
         for e in errors:
             print(f"  {e}")
-        print(f"\nVALIDATION FAILED")
+        print("\nVALIDATION FAILED")
         sys.exit(1)
     else:
         print(f"\n✓ Validation passed ({len(warnings)} warnings)")

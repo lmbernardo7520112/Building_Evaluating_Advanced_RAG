@@ -28,13 +28,22 @@ TARGET_OVERLAP_MIN = 0.15
 TARGET_OVERLAP_MAX = 0.25
 
 # Fields that MUST NOT appear in blinded view
-BLINDING_FORBIDDEN_FIELDS = frozenset({
-    "source_provenance", "raw_retrieval_unit", "generation_context_unit",
-    "strategy", "retrieval_rank", "retrieval_score",
-    "pre_rerank_rank", "post_rerank_rank",
-    "selected_by_reranker", "dropped_by_reranker",
-    "relevant_pages", "gold_answer",
-})
+BLINDING_FORBIDDEN_FIELDS = frozenset(
+    {
+        "source_provenance",
+        "raw_retrieval_unit",
+        "generation_context_unit",
+        "strategy",
+        "retrieval_rank",
+        "retrieval_score",
+        "pre_rerank_rank",
+        "post_rerank_rank",
+        "selected_by_reranker",
+        "dropped_by_reranker",
+        "relevant_pages",
+        "gold_answer",
+    }
+)
 
 
 def _verify_blinding(item: dict) -> list[str]:
@@ -109,7 +118,8 @@ def build_human_queues(
         target_b = max(1, int(round(0.20 * len(q_items))))
         if len(b_selected_ids) < target_b:
             remaining = [
-                it["passage_id"] for it in q_items
+                it["passage_id"]
+                for it in q_items
                 if it["passage_id"] not in b_selected_ids
             ]
             seed = int(
@@ -233,18 +243,25 @@ def build_human_queues(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build human review queues")
     parser.add_argument(
-        "--input-root", type=Path,
+        "--input-root",
+        type=Path,
         default=_REPO_ROOT / "benchmarks" / "ground_truth" / "v2" / "hybrid",
     )
     parser.add_argument(
-        "--output-root", type=Path,
+        "--output-root",
+        type=Path,
         default=(
-            _REPO_ROOT / "benchmarks" / "ground_truth"
-            / "v2" / "hybrid" / "human_queues"
+            _REPO_ROOT
+            / "benchmarks"
+            / "ground_truth"
+            / "v2"
+            / "hybrid"
+            / "human_queues"
         ),
     )
     parser.add_argument(
-        "--without-silver-execution", action="store_true",
+        "--without-silver-execution",
+        action="store_true",
     )
     args = parser.parse_args()
 
@@ -254,8 +271,10 @@ def main() -> int:
         without_silver_execution=args.without_silver_execution,
     )
     print("HUMAN REVIEW QUEUES BUILT SUCCESSFULLY")
-    print(f"Queue A: {fa} ({sum(1 for _ in fa.read_text().splitlines() if _.strip())} items)")
-    print(f"Queue B: {fb} ({sum(1 for _ in fb.read_text().splitlines() if _.strip())} items)")
+    count_a = sum(1 for _ in fa.read_text().splitlines() if _.strip())
+    count_b = sum(1 for _ in fb.read_text().splitlines() if _.strip())
+    print(f"Queue A: {fa} ({count_a} items)")
+    print(f"Queue B: {fb} ({count_b} items)")
     print(f"Adjudication: {fadj}")
     print(f"Manifest: {fman}")
     return 0

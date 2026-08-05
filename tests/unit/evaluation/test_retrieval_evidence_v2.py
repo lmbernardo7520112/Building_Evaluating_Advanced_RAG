@@ -19,11 +19,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 
 import pytest
-
 
 # ─── Fixtures ───────────────────────────────────────────────────
 
@@ -66,11 +64,14 @@ def composite_artifact() -> dict | None:
 
 # ─── Test 1: preview != full text ────────────────────────────────
 
+
 class TestPreviewNotFullText:
     """Prove that text_preview (80-char truncation) is not the same as full_text."""
 
     def test_preview_is_truncated_substring_of_full_text(
-        self, evidence_records: list[dict], composite_artifact: dict | None,
+        self,
+        evidence_records: list[dict],
+        composite_artifact: dict | None,
     ) -> None:
         """For records > 80 chars, the historical preview must be a prefix of full_text."""
         if composite_artifact is None:
@@ -80,20 +81,25 @@ class TestPreviewNotFullText:
         for strat_name, strat_results in composite_artifact.get("results", {}).items():
             for item in strat_results:
                 qid = item.get("qid", "")
-                for hist_cand in item.get("retrieval_evidence", {}).get("candidates", []):
+                for hist_cand in item.get("retrieval_evidence", {}).get(
+                    "candidates", []
+                ):
                     preview = hist_cand.get("text_preview", "")
                     rank = hist_cand.get("retrieval_rank")
                     # Find matching v2 record
                     matches = [
-                        r for r in evidence_records
+                        r
+                        for r in evidence_records
                         if r["strategy"] == strat_name
                         and r["qid"] == qid
                         and r["retrieval_rank"] == rank
                         and r.get("post_rerank_rank") is not None
-                        or (r["strategy"] == strat_name
+                        or (
+                            r["strategy"] == strat_name
                             and r["qid"] == qid
                             and r["retrieval_rank"] == rank
-                            and r.get("pre_rerank_rank") is None)
+                            and r.get("pre_rerank_rank") is None
+                        )
                     ]
                     if matches and len(preview) == 80:
                         full = matches[0]["full_text"]
@@ -108,6 +114,7 @@ class TestPreviewNotFullText:
 
 # ─── Test 2: evidence v2 contains real full_text ─────────────────
 
+
 class TestFullTextReal:
     """Prove evidence v2 full_text comes from actual node content."""
 
@@ -116,11 +123,13 @@ class TestFullTextReal:
             assert r["full_text"], f"Empty full_text: {r['strategy']} {r['qid']}"
 
     def test_full_text_exceeds_preview_for_non_sentence_strategies(
-        self, evidence_records: list[dict],
+        self,
+        evidence_records: list[dict],
     ) -> None:
         """For fixed_chunk and window strategies, full_text should typically exceed 80 chars."""
         non_anchor = [
-            r for r in evidence_records
+            r
+            for r in evidence_records
             if r["strategy"] not in ("S0_sentence_anchor",)
             and r["qid"] != "q_test_04"  # abstention question may have short text
         ]
@@ -130,6 +139,7 @@ class TestFullTextReal:
 
 
 # ─── Test 3: full_text has valid SHA ─────────────────────────────
+
 
 class TestShaIntegrity:
     """Prove SHA-256 consistency of full_text."""
@@ -150,6 +160,7 @@ class TestShaIntegrity:
 
 # ─── Test 4: truncated content is rejected ───────────────────────
 
+
 class TestTruncationRejection:
     """Prove no records have is_truncated=True."""
 
@@ -160,11 +171,13 @@ class TestTruncationRejection:
 
 # ─── Test 5: sentence-window distinguishes sentence and window ───
 
+
 class TestSentenceWindowDistinction:
     """Prove W0 returns window text (longer) and S0 returns anchor text (shorter)."""
 
     def test_w0_texts_are_longer_than_s0(
-        self, evidence_records: list[dict],
+        self,
+        evidence_records: list[dict],
     ) -> None:
         """For the same question, W0 window text should be longer than S0 anchor."""
         w0_by_qid = {}
@@ -186,7 +199,9 @@ class TestSentenceWindowDistinction:
         assert compared > 0
 
     def test_w0_has_window_metadata(self, evidence_records: list[dict]) -> None:
-        w0_records = [r for r in evidence_records if r["strategy"] == "W0_sentence_window"]
+        w0_records = [
+            r for r in evidence_records if r["strategy"] == "W0_sentence_window"
+        ]
         with_meta = [r for r in w0_records if r.get("window_metadata")]
         assert len(with_meta) == len(w0_records), (
             f"W0: {len(with_meta)}/{len(w0_records)} have window_metadata"
@@ -195,17 +210,25 @@ class TestSentenceWindowDistinction:
 
 # ─── Test 6: reranker preserves pre and post ranking ────────────
 
+
 class TestRerankerPreservation:
     """Prove reranked strategies have pre_rerank and post_rerank fields."""
 
-    @pytest.mark.parametrize("strategy", [
-        "W1_sentence_window_rerank", "H2_auto_merging_rerank",
-    ])
+    @pytest.mark.parametrize(
+        "strategy",
+        [
+            "W1_sentence_window_rerank",
+            "H2_auto_merging_rerank",
+        ],
+    )
     def test_final_candidates_have_pre_and_post_ranks(
-        self, evidence_records: list[dict], strategy: str,
+        self,
+        evidence_records: list[dict],
+        strategy: str,
     ) -> None:
         final = [
-            r for r in evidence_records
+            r
+            for r in evidence_records
             if r["strategy"] == strategy and r.get("post_rerank_rank") is not None
         ]
         assert len(final) > 0, f"No final reranked candidates for {strategy}"
@@ -215,14 +238,21 @@ class TestRerankerPreservation:
             )
             assert r["post_rerank_rank"] is not None
 
-    @pytest.mark.parametrize("strategy", [
-        "W1_sentence_window_rerank", "H2_auto_merging_rerank",
-    ])
+    @pytest.mark.parametrize(
+        "strategy",
+        [
+            "W1_sentence_window_rerank",
+            "H2_auto_merging_rerank",
+        ],
+    )
     def test_dropped_candidates_have_null_post_rank(
-        self, evidence_records: list[dict], strategy: str,
+        self,
+        evidence_records: list[dict],
+        strategy: str,
     ) -> None:
         dropped = [
-            r for r in evidence_records
+            r
+            for r in evidence_records
             if r["strategy"] == strategy and r.get("post_rerank_rank") is None
         ]
         assert len(dropped) > 0, f"No dropped candidates for {strategy}"
@@ -232,6 +262,7 @@ class TestRerankerPreservation:
 
 
 # ─── Test 7: auto-merging preserves leaf and parent ──────────────
+
 
 class TestAutoMergingPreservation:
     """Prove H1 auto-merging strategy has evidence with merged nodes."""
@@ -253,11 +284,13 @@ class TestAutoMergingPreservation:
 
 # ─── Test 8: no ground truth enters the runner ──────────────────
 
+
 class TestNoGroundTruthLeak:
     """Prove no relevant_pages or gold_answer in evidence records."""
 
     def test_no_relevant_pages_in_records(
-        self, evidence_records: list[dict],
+        self,
+        evidence_records: list[dict],
     ) -> None:
         for r in evidence_records:
             assert "relevant_pages" not in r, (
@@ -265,19 +298,22 @@ class TestNoGroundTruthLeak:
             )
 
     def test_no_gold_answer_in_records(
-        self, evidence_records: list[dict],
+        self,
+        evidence_records: list[dict],
     ) -> None:
         for r in evidence_records:
             assert "gold_answer" not in r
 
     def test_no_relevance_grade_in_records(
-        self, evidence_records: list[dict],
+        self,
+        evidence_records: list[dict],
     ) -> None:
         for r in evidence_records:
             assert "relevance_grade" not in r
 
 
 # ─── Test 9: holdout is rejected ─────────────────────────────────
+
 
 class TestHoldoutSealed:
     """Prove no holdout questions appear in evidence."""
@@ -294,17 +330,21 @@ class TestHoldoutSealed:
 
 # ─── Test 10: pool uses only evidence v2 ─────────────────────────
 
+
 class TestPoolSourceIntegrity:
     """Prove all records come from evidence v2 schema."""
 
     def test_all_records_have_evidence_v2_schema(
-        self, evidence_records: list[dict],
+        self,
+        evidence_records: list[dict],
     ) -> None:
         for r in evidence_records:
             assert r["schema"] == "retrieval_evidence_v2"
 
     def test_all_records_have_corpus_sha(
-        self, evidence_records: list[dict], evidence_v2: dict,
+        self,
+        evidence_records: list[dict],
+        evidence_v2: dict,
     ) -> None:
         expected_corpus = evidence_v2.get("corpus_sha256")
         for r in evidence_records:
@@ -313,42 +353,70 @@ class TestPoolSourceIntegrity:
 
 # ─── Test 11: queue accounting closes ────────────────────────────
 
+
 class TestQueueAccounting:
     """Prove record counts are internally consistent."""
 
     def test_total_records_matches(
-        self, evidence_v2: dict, evidence_records: list[dict],
+        self,
+        evidence_v2: dict,
+        evidence_records: list[dict],
     ) -> None:
         assert evidence_v2["total_records"] == len(evidence_records)
 
     def test_all_strategies_present(self, evidence_records: list[dict]) -> None:
         strategies = {r["strategy"] for r in evidence_records}
         expected = {
-            "F0_baseline", "S0_sentence_anchor",
-            "W0_sentence_window", "W1_sentence_window_rerank",
-            "H0_hierarchical_leaf", "H1_auto_merging", "H2_auto_merging_rerank",
+            "F0_baseline",
+            "S0_sentence_anchor",
+            "W0_sentence_window",
+            "W1_sentence_window_rerank",
+            "H0_hierarchical_leaf",
+            "H1_auto_merging",
+            "H2_auto_merging_rerank",
         }
         assert strategies == expected
 
     def test_all_qids_present(self, evidence_records: list[dict]) -> None:
         qids = {r["qid"] for r in evidence_records}
         expected = {
-            "q_dev_01", "q_dev_02", "q_dev_03", "q_dev_04",
-            "q_test_01", "q_test_02", "q_test_03", "q_test_04",
+            "q_dev_01",
+            "q_dev_02",
+            "q_dev_03",
+            "q_dev_04",
+            "q_test_01",
+            "q_test_02",
+            "q_test_03",
+            "q_test_04",
         }
         assert qids == expected
 
     def test_non_reranked_strategies_have_3_per_question(
-        self, evidence_records: list[dict],
+        self,
+        evidence_records: list[dict],
     ) -> None:
         """Non-reranked strategies should have exactly TOP_K=3 per question."""
-        non_reranked = ("F0_baseline", "S0_sentence_anchor", "W0_sentence_window",
-                        "H0_hierarchical_leaf", "H1_auto_merging")
+        non_reranked = (
+            "F0_baseline",
+            "S0_sentence_anchor",
+            "W0_sentence_window",
+            "H0_hierarchical_leaf",
+            "H1_auto_merging",
+        )
         for strat in non_reranked:
-            for qid in {"q_dev_01", "q_dev_02", "q_dev_03", "q_dev_04",
-                        "q_test_01", "q_test_02", "q_test_03", "q_test_04"}:
+            for qid in {
+                "q_dev_01",
+                "q_dev_02",
+                "q_dev_03",
+                "q_dev_04",
+                "q_test_01",
+                "q_test_02",
+                "q_test_03",
+                "q_test_04",
+            }:
                 count = sum(
-                    1 for r in evidence_records
+                    1
+                    for r in evidence_records
                     if r["strategy"] == strat and r["qid"] == qid
                 )
                 assert count == 3, f"{strat} × {qid}: expected 3, got {count}"
@@ -356,11 +424,14 @@ class TestQueueAccounting:
 
 # ─── Test 12: baseline invariants preserved ──────────────────────
 
+
 class TestBaselineInvariantsPreserved:
     """Prove historical SHA-256 compatibility where deterministic."""
 
     def test_sha256_compatible_with_historical(
-        self, evidence_records: list[dict], composite_artifact: dict | None,
+        self,
+        evidence_records: list[dict],
+        composite_artifact: dict | None,
     ) -> None:
         """For deterministic retrievers, SHA-256 of full text should match historical."""
         if composite_artifact is None:
@@ -371,19 +442,24 @@ class TestBaselineInvariantsPreserved:
         for strat_name, strat_results in composite_artifact.get("results", {}).items():
             for item in strat_results:
                 qid = item.get("qid", "")
-                for hist_cand in item.get("retrieval_evidence", {}).get("candidates", []):
+                for hist_cand in item.get("retrieval_evidence", {}).get(
+                    "candidates", []
+                ):
                     h_sha = hist_cand.get("text_sha256", "")
                     h_rank = hist_cand.get("retrieval_rank")
                     if not h_sha:
                         continue
                     # Find matching v2 record
                     v2_match = [
-                        r for r in evidence_records
+                        r
+                        for r in evidence_records
                         if r["strategy"] == strat_name
                         and r["qid"] == qid
                         and r["retrieval_rank"] == h_rank
-                        and (r.get("post_rerank_rank") is not None
-                             or r.get("pre_rerank_rank") is None)
+                        and (
+                            r.get("post_rerank_rank") is not None
+                            or r.get("pre_rerank_rank") is None
+                        )
                     ]
                     if v2_match:
                         if v2_match[0]["full_text_sha256"] == h_sha:
