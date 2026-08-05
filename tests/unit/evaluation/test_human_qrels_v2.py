@@ -551,3 +551,112 @@ class TestHumanQrelsV2GovernanceAndMetrics:
         for item in q4_items:
             assert item.relevance_grade == 0
             assert item.evidence_role == "NEGATIVE_CONTROL"
+
+    # 38. Candidatos reais recebem passage_id canônico via CanonicalPassageMapper
+    def test_38_real_candidates_receive_passage_id(self) -> None:
+        from raglab.evaluation.pooling.canonical_passage_mapper import (
+            CanonicalPassageMapper,
+        )
+
+        reg_file = Path("benchmarks/ground_truth/v2/passage_registry.jsonl")
+        mapper = CanonicalPassageMapper.from_registry_file(reg_file)
+        chunk_data = {
+            "chunk_id": "gersting_discrete_math_p92_s36",
+            "document_id": "gersting_discrete_math",
+            "page_number": 92,
+            "text": (
+                "Demonstração por Exaustão Embora “provar a falsidade por um"
+                " contraexemplo” sempre funcione"
+            ),
+        }
+        res = mapper.map_chunk(chunk_data)
+        assert res.mapped_passage_id == "ps_1e8ae016ba7f2e40"
+
+    # 39. Lista de candidatos sem passage_id / unmapped falha validação
+    def test_39_unmapped_candidate_list_fails_validation(
+        self, mock_qrels_and_manifest: tuple[Path, Path]
+    ) -> None:
+        q_file, m_file = mock_qrels_and_manifest
+        qs = load_human_qrels_set(q_file, m_file)
+        res = compute_human_qrels_metrics_for_question(
+            qrels_set=qs,
+            question_id="q_dev_01",
+            retrieved_passage_ids=["UNMAPPED_NEEDS_REVIEW", "UNMAPPED_NEEDS_REVIEW"],
+            k=2,
+        )
+        assert res["retrieval_accounting"]["unresolved_mapping_count"] == 2
+        assert res["retrieval_accounting"]["judged_coverage_rate"] == 0.0
+
+    # 40. Sete estratégias passam pelo contrato no preflight-human-qrels
+    def test_40_seven_strategies_pass_preflight_contract(self) -> None:
+        from benchmarks.run_slice4_benchmark import VALID_STRATEGIES
+
+        assert len(VALID_STRATEGIES) == 7
+        assert "F0_baseline" in VALID_STRATEGIES
+        assert "H2_auto_merging_rerank" in VALID_STRATEGIES
+
+    # 41. Fluxo pre/post reranking chega corretamente à métrica
+    def test_41_pre_post_reranking_flow_to_metrics(
+        self, mock_qrels_and_manifest: tuple[Path, Path]
+    ) -> None:
+        q_file, m_file = mock_qrels_and_manifest
+        qs = load_human_qrels_set(q_file, m_file)
+        # Test case with dropped relevant (damage)
+        res_damage = compute_human_qrels_metrics_for_question(
+            qrels_set=qs,
+            question_id="q_dev_01",
+            retrieved_passage_ids=["ps_gen_0_00"],  # post rerank (grau 0)
+            k=1,
+            candidate_passage_ids_pre_rerank=[
+                "ps_gen_1_00",
+                "ps_gen_0_00",
+            ],  # pre rerank (ps_gen_1_00 has grau 1)
+        )
+        assert res_damage["reranker_damage"] is not None
+        assert res_damage["reranker_damage"]["dropped_relevant_count"] == 1
+
+        # Test case without damage
+        res_nodamage = compute_human_qrels_metrics_for_question(
+            qrels_set=qs,
+            question_id="q_dev_01",
+            retrieved_passage_ids=["ps_gen_1_00"],
+            k=1,
+            candidate_passage_ids_pre_rerank=["ps_gen_1_00"],
+        )
+        assert res_nodamage["reranker_damage"] is not None
+        assert res_nodamage["reranker_damage"]["dropped_relevant_count"] == 0
+
+
+    # 42. Preflight não instancia Gemini nem exige chave
+    def test_42_preflight_no_gemini_instance_or_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import logging
+
+        for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "LANGSMITH_API_KEY"):
+            monkeypatch.delenv(k, raising=False)
+        from benchmarks.run_slice4_benchmark import (
+            _validate_no_credentials_for_preflight,
+        )
+
+        logger = logging.getLogger("test")
+        _validate_no_credentials_for_preflight(logger)  # Must not raise or exit
+
+    # 43. Preflight rejeita holdout
+    def test_43_preflight_rejects_holdout(
+        self, mock_qrels_and_manifest: tuple[Path, Path]
+    ) -> None:
+        q_file, m_file = mock_qrels_and_manifest
+        qs = load_human_qrels_set(q_file, m_file)
+        with pytest.raises(ValueError, match="HOLDOUT_SEALED"):
+            qs.get_qrel("q_holdout_01", "ps_1e8ae016ba7f2e40")
+
+    # 44. PASSAGE_LEVEL permanece unidade canônica explícita
+    def test_44_passage_level_canonical_unit_explicit(self) -> None:
+        m_data = json.loads(
+            Path(
+                "benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_manifest.json"
+            ).read_text()
+        )
+        unit = m_data.get("canonical_evaluation_unit", "PASSAGE_LEVEL")
+        assert unit == "PASSAGE_LEVEL"

@@ -111,12 +111,21 @@ class HumanQrelsSet:
         return dist
 
     def get_qrel(self, question_id: str, passage_id: str) -> HumanQrel | None:
+        if "holdout" in question_id.lower():
+            raise ValueError(
+                f"HOLDOUT_SEALED: Forbidden access to holdout question {question_id}"
+            )
         by_pair: dict[tuple[str, str], HumanQrel] = self._by_pair  # type: ignore[attr-defined]
         return by_pair.get((question_id, passage_id))
 
     def get_qrels_for_question(self, question_id: str) -> tuple[HumanQrel, ...]:
+        if "holdout" in question_id.lower():
+            raise ValueError(
+                f"HOLDOUT_SEALED: Forbidden access to holdout question {question_id}"
+            )
         by_qid: dict[str, tuple[HumanQrel, ...]] = self._by_qid  # type: ignore[attr-defined]
         return by_qid.get(question_id, ())
+
 
     def get_relevant_passages(self, question_id: str, min_grade: int = 1) -> tuple[HumanQrel, ...]:
         return tuple(q for q in self.get_qrels_for_question(question_id) if q.relevance_grade >= min_grade)

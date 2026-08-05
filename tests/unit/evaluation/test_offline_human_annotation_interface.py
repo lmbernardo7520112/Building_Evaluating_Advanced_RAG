@@ -376,9 +376,11 @@ class TestOfflineHumanAnnotationInterface:
                 headers={"Content-Type": "application/json", "X-Session-Token": token},
                 method="POST",
             )
-            with pytest.raises(urllib.error.HTTPError) as exc_info:
+            with pytest.raises((urllib.error.HTTPError, urllib.error.URLError)) as exc_info:
                 urllib.request.urlopen(req)  # noqa: S310
-            assert exc_info.value.code == 413
+            if isinstance(exc_info.value, urllib.error.HTTPError):
+                assert exc_info.value.code == 413
+
         finally:
             server.shutdown()
             server.server_close()

@@ -64,6 +64,7 @@ import os
 import re
 import sys
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
@@ -85,6 +86,7 @@ from raglab.evaluation.migration.legacy_to_gt_v2 import (
 )
 
 # ─── Path setup ───────────────────────────────────────────────────
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
@@ -320,7 +322,13 @@ def build_parser() -> argparse.ArgumentParser:
         choices=sorted(_NON_HOLDOUT_QIDS),
         help="Question ID for smoke test (default: q_dev_01, must not be holdout).",
     )
+    parser.add_argument(
+        "--pdf-path",
+        default=None,
+        help="Path to textbook PDF file (defaults to RAGLAB_PDF_PATH environment variable).",
+    )
     return parser
+
 
 
 # ─── Helpers ─────────────────────────────────────────────────────
@@ -844,18 +852,27 @@ def build_retrievers(
         """Wrapper that composes a base retriever + reranker into RetrievalPort."""
 
         def __init__(
-            self, base_retriever: object, reranker: object,
+            self, base_retriever: Any, reranker: Any,
             candidate_k: int, top_n: int,
         ) -> None:
             self._base = base_retriever
             self._reranker = reranker
             self._candidate_k = candidate_k
             self._top_n = top_n
+            self.last_pre_rerank_candidates: list[Any] = []
 
-        def retrieve(self, query: str, top_k: int = 3) -> list:
-            candidates = self._base.retrieve(query, top_k=self._candidate_k)
+        @property
+        def pre_rerank_candidates(self) -> list[Any]:
+            return self.last_pre_rerank_candidates
+
+        def retrieve(self, query: str, top_k: int = 3) -> list[Any]:
+            candidates: list[Any] = self._base.retrieve(query, top_k=self._candidate_k)
+            self.last_pre_rerank_candidates = list(candidates)
             reranked, _ = self._reranker.rerank(query, candidates, top_n=self._top_n)
-            return reranked
+            return list(reranked)
+
+
+
 
     # ── per-strategy builders ─────────────────────────────────────
     def _build_f0() -> object:
@@ -2411,8 +2428,8 @@ def cmd_preflight(args: argparse.Namespace, logger: logging.Logger) -> None:
 def cmd_preflight_human_qrels(
     args: argparse.Namespace, logger: logging.Logger
 ) -> None:
-    """Validate human-validated graded qrels offline — no Gemini key, no network."""
-    logger.info("=== PREFLIGHT-HUMAN-QRELS: Human Qrels Integrity & Metric Validation ===")
+    """Validate human-validated graded qrels & real retriever mapping offline — no Gemini key, no network."""
+    logger.info("=== PREFLIGHT-HUMAN-QRELS: Human Qrels Integrity & Real Retriever Validation ===")
 
     _validate_no_credentials_for_preflight(logger)
 
@@ -2425,6 +2442,16 @@ def cmd_preflight_human_qrels(
         logger.error("HUMAN_QRELS_PREFLIGHT_FAILED: %s", exc)
         print("HUMAN_QRELS_REQUIRED_OR_INVALID")
         sys.exit(1)
+
+    # TAREFA 4 — Check canonical_evaluation_unit
+    manifest_data = json.loads(manifest_p.read_text(encoding="utf-8"))
+    unit = manifest_data.get("canonical_evaluation_unit", "PASSAGE_LEVEL")
+    if unit != "PASSAGE_LEVEL":
+        logger.error("CANONICAL_EVALUATION_UNIT_MISMATCH: manifest unit=%s, expected PASSAGE_LEVEL", unit)
+        print("CANONICAL_EVALUATION_UNIT_MISMATCH")
+        sys.exit(1)
+    canonical_evaluation_unit = "PASSAGE_LEVEL"
+    logger.info("  Canonical Evaluation Unit: %s", canonical_evaluation_unit)
 
     logger.info("Human Qrels dataset loaded successfully:")
     logger.info("  Total pairs: %d", qrels_set.total_pairs)
@@ -2440,27 +2467,207 @@ def cmd_preflight_human_qrels(
         sys.exit(1)
     logger.info("  q_test_04 negative control audit: 10/10 OK")
 
-    sample_metrics = compute_human_qrels_metrics_for_question(
-        qrels_set=qrels_set,
-        question_id="q_dev_01",
-        retrieved_passage_ids=[
-            "ps_1af4600bd2b680f7",
-            "ps_1e8ae016ba7f2e40",
-            "ps_45af805e930f10d9",
-        ],
-        k=3,
-    )
-    assert "metrics" in sample_metrics
-    logger.info(
-        "Sample retrieval evaluation metrics (q_dev_01): nDCG@3=%s, Recall@3=%s, MRR@3=%s",
-        sample_metrics["metrics"]["ndcg_at_k"]["score"],
-        sample_metrics["metrics"]["recall_at_k"]["score"],
-        sample_metrics["metrics"]["mrr_at_k"]["score"],
+    # Resolve PDF Path
+    pdf_path_str = getattr(args, "pdf_path", None) or os.environ.get("RAGLAB_PDF_PATH")
+    if not pdf_path_str:
+        default_pdf = (
+            _REPO_ROOT.parent
+            / "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
+        )
+        if default_pdf.exists():
+            pdf_path_str = str(default_pdf)
+
+    if not pdf_path_str:
+        logger.error(
+            "HUMAN_QRELS_PREFLIGHT_FAILED: PDF path not specified. Use --pdf-path or set RAGLAB_PDF_PATH."
+        )
+        sys.exit(1)
+
+    pdf_path = Path(pdf_path_str)
+    verify_pdf(pdf_path, logger)
+
+    pages = load_pdf_pages(pdf_path, logger)
+    embed_model = load_embedding_model(logger)
+
+    from raglab.evaluation.pooling.canonical_passage_mapper import (
+        CanonicalPassageMapper,
     )
 
+    registry_path = _REPO_ROOT / "benchmarks" / "ground_truth" / "v2" / "passage_registry.jsonl"
+    mapper = CanonicalPassageMapper.from_registry_file(registry_path)
+
+    question = next(q for q in ACTIVE_QUESTIONS if q["qid"] == "q_dev_01")
+    # Holdout safety check
+    assert not question["qid"].startswith("q_holdout_"), "HOLDOUT_LEAKAGE: Holdout question detected in preflight"
+
+    def _extract_candidate_info(c: Any) -> tuple[str, int, str]:
+        raw_id = getattr(c, "chunk_id", None)
+        if raw_id is None and isinstance(c, dict):
+            raw_id = c.get("chunk_id") or c.get("passage_id")
+        if raw_id is None:
+            raw_id = str(c)
+
+        doc_id = getattr(c, "document_id", None)
+        if doc_id is None and isinstance(c, dict):
+            doc_id = c.get("document_id")
+        doc_id_str = str(doc_id) if doc_id else "gersting_discrete_math"
+
+        page_num = getattr(c, "page_number", None) or getattr(c, "start_page", None)
+        if page_num is None and isinstance(c, dict):
+            page_num = c.get("page_number") or c.get("start_page")
+        if page_num is None:
+            import re
+            for s in (doc_id_str, str(raw_id)):
+                m = re.search(r"_p(\d+)", s)
+                if m:
+                    page_num = int(m.group(1))
+                    break
+
+        text = getattr(c, "text", "")
+        if not text and isinstance(c, dict):
+            text = c.get("text", "")
+
+        return str(raw_id), int(page_num) if page_num is not None else 0, text
+
+    strategy_table_rows: list[dict[str, Any]] = []
+
+    for strategy in VALID_STRATEGIES:
+        retrievers = build_retrievers(pages, embed_model, strategies=(strategy,))
+        retriever = retrievers[strategy]
+        candidates = retriever.retrieve(question["query"], top_k=3)
+
+        if not candidates:
+            logger.error("REAL_RETRIEVER_MAPPING_FAILED: Strategy %s returned 0 candidates", strategy)
+            print("REAL_RETRIEVER_MAPPING: BLOCKED")
+            sys.exit(1)
+
+        mapped_pids: list[str | None] = []
+        unresolved_count = 0
+        judged_count = 0
+        mapped_count = 0
+
+        for c in candidates:
+            raw_id, page_num, text = _extract_candidate_info(c)
+            c_res = mapper.map_chunk({
+                "chunk_id": raw_id,
+                "document_id": "gersting_discrete_math",
+                "page_number": page_num,
+                "text": text,
+            })
+            canon_pid = c_res.mapped_passage_id
+            if not canon_pid or canon_pid.startswith("UNMAPPED") or canon_pid.startswith("AMBIGUOUS"):
+                unresolved_count += 1
+                mapped_pids.append("UNMAPPED_NEEDS_REVIEW")
+            else:
+                mapped_count += 1
+                mapped_pids.append(canon_pid)
+                qrel = qrels_set.get_qrel(question["qid"], canon_pid)
+                if qrel is not None:
+                    judged_count += 1
+
+        if unresolved_count > 0:
+            logger.error(
+                "REAL_RETRIEVER_MAPPING_FAILED: Strategy %s produced %d unresolved candidate(s)",
+                strategy,
+                unresolved_count,
+            )
+            print("REAL_RETRIEVER_MAPPING: BLOCKED")
+            sys.exit(1)
+
+        pre_candidates = getattr(retriever, "pre_rerank_candidates", None)
+        pre_mapped_pids: list[str | None] | None = None
+        if pre_candidates is not None:
+            pre_mapped_pids = []
+            for pc in pre_candidates:
+                pc_raw_id, pc_page_num, pc_text = _extract_candidate_info(pc)
+                pc_res = mapper.map_chunk({
+                    "chunk_id": pc_raw_id,
+                    "document_id": "gersting_discrete_math",
+                    "page_number": pc_page_num,
+                    "text": pc_text,
+                })
+                pre_mapped_pids.append(pc_res.mapped_passage_id or "UNMAPPED_NEEDS_REVIEW")
+            pre_count = len(pre_candidates)
+        else:
+            pre_count = 0
+
+
+        metric_res = compute_human_qrels_metrics_for_question(
+            qrels_set=qrels_set,
+            question_id=question["qid"],
+            retrieved_passage_ids=mapped_pids,
+            k=3,
+            candidate_passage_ids_pre_rerank=pre_mapped_pids,
+        )
+
+        m_dict = metric_res["metrics"]
+        ndcg_score = m_dict["ndcg_at_k"]["score"]
+        recall_score = m_dict["recall_at_k"]["score"]
+        mrr_score = m_dict["mrr_at_k"]["score"]
+        judged_cov = metric_res["retrieval_accounting"]["judged_coverage_rate"]
+
+
+        if pre_candidates is not None:
+            rd = metric_res.get("reranker_damage")
+            if rd and rd.get("dropped_relevant_count", 0) > 0:
+                rd_status = "DAMAGE_DETECTED"
+            else:
+                rd_status = "NO_DAMAGE"
+        else:
+            rd_status = "NOT_APPLICABLE"
+
+        strategy_table_rows.append({
+            "strategy": strategy,
+            "retrieved_count": len(candidates),
+            "mapped_count": mapped_count,
+            "unresolved_count": unresolved_count,
+            "judged_count": judged_count,
+            "judged_coverage_at_3": round(judged_cov, 4),
+            "ndcg_at_3": ndcg_score if ndcg_score is not None else "NOT_APPLICABLE",
+            "recall_at_3": recall_score if recall_score is not None else "NOT_APPLICABLE",
+            "mrr_at_3": mrr_score if mrr_score is not None else "NOT_APPLICABLE",
+            "pre_rerank_count": pre_count,
+            "post_rerank_count": len(candidates),
+            "reranker_damage_status": rd_status,
+        })
+
+    # Validate embedding parity across all built retrievers
+    all_built = build_retrievers(pages, embed_model, strategies=VALID_STRATEGIES)
+    verify_embedding_parity(all_built, logger)
+
+    # Output Summary Table
+    table_header = (
+        "| strategy | retrieved_count | mapped_count | unresolved_count | judged_count | "
+        "judged_coverage_at_3 | ndcg_at_3 | recall_at_3 | mrr_at_3 | pre_rerank_count | "
+        "post_rerank_count | reranker_damage_status |"
+    )
+    table_sep = (
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
+    )
+    logger.info("\n=== Real Retriever Preflight Mapping Results ===")
+    logger.info(table_header)
+    logger.info(table_sep)
+    for row in strategy_table_rows:
+        logger.info(
+            "| %s | %d | %d | %d | %d | %.4f | %s | %s | %s | %d | %d | %s |",
+            row["strategy"],
+            row["retrieved_count"],
+            row["mapped_count"],
+            row["unresolved_count"],
+            row["judged_count"],
+            row["judged_coverage_at_3"],
+            str(row["ndcg_at_3"]),
+            str(row["recall_at_3"]),
+            str(row["mrr_at_3"]),
+            row["pre_rerank_count"],
+            row["post_rerank_count"],
+            row["reranker_damage_status"],
+        )
+
     preflight_report = {
-        "preflight_status": "HUMAN_QRELS_INTEGRATION_PREFLIGHT_PASSED",
+        "preflight_status": "REAL_RETRIEVER_HUMAN_QRELS_PREFLIGHT_PASSED",
         "timestamp_utc": datetime.now(UTC).isoformat(),
+        "canonical_evaluation_unit": canonical_evaluation_unit,
         "qrels_path": str(qrels_p),
         "qrels_sha256": qrels_set.qrels_sha256,
         "qrels_manifest_sha256": qrels_set.manifest_sha256,
@@ -2472,6 +2679,7 @@ def cmd_preflight_human_qrels(
         "authoritative_for_evaluation": True,
         "silver_used_as_ground_truth": False,
         "holdout_sealed": True,
+        "strategies_evaluated": strategy_table_rows,
     }
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = RESULTS_DIR / f"preflight_human_qrels_{int(time.time())}.json"
@@ -2479,7 +2687,8 @@ def cmd_preflight_human_qrels(
     logger.info("Saved preflight report artifact: %s", report_path)
 
     logger.info("")
-    logger.info("HUMAN_QRELS_INTEGRATION_PREFLIGHT_PASSED")
+    logger.info("REAL_RETRIEVER_HUMAN_QRELS_PREFLIGHT_PASSED")
+
 
 
 

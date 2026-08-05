@@ -138,8 +138,17 @@ class CanonicalPassageMapper:
         if page_num > 0 and text:
             page_passages = self.by_page.get((doc_id, page_num), [])
             matching_passages: list[PassageRegistryEntry] = []
+            import re
+
+            norm_text = re.sub(r"\s+", " ", text).strip()
             for p_entry in page_passages:
-                if text in p_entry.text or p_entry.text in text:
+                norm_entry = re.sub(r"\s+", " ", p_entry.text).strip()
+                if (
+                    text in p_entry.text
+                    or p_entry.text in text
+                    or norm_text in norm_entry
+                    or norm_entry in norm_text
+                ):
                     matching_passages.append(p_entry)
 
             if len(matching_passages) == 1:
