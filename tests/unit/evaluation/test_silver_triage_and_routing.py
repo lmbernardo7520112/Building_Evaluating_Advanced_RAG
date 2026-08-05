@@ -17,7 +17,7 @@ from raglab.evaluation.contracts.silver_annotation_v2 import (
 )
 from scripts.build_human_review_queues import build_human_queues
 from scripts.calibrate_silver_against_human import calibrate_silver
-from scripts.run_silver_annotation import run_silver_triage_mock
+from scripts.run_silver_annotation import run_validate_only
 
 
 class TestSilverTriageAndRouting:
@@ -105,7 +105,7 @@ class TestSilverTriageAndRouting:
         )
         out_dir = tmp_path / "out"
         with pytest.raises(ValueError, match="HOLDOUT VIOLATION"):
-            run_silver_triage_mock(bad_pool, out_dir, mode="validate-only")
+            run_validate_only(bad_pool, out_dir)
 
     def test_37_queue_a_receives_full_pool_and_audit(self, tmp_path: Path):
         inp = Path("benchmarks/ground_truth/v2/hybrid")

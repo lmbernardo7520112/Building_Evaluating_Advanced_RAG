@@ -87,7 +87,7 @@ class SilverAnnotationRecord:
     label_source: str = "MACHINE_SILVER"
     judge_id: str = "gemini_flash_judge"
     judge_provider: str = "google_genai"
-    judge_model: str = "gemini-2.5-flash"
+    judge_model: str = "gemini-3.1-flash-lite"
     judge_model_version: str = "v1"
     judge_prompt_sha256: str = ""
     rubric_version: str = "2.0.0"
