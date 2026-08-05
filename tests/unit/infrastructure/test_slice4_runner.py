@@ -211,7 +211,7 @@ class TestSmokeMode:
 
         called_pairs: list[tuple[str, str]] = []
 
-        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path):
+        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path, *args, **kwargs):
             for s in strategy_labels:
                 for q in questions:
                     called_pairs.append((s, q["qid"]))
@@ -265,7 +265,7 @@ class TestSmokeMode:
 
         seen_run_ids: list[str] = []
 
-        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path):
+        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path, *args, **kwargs):
             seen_run_ids.append(run_id)
             out = tmp_path / f"slice4_results_{run_id}_fake.json"
             out.write_text(json.dumps({"experiment_id": run_id, "results": {}}))
@@ -309,7 +309,7 @@ class TestFullMode:
 
         called = []
 
-        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path):
+        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path, *args, **kwargs):
             called.append((run_id, len(questions), len(strategy_labels)))
             out = tmp_path / f"slice4_results_{run_id}_fake.json"
             out.write_text(json.dumps({"experiment_id": run_id, "results": {}}))
@@ -375,7 +375,7 @@ class TestResumeMode:
         called = []
 
         def _fake_run_benchmark(
-            run_id, questions, strategy_labels, logger, pdf_path
+            run_id, questions, strategy_labels, logger, pdf_path, *args, **kwargs
         ):
             called.append(run_id)
             out = tmp_path / f"results_{run_id}_fake.json"

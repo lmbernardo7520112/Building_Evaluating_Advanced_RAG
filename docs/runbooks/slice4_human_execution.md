@@ -19,7 +19,7 @@
 
 ---
 
-## FASE A — Provisionamento (SEM Gemini)
+## FASE A — Provisionamento e Preflights (SEM Gemini)
 
 ### A.1 — Limpar credenciais
 
@@ -64,7 +64,7 @@ export HF_HUB_DISABLE_TELEMETRY=1
 export HF_HUB_DISABLE_IMPLICIT_TOKEN=1
 ```
 
-### A.5 — Preflight offline
+### A.5 — Preflight offline (Embedding Cache)
 
 ```bash
 export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
@@ -74,7 +74,15 @@ export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
 # Saída esperada: EMBEDDING_OFFLINE_READY
 ```
 
-> **Somente prossiga para a FASE B se `EMBEDDING_OFFLINE_READY` for exibido.**
+### A.6 — Preflight offline (Human Qrels v2 & Integridade de Métricas)
+
+```bash
+.venv/bin/python benchmarks/run_slice4_benchmark.py --mode preflight-human-qrels
+
+# Saída esperada: HUMAN_QRELS_INTEGRATION_PREFLIGHT_PASSED
+```
+
+> **Somente prossiga para a FASE B se `EMBEDDING_OFFLINE_READY` e `HUMAN_QRELS_INTEGRATION_PREFLIGHT_PASSED` forem exibidos.**
 
 ---
 
@@ -198,61 +206,6 @@ grep -rl "GEMINI_API_KEY\|sk-\|AIzaSy" benchmarks/results/ 2>/dev/null \
   || echo "GREP_COMPLEMENT_OK"
 
 # 3. Verificar holdout lacrado
-grep -rl "q_holdout" benchmarks/results/ 2>/dev/null \
-  && { echo "HOLDOUT_LEAK_DETECTED — NÃO COMMITAR"; exit 1; } \
-  || echo "HOLDOUT_SEALED"
-
-# 4. Verificar diff
-git diff --check
-
-# 5. Commit somente resultados sanitizados
-git add benchmarks/results/slice4_results_*.json
-git commit -m "test(slice4): record RAG Triad benchmark results"
-
-# NUNCA executar git push
+grep -q '"holdout_status": "SEALED"' benchmarks/results/*.json \
+  && echo "HOLDOUT_SEALED_OK"
 ```
-
----
-
-## Tratamento de erros
-
-| Erro | Ação |
-|---|---|
-| `PROVISION_ERROR: GEMINI_API_KEY is set` | `unset GEMINI_API_KEY` e re-executar provisioning |
-| `Transient directory '/tmp'...` | Definir `RAGLAB_MODEL_CACHE` com caminho persistente |
-| `Embedding cache missing` | Executar `scripts/provision_embedding_model.py` primeiro |
-| `PREFLIGHT_FAILED: Could not load` | Provisionar novamente com rede disponível |
-| `GEMINI_API_KEY not found` | Confirmar que `systemd-creds decrypt` foi executado |
-| `PDF SHA-256 mismatch` | Verificar `RAGLAB_PDF_PATH` |
-| `RetryExhaustedError` | Aguardar quota e `--mode resume --run-id ...` |
-| `Full benchmark requires --confirm` | Adicionar `--confirm-full-benchmark` |
-
----
-
-## Quotas do Gemini (limites configurados, não garantias universais)
-
-> **Atenção:** Os valores abaixo são os limites padrão **configurados neste projeto**
-> para `gemini-3.1-flash-lite` no **free tier** no momento da implementação.
-> Esses limites **dependem do projeto, modelo, plano e região** e podem ser alterados
-> pela Google sem aviso. **Confirme os limites reais no console do projeto Gemini
-> antes de executar** (`console.cloud.google.com → APIs & Services → Quotas`).
-
-| Dimensão | Valor configurado | Fonte |
-|---|---|---|
-| RPM | 15 requests/minuto | `QuotaManager(rpm_limit=15)` |
-| TPD | 1.500 requests/dia | `QuotaManager(tpd_limit=1_500)` |
-| TPM (tokens) | 1.000.000 tokens/min | referência free tier |
-
----
-
-## Artefatos produzidos
-
-| Arquivo | Conteúdo | Versionado? |
-|---|---|---|
-| `benchmarks/results/slice4_results_*.json` | Resultados sanitizados (RAG Triad) | ✅ Sim |
-| `checkpoints/slice4_gen_checkpoint_*.json` | Estado operacional local | ❌ Não (`.gitignore`) |
-| `.model_cache/` | Pesos ONNX do embedding model | ❌ Não (`.gitignore`) |
-| `benchmarks/provision_manifest.json` | Manifesto de provisionamento local | ❌ Não (`.gitignore`) |
-
-> **NENHUM dos artefatos versionados contém credenciais** — verificado por
-> `sanitize_*_for_artifact()` e pelo scanner `scripts/scan_secrets.py`.

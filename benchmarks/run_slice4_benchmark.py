@@ -69,11 +69,16 @@ from pathlib import Path
 from typing import Any, Final
 
 from raglab.evaluation.contracts.ground_truth_v2 import (
-    GroundTruthItemV2,
     UnanswerableReason,
+)
+from raglab.evaluation.contracts.human_qrels_v2 import (
+    load_human_qrels_set,
 )
 from raglab.evaluation.metrics.deterministic_v2 import (
     compute_legacy_page_metrics,
+)
+from raglab.evaluation.metrics.human_qrels_metrics import (
+    compute_human_qrels_metrics_for_question,
 )
 from raglab.evaluation.migration.legacy_to_gt_v2 import (
     migrate_legacy_qrel_item,
@@ -102,6 +107,25 @@ GEMINI_MODEL = "gemini-3.1-flash-lite"
 RESULTS_DIR = _REPO_ROOT / "benchmarks" / "results"
 CHECKPOINT_DIR = _REPO_ROOT / "checkpoints"
 PROVISION_MANIFEST_PATH = _REPO_ROOT / "benchmarks" / "provision_manifest.json"
+
+DEFAULT_QRELS_PATH: Final[Path] = (
+    _REPO_ROOT
+    / "benchmarks"
+    / "ground_truth"
+    / "v2"
+    / "hybrid"
+    / "qrels"
+    / "human_qrels_final.jsonl"
+)
+DEFAULT_QRELS_MANIFEST_PATH: Final[Path] = (
+    _REPO_ROOT
+    / "benchmarks"
+    / "ground_truth"
+    / "v2"
+    / "hybrid"
+    / "qrels"
+    / "human_qrels_manifest.json"
+)
 
 _EVAL_SCHEMA_VERSION = "slice4_v4"
 
@@ -251,11 +275,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mode",
-        choices=["preflight", "preflight-retrievers", "smoke", "full", "resume"],
+        choices=["preflight", "preflight-retrievers", "preflight-human-qrels", "smoke", "full", "resume"],
         required=True,
         help=(
             "preflight: validate embedding cache offline (no Gemini key). "
             "preflight-retrievers: validate all 7 retriever builders structurally "
+            "preflight-human-qrels: validate human qrels dataset & metrics offline (no Gemini key). "
             "(no Gemini, no real corpus). "
             "smoke: 1 strategy x 1 question (mandatory before full). "
             "full: all 7 strategies x 8 questions (requires --confirm-full-benchmark). "
@@ -278,6 +303,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="F0_baseline",
         choices=VALID_STRATEGIES,
         help="Strategy for smoke test (default: F0_baseline).",
+    )
+    parser.add_argument(
+        "--qrels-path",
+        default=str(DEFAULT_QRELS_PATH),
+        help="Path to final human qrels JSONL file.",
+    )
+    parser.add_argument(
+        "--qrels-manifest",
+        default=str(DEFAULT_QRELS_MANIFEST_PATH),
+        help="Path to final human qrels manifest JSON file.",
     )
     parser.add_argument(
         "--smoke-question",
@@ -1335,6 +1370,8 @@ def run_benchmark(
     logger: logging.Logger,
     pdf_path: Path,
     manifest: dict[str, Any] | None = None,
+    qrels_path: Path | str | None = None,
+    qrels_manifest: Path | str | None = None,
 ) -> Path:
     """Execute generation + evaluation for requested questions × strategies.
 
@@ -1360,6 +1397,18 @@ def run_benchmark(
     )
 
     # ── Load & validate manifest before any Gemini call ──────────
+    qrels_p = Path(qrels_path) if qrels_path else DEFAULT_QRELS_PATH
+    manifest_p = (
+        Path(qrels_manifest) if qrels_manifest else DEFAULT_QRELS_MANIFEST_PATH
+    )
+
+    try:
+        qrels_set = load_human_qrels_set(qrels_p, manifest_p)
+    except ValueError as exc:
+        logger.error("HUMAN_QRELS_REQUIRED_OR_INVALID: %s", exc)
+        print("HUMAN_QRELS_REQUIRED_OR_INVALID")
+        raise ValueError(f"HUMAN_QRELS_REQUIRED_OR_INVALID: {exc}") from exc
+
     if manifest is None:
         manifest = load_provision_manifest()
     logger.info(
@@ -1782,35 +1831,68 @@ def run_benchmark(
                 cited_pages=citation_pages,
             )
 
-            deterministic_v2_metrics = {
-                "passage_recall_at_k": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
-                "passage_mrr": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
-                "ndcg_at_k": "NOT_COMPUTABLE_MISSING_GRADED_QRELS",
-                "citation_passage_precision": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
-                "citation_passage_recall": "NOT_COMPUTABLE_MISSING_PASSAGE_QRELS",
-                "factual_correctness": "NOT_COMPUTABLE_MISSING_GOLD_ANSWER",
-            }
+            retrieved_pids = [
+                c.get("passage_id")
+                for c in evidence_record.get("candidates", [])
+                if isinstance(c, dict) and c.get("passage_id")
+            ]
+            pre_rerank_pids = getattr(retriever, "_pre_rerank_passage_ids", None)
+
+            human_qrels_metrics = compute_human_qrels_metrics_for_question(
+                qrels_set=qrels_set,
+                question_id=qid,
+                retrieved_passage_ids=retrieved_pids,
+                k=TOP_K,
+                candidate_passage_ids_pre_rerank=pre_rerank_pids,
+            )
 
             ground_truth_record = {
                 "contract_version": "v2",
-                "source_schema": "legacy_active_questions",
-                "provenance_status": gt_item.provenance_status,
+                "source_schema": "human_qrels_v2",
+                "provenance_status": "HUMAN_ADJUDICATED_AND_CONSENSUS",
                 "annotation_completeness": gt_item.annotation_completeness,
-                "answerable": gt_item.answerable,
-                "unanswerable_reason": gt_item.unanswerable_reason.value if isinstance(gt_item.unanswerable_reason, UnanswerableReason) else (gt_item.unanswerable_reason or None),
+                "answerable": not is_abstention,
+                "unanswerable_reason": (
+                    UnanswerableReason.EXPLICIT_ABSTENTION_REQUIRED.value
+                    if is_abstention
+                    else None
+                ),
                 "legacy_relevant_pages": list(gt_item.legacy_relevant_pages),
-                "passage_qrels_status": "NOT_ANNOTATED",
-                "graded_qrels_status": "NOT_ANNOTATED",
-                "gold_answer_status": "NOT_ANNOTATED",
+                "passage_qrels_status": "HUMAN_ANNOTATED_GRADED",
+                "graded_qrels_status": "HUMAN_ANNOTATED_GRADED",
+                "gold_answer_status": "LEGACY_EXPERT_REFERENCE_SUMMARY",
+                "reference_answer_provenance": "LEGACY_EXPERT_REFERENCE_SUMMARY",
             }
+
+            qrels_rel_path = (
+                str(qrels_p.relative_to(_REPO_ROOT))
+                if qrels_p.is_relative_to(_REPO_ROOT)
+                else str(qrels_p)
+            )
 
             evaluation_record = {
                 "protocol_version": PROTOCOL_VERSION,
                 "artifact_schema_version": _EVAL_SCHEMA_VERSION,
                 "schema_version": _EVAL_SCHEMA_VERSION,
+                "qrels_path": qrels_rel_path,
+                "qrels_sha256": qrels_set.qrels_sha256,
+                "qrels_manifest_sha256": qrels_set.manifest_sha256,
+                "qrels_schema_version": qrels_set.schema_version,
+                "qrels_authority": "HUMAN_VALIDATED_GRADED_PASSAGE_RELEVANCE",
+                "relevance_threshold": 1,
+                "unjudged_policy": "EXPLICIT_UNJUDGED_DISTINCT_FROM_ZERO",
+                "canonical_evaluation_unit": "PASSAGE_LEVEL",
+                "retrieval_evaluation": human_qrels_metrics,
+                "generation_evaluation": {
+                    "groundedness": next((m for m in evaluation_metrics if m.get("metric_name") == "groundedness"), None),
+                    "answer_relevance": next((m for m in evaluation_metrics if m.get("metric_name") == "answer_relevance"), None),
+                    "context_relevance": next((m for m in evaluation_metrics if m.get("metric_name") == "context_relevance"), None),
+                    "abstention_correctness": next((m for m in evaluation_metrics if m.get("metric_name") == "abstention_correctness"), None),
+                },
+                "reference_answer_provenance": "LEGACY_EXPERT_REFERENCE_SUMMARY",
                 "metrics": evaluation_metrics,
                 "legacy_page_metrics": legacy_page_metrics,
-                "deterministic_v2_metrics": deterministic_v2_metrics,
+                "deterministic_v2_metrics": human_qrels_metrics["metrics"],
                 "rag_triad": evaluation_metrics,
             }
 
@@ -1891,6 +1973,11 @@ def run_benchmark(
     all_retrieval_configs = {s: build_retrieval_configuration(s) for s in VALID_STRATEGIES}
     all_retrieval_config_shas = {s: compute_retrieval_configuration_sha256(c) for s, c in all_retrieval_configs.items()}
 
+    qrels_rel_path = (
+        str(qrels_p.relative_to(_REPO_ROOT))
+        if qrels_p.is_relative_to(_REPO_ROOT)
+        else str(qrels_p)
+    )
     output = {
         "experiment_id": run_id,
         "protocol_version": PROTOCOL_VERSION,
@@ -1898,6 +1985,19 @@ def run_benchmark(
         "schema": _EVAL_SCHEMA_VERSION,
         "gemini_model": GEMINI_MODEL,
         "embedding_model": EMBEDDING_MODEL,
+        "qrels_path": qrels_rel_path,
+        "qrels_sha256": qrels_set.qrels_sha256,
+        "qrels_manifest_sha256": qrels_set.manifest_sha256,
+        "qrels_schema_version": qrels_set.schema_version,
+        "qrels_authority": "HUMAN_VALIDATED_GRADED_PASSAGE_RELEVANCE",
+        "relevance_threshold": 1,
+        "unjudged_policy": "EXPLICIT_UNJUDGED_DISTINCT_FROM_ZERO",
+        "canonical_evaluation_unit": "PASSAGE_LEVEL",
+        "qrels_total_pairs": qrels_set.total_pairs,
+        "qrels_consensus_count": qrels_set.consensus_count,
+        "qrels_adjudicated_count": qrels_set.adjudicated_count,
+        "qrels_grade_distribution": qrels_set.grade_distribution,
+        "reference_answer_provenance": "LEGACY_EXPERT_REFERENCE_SUMMARY",
         "embedding_fingerprints": embedding_fps,
         "manifest_fingerprint": manifest.get("cache_tree_sha256", "UNRESOLVED"),
         "retrieval_configurations": all_retrieval_configs,
@@ -2161,6 +2261,8 @@ def cmd_smoke(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) 
         strategy_labels=(strategy,),
         logger=logger,
         pdf_path=pdf_path,
+        qrels_path=getattr(args, "qrels_path", None),
+        qrels_manifest=getattr(args, "qrels_manifest", None),
     )
 
     # Post-smoke validation (fail-closed)
@@ -2190,6 +2292,8 @@ def cmd_full(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) -
         strategy_labels=VALID_STRATEGIES,
         logger=logger,
         pdf_path=pdf_path,
+        qrels_path=getattr(args, "qrels_path", None),
+        qrels_manifest=getattr(args, "qrels_manifest", None),
     )
     logger.info("=== Slice 4 Full Benchmark Complete: %s ===", output_path)
 
@@ -2218,6 +2322,8 @@ def cmd_resume(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger)
         strategy_labels=VALID_STRATEGIES,
         logger=logger,
         pdf_path=pdf_path,
+        qrels_path=getattr(args, "qrels_path", None),
+        qrels_manifest=getattr(args, "qrels_manifest", None),
     )
     logger.info("=== Slice 4 Resume Complete: %s ===", output_path)
 
@@ -2301,6 +2407,81 @@ def cmd_preflight(args: argparse.Namespace, logger: logging.Logger) -> None:
 
 
 # ─── Preflight: structural validation of all 7 retriever builders ─
+
+def cmd_preflight_human_qrels(
+    args: argparse.Namespace, logger: logging.Logger
+) -> None:
+    """Validate human-validated graded qrels offline — no Gemini key, no network."""
+    logger.info("=== PREFLIGHT-HUMAN-QRELS: Human Qrels Integrity & Metric Validation ===")
+
+    _validate_no_credentials_for_preflight(logger)
+
+    qrels_p = Path(args.qrels_path)
+    manifest_p = Path(args.qrels_manifest)
+
+    try:
+        qrels_set = load_human_qrels_set(qrels_p, manifest_p)
+    except ValueError as exc:
+        logger.error("HUMAN_QRELS_PREFLIGHT_FAILED: %s", exc)
+        print("HUMAN_QRELS_REQUIRED_OR_INVALID")
+        sys.exit(1)
+
+    logger.info("Human Qrels dataset loaded successfully:")
+    logger.info("  Total pairs: %d", qrels_set.total_pairs)
+    logger.info("  Consensus count: %d", qrels_set.consensus_count)
+    logger.info("  Adjudicated count: %d", qrels_set.adjudicated_count)
+    logger.info("  Grade distribution: %s", qrels_set.grade_distribution)
+    logger.info("  SHA-256 digest: %s", qrels_set.qrels_sha256)
+
+    q4_items = qrels_set.get_qrels_for_question("q_test_04")
+    if len(q4_items) != 10 or not qrels_set.is_abstention_question("q_test_04"):
+        logger.error("HUMAN_QRELS_PREFLIGHT_FAILED: q_test_04 invalid negative control state")
+        print("HUMAN_QRELS_REQUIRED_OR_INVALID")
+        sys.exit(1)
+    logger.info("  q_test_04 negative control audit: 10/10 OK")
+
+    sample_metrics = compute_human_qrels_metrics_for_question(
+        qrels_set=qrels_set,
+        question_id="q_dev_01",
+        retrieved_passage_ids=[
+            "ps_1af4600bd2b680f7",
+            "ps_1e8ae016ba7f2e40",
+            "ps_45af805e930f10d9",
+        ],
+        k=3,
+    )
+    assert "metrics" in sample_metrics
+    logger.info(
+        "Sample retrieval evaluation metrics (q_dev_01): nDCG@3=%s, Recall@3=%s, MRR@3=%s",
+        sample_metrics["metrics"]["ndcg_at_k"]["score"],
+        sample_metrics["metrics"]["recall_at_k"]["score"],
+        sample_metrics["metrics"]["mrr_at_k"]["score"],
+    )
+
+    preflight_report = {
+        "preflight_status": "HUMAN_QRELS_INTEGRATION_PREFLIGHT_PASSED",
+        "timestamp_utc": datetime.now(UTC).isoformat(),
+        "qrels_path": str(qrels_p),
+        "qrels_sha256": qrels_set.qrels_sha256,
+        "qrels_manifest_sha256": qrels_set.manifest_sha256,
+        "total_pairs": qrels_set.total_pairs,
+        "consensus_pairs_count": qrels_set.consensus_count,
+        "adjudicated_pairs_count": qrels_set.adjudicated_count,
+        "grade_distribution": qrels_set.grade_distribution,
+        "q_test_04_negative_control_count": len(q4_items),
+        "authoritative_for_evaluation": True,
+        "silver_used_as_ground_truth": False,
+        "holdout_sealed": True,
+    }
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    report_path = RESULTS_DIR / f"preflight_human_qrels_{int(time.time())}.json"
+    report_path.write_text(json.dumps(preflight_report, indent=2), encoding="utf-8")
+    logger.info("Saved preflight report artifact: %s", report_path)
+
+    logger.info("")
+    logger.info("HUMAN_QRELS_INTEGRATION_PREFLIGHT_PASSED")
+
+
 
 def cmd_preflight_retrievers(
     args: argparse.Namespace, logger: logging.Logger,
@@ -2426,6 +2607,10 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     # ── Preflight-retrievers: no Gemini, no real corpus ──────────
+    if args.mode == "preflight-human-qrels":
+        cmd_preflight_human_qrels(args, logger)
+        return
+
     if args.mode == "preflight-retrievers":
         cmd_preflight_retrievers(args, logger)
         return
