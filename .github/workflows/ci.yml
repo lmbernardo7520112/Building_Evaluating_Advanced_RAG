@@ -2,10 +2,9 @@ name: RAGLab CI — Preservation + Quality Gate 1 & 2
 
 on:
   push:
-    branches: ['main', 'feat/raglab-v7-evolution', 'feat/hybrid-human-validated-eval']
+    branches: ['feat/raglab-v7-evolution']
   pull_request:
-    branches: ['main', 'feat/raglab-v7-evolution', 'feat/hybrid-human-validated-eval']
-  workflow_dispatch:
+    branches: ['main', 'feat/raglab-v7-evolution']
 
 permissions:
   contents: read
