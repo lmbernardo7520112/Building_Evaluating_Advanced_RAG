@@ -356,6 +356,9 @@ class TestSlice4OfflineAnalysis:
         qrels_p = Path("benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_final.jsonl")
         manif_p = Path("benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_manifest.json")
 
+        if not ckpt_p.exists() or not res_p.exists():
+            pytest.skip("Full benchmark checkpoint or result file not available locally")
+
         res_data, ckpt_data, qrels_lines, manifest_data = analyzer.validate_inputs(
             res_p, ckpt_p, qrels_p, manif_p, strict_hashes=True
         )

@@ -434,6 +434,12 @@ class TestHumanQrelsV2GovernanceAndMetrics:
 
     # 25. Preflight não exige GEMINI_API_KEY
     def test_25_preflight_no_gemini_key_required(self) -> None:
+        pdf_path = (
+            Path(__file__).resolve().parent.parent.parent.parent.parent
+            / "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
+        )
+        if not pdf_path.exists():
+            pytest.skip("Textbook PDF not available locally")
         cmd = [
             sys.executable,
             "benchmarks/run_slice4_benchmark.py",
@@ -445,6 +451,12 @@ class TestHumanQrelsV2GovernanceAndMetrics:
 
     # 26. Preflight não instancia cliente Gemini
     def test_26_preflight_does_not_instantiate_gemini(self) -> None:
+        pdf_path = (
+            Path(__file__).resolve().parent.parent.parent.parent.parent
+            / "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
+        )
+        if not pdf_path.exists():
+            pytest.skip("Textbook PDF not available locally")
         cmd = [
             sys.executable,
             "benchmarks/run_slice4_benchmark.py",
