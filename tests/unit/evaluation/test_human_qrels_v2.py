@@ -1483,3 +1483,167 @@ class TestHumanQrelsV2GovernanceAndMetrics:
         if hist_ckpt_path.exists():
             hist_sha_after = hashlib.sha256(hist_ckpt_path.read_bytes()).hexdigest()
             assert hist_sha_before == hist_sha_after
+
+    # 69. Teste de alinhamento de contrato de run_benchmark e cmd_full (ETAPAS 5, 6, 7, 8, 9)
+    def test_69_run_benchmark_is_full_run_contract(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import inspect
+        import json
+        import logging
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        import benchmarks.run_slice4_benchmark as runner
+
+
+        # ETAPA 5 & 7 — Validação de assinatura e binding de parâmetros
+        sig = inspect.signature(runner.run_benchmark)
+        assert "is_full_run" in sig.parameters
+        assert sig.parameters["is_full_run"].default is False
+
+        sample_args = {
+            "run_id": "test_bind",
+            "questions": [],
+            "strategy_labels": ("F0_baseline",),
+            "logger": logging.getLogger("test"),
+            "pdf_path": tmp_path / "fake.pdf",
+            "qrels_path": None,
+            "qrels_manifest": None,
+        }
+        sig.bind(**sample_args)
+        sig.bind(**sample_args, is_full_run=True)
+        sig.bind(**sample_args, is_full_run=False)
+
+        # ETAPA 6 & 8 — Setup de fakes locais para execução off-line sem rede/credenciais
+        fake_manifest = {
+            "model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            "cache_tree_sha256": "abc1234567890def",
+        }
+
+        monkeypatch.setattr(runner, "load_provision_manifest", lambda: fake_manifest)
+        monkeypatch.setattr(runner, "load_pdf_pages", lambda pdf_path, logger: [])
+        monkeypatch.setattr(runner, "load_embedding_model", lambda logger: None)
+
+        fake_retriever = MagicMock()
+        fake_retriever.retrieve.return_value = []
+        monkeypatch.setattr(
+            runner,
+            "build_retrievers",
+            lambda pages, embed, strategies=None: {"F0_baseline": fake_retriever},
+        )
+        monkeypatch.setattr(
+            runner,
+            "verify_embedding_parity",
+            lambda r, lg, m: {"F0_baseline": {"cache_tree_sha256": "abc1234567890def"}},
+        )
+
+        monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path / "ckpts")
+        monkeypatch.setattr(runner, "RESULTS_DIR", tmp_path / "results")
+
+        from raglab.domain.entities import GeneratedAnswer
+
+        def fake_gen_factory(model_id, quota_manager, **kwargs):
+            fake_g = MagicMock()
+            fake_g.model_id = "fake-gemini"
+
+            def _gen(query_id, query, evidence):
+                quota_manager.acquire()
+                return GeneratedAnswer(
+                    query_id=query_id,
+                    text="Resposta fake",
+                    abstained=False,
+                    citations=(),
+                )
+
+            fake_g.generate.side_effect = _gen
+            return fake_g
+
+        def fake_judge_factory(judge_model_id, strategy, quota_manager, **kwargs):
+            fake_j = MagicMock()
+            fake_j.strategy = strategy
+
+            def _eval_cr(qid, q, ev, **kw):
+                quota_manager.acquire()
+                return 1.0
+
+            def _eval_gr(qid, ans, ev, **kw):
+                quota_manager.acquire()
+                return 1.0
+
+            def _eval_ar(qid, q, ans, **kw):
+                quota_manager.acquire()
+                return 1.0
+
+            fake_j.evaluate_context_relevance.side_effect = _eval_cr
+            fake_j.evaluate_groundedness.side_effect = _eval_gr
+            fake_j.evaluate_answer_relevance.side_effect = _eval_ar
+            return fake_j
+
+
+        monkeypatch.setattr(
+            "raglab.infrastructure.gemini.gemini_generator_adapter.GeminiGeneratorAdapter",
+            fake_gen_factory,
+        )
+        monkeypatch.setattr(
+            "raglab.infrastructure.gemini.gemini_judge_adapter.GeminiJudgeAdapter",
+            fake_judge_factory,
+        )
+
+
+        test_run_id = "raglab_v7_slice4_v5_test_run_01"
+        test_question = {
+            "qid": "q_dev_01",
+            "query": "Qual e o significado da prova?",
+            "relevant_pages": [92],
+            "split": "dev",
+        }
+
+        # Execução full com is_full_run=True (ETAPA 5 & 6)
+        out_path = runner.run_benchmark(
+            run_id=test_run_id,
+            questions=[test_question],
+            strategy_labels=("F0_baseline",),
+            logger=logging.getLogger("test_runner"),
+            pdf_path=tmp_path / "fake.pdf",
+            qrels_path=runner.DEFAULT_QRELS_PATH,
+            qrels_manifest=runner.DEFAULT_QRELS_MANIFEST_PATH,
+            is_full_run=True,
+        )
+
+        assert out_path.exists()
+        res_json = json.loads(out_path.read_text(encoding="utf-8"))
+        assert res_json["experiment_id"] == test_run_id
+
+        ckpt_file = tmp_path / "ckpts" / f"slice4_gen_checkpoint_{test_run_id}.json"
+        assert ckpt_file.exists()
+        ckpt_json = json.loads(ckpt_file.read_text(encoding="utf-8"))
+        assert ckpt_json["schema"] == "slice4_v5"
+        assert ckpt_json["run_id"] == test_run_id
+
+        # Colisão no segundo full com o mesmo run_id (ETAPA 6 item 6)
+        with pytest.raises(FileExistsError, match="FULL_RUN_ID_COLLISION"):
+            runner.run_benchmark(
+                run_id=test_run_id,
+                questions=[test_question],
+                strategy_labels=("F0_baseline",),
+                logger=logging.getLogger("test_runner"),
+                pdf_path=tmp_path / "fake.pdf",
+                qrels_path=runner.DEFAULT_QRELS_PATH,
+                qrels_manifest=runner.DEFAULT_QRELS_MANIFEST_PATH,
+                is_full_run=True,
+            )
+
+        # Resume com is_full_run=False reidrata checkpoint existente (ETAPA 8)
+        res_out_path = runner.run_benchmark(
+            run_id=test_run_id,
+            questions=[test_question],
+            strategy_labels=("F0_baseline",),
+            logger=logging.getLogger("test_runner"),
+            pdf_path=tmp_path / "fake.pdf",
+            qrels_path=runner.DEFAULT_QRELS_PATH,
+            qrels_manifest=runner.DEFAULT_QRELS_MANIFEST_PATH,
+            is_full_run=False,
+        )
+        assert res_out_path.exists()

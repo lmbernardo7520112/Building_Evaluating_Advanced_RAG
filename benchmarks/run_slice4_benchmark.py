@@ -1747,6 +1747,7 @@ def run_benchmark(
     manifest: dict[str, Any] | None = None,
     qrels_path: Path | str | None = None,
     qrels_manifest: Path | str | None = None,
+    is_full_run: bool = False,
 ) -> Path:
     """Execute generation + evaluation for requested questions × strategies.
 
@@ -1817,7 +1818,13 @@ def run_benchmark(
     logger.info("Generator initialized: %s", generator.model_id)
 
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
-    ckpt = GenerationCheckpointStore(run_id=run_id, store_dir=CHECKPOINT_DIR)
+    ckpt = GenerationCheckpointStore(
+        run_id=run_id,
+        store_dir=CHECKPOINT_DIR,
+        schema_version=_EVAL_SCHEMA_VERSION,
+        create_new=is_full_run,
+    )
+
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
