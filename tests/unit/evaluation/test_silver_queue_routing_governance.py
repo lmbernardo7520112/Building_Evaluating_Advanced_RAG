@@ -22,7 +22,20 @@ INPUT_ROOT = Path("benchmarks/ground_truth/v2/hybrid")
 class TestSilverQueueRoutingGovernance:
     """Test suite covering the 18 governance invariants for real silver queue routing."""
 
+    @pytest.fixture(autouse=True)
+    def _check_real_silver_file(self, request: pytest.FixtureRequest) -> None:
+        if (
+            request.node.name.startswith("test_")
+            and int(request.node.name.split("_")[1]) >= 8
+            and not REAL_SILVER_FILE.exists()
+        ):
+            pytest.skip(
+                "Real silver triage execution run files not present in environment"
+            )
+
+
     # 1. sem opção de silver e sem --without-silver-execution → falha
+
     def test_01_no_options_fails(self, tmp_path: Path) -> None:
         out = tmp_path / "out"
         with pytest.raises(ValueError, match="Must provide either --silver-file"):
