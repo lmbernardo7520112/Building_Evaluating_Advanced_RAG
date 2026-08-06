@@ -40,15 +40,15 @@
     },
     "metric_dictionary.json": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/metric_dictionary.json",
-      "sha256": "5d9190183bf5735a15caf65d969d15483b49bab3f8ff0ebe40426f8e22981480"
+      "sha256": "3d13ea7d9ff62335e26a4dfbd36686f66b9cbee87a2fc54c2eec5d063dc545fe"
     },
     "paired_comparisons.csv": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/paired_comparisons.csv",
-      "sha256": "668f6264d2ff4854dd92e40955ed56f7deeda45920ff2929b4391b074d6af39a"
+      "sha256": "43650b44e65f929ba9019db3190e7edf58adc171cbf66d709c3378f42fb22a6e"
     },
     "paired_comparisons.json": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/paired_comparisons.json",
-      "sha256": "6d81a214d0b485ec86e188de604ae6a32625fb7f0e0475b0c60d36e2f2ec94a9"
+      "sha256": "a11440fc5d98cd87888a840967e0b215f759ee2289499625ee6a079811cfd6dc"
     },
     "per_question_metrics.csv": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/per_question_metrics.csv",
@@ -56,18 +56,18 @@
     },
     "slice4_v5_scientific_analysis_report.md": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/slice4_v5_scientific_analysis_report.md",
-      "sha256": "261e7739220e655efed0c3a470dbeb1db52531037e70fbd41abd3b3f578dee7a"
+      "sha256": "bdcca900396a1290ea764d156e7328f36c5180a05fc6a2c0679a427fd80200ae"
     },
     "strategy_summary.csv": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/strategy_summary.csv",
-      "sha256": "e6f17c59c2dc46c0204a1e3b6ad06902d5e02fe0781f39716679fe8a391138f1"
+      "sha256": "90351f514eb4235c080287fa69333446be714c7241e65af4de88537027e2fc27"
     },
     "strategy_summary.json": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/strategy_summary.json",
-      "sha256": "537c0f8d37008b93eca5e5baddecef9c35d961b5ee6091e63becccea51f2defc"
+      "sha256": "940a7dd40db501f60ee8bef7d4b42c8b025a552d03e91b4c8e1227ea8c05dcba"
     }
   },
-  "timestamp_utc": "2026-08-06T16:04:20Z",
+  "timestamp_utc": "2026-08-06T16:18:56Z",
   "zero_llm_calls": true,
   "zero_network_calls": true
 }

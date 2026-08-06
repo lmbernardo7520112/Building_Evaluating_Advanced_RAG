@@ -2,7 +2,7 @@
 
 **Projeto:** RAGLab v7 — Slice 4 / Human-Graded Qrels
 **Experiment ID:** `raglab_v7_slice4_v5_humanqrels_20260806T135108Z`
-**Data da Análise:** `2026-08-06T16:04:20Z`
+**Data da Análise:** `2026-08-06T16:18:56Z`
 **Schema:** `slice4_v5` | **Holdout Status:** `SEALED`
 
 ---
@@ -56,7 +56,7 @@ Este relatório apresenta a consolidação científica autoritativa e determiní
 
 ### Bloco B & C — Geração e Abstenção ($n=8$ Total)
 
-| Estratégia | Respostas | Abstenções Total | Context Rel. | Groundedness | Answer Rel. | Neg. Control Abstention | Overall Abstention Score |
+| Estratégia | Respostas | Abstenções Total | Context Rel. | Groundedness | Answer Rel. | Neg. Control Abstention | Abstention Correctness Recorded Mean |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | `F0_baseline` | 2 | 6 | 0.3375 | 1.0 | 1.0 | 1/1 (100%) | 0.1667 |
 | `S0_sentence_anchor` | 2 | 6 | 0.325 | 1.0 | 0.35 | 1/1 (100%) | 0.1667 |
@@ -66,7 +66,7 @@ Este relatório apresenta a consolidação científica autoritativa e determiní
 | `H1_auto_merging` | 4 | 4 | 0.4875 | 0.975 | 0.95 | 1/1 (100%) | 0.2500 |
 | `H2_auto_merging_rerank` | 4 | 4 | 0.55 | 0.975 | 0.95 | 1/1 (100%) | 0.2500 |
 
-*Nota sobre Abstention Decision Score:* O valor overall (ex: 0.2500 para F0/S0) representa a taxa de decisões corretas sobre todas as 8 perguntas. Para F0/S0, como a política abstive conservadoramente em 6 perguntas respondíveis (decisão incorreta sob a métrica) e no controle negativo (decisão correta), a pontuação global resulta em 2/8 = 0.2500. Isso **não representa falha** no controle negativo (`q_test_04`), onde F0 e S0 obtiveram 100% de abstenção correta.
+*Nota sobre Abstention Correctness:* O score médio gravado (`abstention_correctness_mean_recorded`) avalia os scores de abstenção computados quando ocorreu abstenção. Para F0/S0, como a estratégia respondeu a 2 perguntas (status NOT_APPLICABLE) e absteve em 6 (5 em respondíveis com score 0.0 + 1 no controle negativo com score 1.0), a média das 6 abstenções é 1/6 = 0.1667. Para W1/H0/H1/H2, 4 abstenções (3 com score 0.0 + 1 com score 1.0) resultam em 1/4 = 0.2500. Para W0, 2 abstenções (1 com score 0.0 + 1 com score 1.0) resultam em 1/2 = 0.5000. No controle negativo isolado (`q_test_04`), 100% das estratégias abstiveram corretamente (`negative_control_abstention_correctness = 1.0`).
 
 ---
 
@@ -101,7 +101,7 @@ Este relatório apresenta a consolidação científica autoritativa e determiní
 ### Auditoria das 4 Dimensões Pareadas (W1 vs W0):
 - **`retrieval_ranking`**: `ranking_benefit_count = 3` (`q_dev_02`, `q_dev_03`, `q_test_03`), `ranking_damage_count = 2` (`q_dev_01`, `q_dev_04`). Ganho médio +0.0715 nDCG@3, mediana 0.0000.
 - **`answerable_coverage`**: `coverage_damage_count = 2` (`responder_to_abstain_qids = ['q_dev_03', 'q_test_02']`), `coverage_benefit_count = 0`. W1 respondeu a 4/7 respondíveis vs 6/7 de W0.
-- **`generation_quality`**: `valid_comparisons_n = 3` (apenas `q_dev_01`, `q_dev_04`, `q_test_01`, `q_test_03` permitiram comparações pareadas de groundedness e answer relevance).
+- **`generation_quality`**: `common_answer_pairs_n = 4` (`['q_dev_01', 'q_dev_04', 'q_test_01', 'q_test_03']`), `metric_valid_pairs_n = 4` para groundedness e answer relevance. Os 3 QIDs ausentes (`q_dev_02`, `q_dev_03`, `q_test_02`) tiveram motivo `ONE_OR_BOTH_STRATEGIES_ABSTAINED`.
 - **`abstention_safety`**: `negative_control_abstention_correctness = 1.0` (ambos abstiveram corretamente no controle negativo `q_test_04`).
 
 ### Categorização das 23 Abstenções Respondíveis:
@@ -127,11 +127,11 @@ Este relatório apresenta a consolidação científica autoritativa e determiní
 
 | Arquivo de Saída | Hash SHA-256 |
 | :--- | :--- |
-| `metric_dictionary.json` | `5d9190183bf5735a15caf65d969d15483b49bab3f8ff0ebe40426f8e22981480` |
-| `strategy_summary.json` | `537c0f8d37008b93eca5e5baddecef9c35d961b5ee6091e63becccea51f2defc` |
-| `strategy_summary.csv` | `e6f17c59c2dc46c0204a1e3b6ad06902d5e02fe0781f39716679fe8a391138f1` |
-| `paired_comparisons.json` | `6d81a214d0b485ec86e188de604ae6a32625fb7f0e0475b0c60d36e2f2ec94a9` |
-| `paired_comparisons.csv` | `668f6264d2ff4854dd92e40955ed56f7deeda45920ff2929b4391b074d6af39a` |
+| `metric_dictionary.json` | `3d13ea7d9ff62335e26a4dfbd36686f66b9cbee87a2fc54c2eec5d063dc545fe` |
+| `strategy_summary.json` | `940a7dd40db501f60ee8bef7d4b42c8b025a552d03e91b4c8e1227ea8c05dcba` |
+| `strategy_summary.csv` | `90351f514eb4235c080287fa69333446be714c7241e65af4de88537027e2fc27` |
+| `paired_comparisons.json` | `a11440fc5d98cd87888a840967e0b215f759ee2289499625ee6a079811cfd6dc` |
+| `paired_comparisons.csv` | `43650b44e65f929ba9019db3190e7edf58adc171cbf66d709c3378f42fb22a6e` |
 | `answerable_abstentions.json` | `309d7e50b56d56020c54131ef960e01d0cd42623c26c4af601be58c6551c35de` |
 | `answerable_abstentions.csv` | `39d0679e54450e828cc12aeeb7ab7dd30be897259d819f11636b2145dc94d96c` |
 | `per_question_metrics.csv` | `ca6258748c36d7aa53e335f64b790db4c4fa2f71526703da78a58a8ab9eeec37` |

@@ -10,6 +10,20 @@
         "losses": 0,
         "mean_delta": 0.025,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 3,
+        "metric_missing_qids": [
+          "q_dev_02",
+          "q_dev_03",
+          "q_test_02"
+        ],
+        "metric_valid_pairs_n": 4,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_03"
+        ],
+        "missing_reason": "ONE_OR_BOTH_STRATEGIES_ABSTAINED",
         "preference_direction": "higher_is_better",
         "qids_benefited": [
           "q_dev_04"
@@ -31,6 +45,19 @@
         "losses": 4,
         "mean_delta": -0.3429,
         "median_delta": -0.2,
+        "metric_missing_pairs_n": 0,
+        "metric_missing_qids": [],
+        "metric_valid_pairs_n": 7,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_02",
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_02",
+          "q_test_03"
+        ],
+        "missing_reason": "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES",
         "preference_direction": "higher_is_better",
         "qids_benefited": [],
         "qids_harmed": [
@@ -51,6 +78,20 @@
         "losses": 1,
         "mean_delta": -0.125,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 3,
+        "metric_missing_qids": [
+          "q_dev_02",
+          "q_dev_03",
+          "q_test_02"
+        ],
+        "metric_valid_pairs_n": 4,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_03"
+        ],
+        "missing_reason": "ONE_OR_BOTH_STRATEGIES_ABSTAINED",
         "preference_direction": "higher_is_better",
         "qids_benefited": [],
         "qids_harmed": [
@@ -72,6 +113,19 @@
         "losses": 1,
         "mean_delta": -0.0714,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 0,
+        "metric_missing_qids": [],
+        "metric_valid_pairs_n": 7,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_02",
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_02",
+          "q_test_03"
+        ],
+        "missing_reason": "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES",
         "preference_direction": "higher_is_better",
         "qids_benefited": [],
         "qids_harmed": [
@@ -89,6 +143,19 @@
         "losses": 2,
         "mean_delta": 0.0369,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 0,
+        "metric_missing_qids": [],
+        "metric_valid_pairs_n": 7,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_02",
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_02",
+          "q_test_03"
+        ],
+        "missing_reason": "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES",
         "preference_direction": "higher_is_better",
         "qids_benefited": [
           "q_dev_02",
@@ -111,6 +178,19 @@
         "losses": 0,
         "mean_delta": 0.0238,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 0,
+        "metric_missing_qids": [],
+        "metric_valid_pairs_n": 7,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_02",
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_02",
+          "q_test_03"
+        ],
+        "missing_reason": "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES",
         "preference_direction": "higher_is_better",
         "qids_benefited": [
           "q_dev_03"
@@ -145,11 +225,30 @@
       },
       "controlled_scientific_conclusion": "MIXED_RESULTS_NO_CLEAR_SUPERIORITY",
       "generation_quality": {
-        "classification": "MIXED",
+        "classification": "STABLE",
+        "common_answer_pairs_n": 4,
+        "common_answer_qids": [
+          "q_dev_01",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_03"
+        ],
         "generation_benefit_count": 0,
         "generation_damage_count": 1,
         "metric": "groundedness",
-        "valid_comparisons_n": 4
+        "metric_missing_pairs_n": 3,
+        "metric_missing_qids": [
+          "q_dev_02",
+          "q_dev_03",
+          "q_test_02"
+        ],
+        "metric_valid_pairs_n": 4,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_03"
+        ]
       },
       "retrieval_ranking": {
         "classification": "LOCALIZED_IMPROVEMENT",
@@ -181,6 +280,20 @@
         "losses": 0,
         "mean_delta": 0.0,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 3,
+        "metric_missing_qids": [
+          "q_dev_02",
+          "q_dev_03",
+          "q_test_02"
+        ],
+        "metric_valid_pairs_n": 4,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_03"
+        ],
+        "missing_reason": "ONE_OR_BOTH_STRATEGIES_ABSTAINED",
         "preference_direction": "higher_is_better",
         "qids_benefited": [],
         "qids_harmed": [],
@@ -200,6 +313,19 @@
         "losses": 1,
         "mean_delta": 0.0714,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 0,
+        "metric_missing_qids": [],
+        "metric_valid_pairs_n": 7,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_02",
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_02",
+          "q_test_03"
+        ],
+        "missing_reason": "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES",
         "preference_direction": "higher_is_better",
         "qids_benefited": [
           "q_dev_04",
@@ -220,6 +346,20 @@
         "losses": 1,
         "mean_delta": 0.0,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 3,
+        "metric_missing_qids": [
+          "q_dev_02",
+          "q_dev_03",
+          "q_test_02"
+        ],
+        "metric_valid_pairs_n": 4,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_03"
+        ],
+        "missing_reason": "ONE_OR_BOTH_STRATEGIES_ABSTAINED",
         "preference_direction": "higher_is_better",
         "qids_benefited": [
           "q_test_01"
@@ -243,6 +383,19 @@
         "losses": 1,
         "mean_delta": -0.0714,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 0,
+        "metric_missing_qids": [],
+        "metric_valid_pairs_n": 7,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_02",
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_02",
+          "q_test_03"
+        ],
+        "missing_reason": "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES",
         "preference_direction": "higher_is_better",
         "qids_benefited": [],
         "qids_harmed": [
@@ -260,6 +413,19 @@
         "losses": 3,
         "mean_delta": -0.1046,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 0,
+        "metric_missing_qids": [],
+        "metric_valid_pairs_n": 7,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_02",
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_02",
+          "q_test_03"
+        ],
+        "missing_reason": "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES",
         "preference_direction": "higher_is_better",
         "qids_benefited": [
           "q_dev_01",
@@ -282,6 +448,19 @@
         "losses": 2,
         "mean_delta": -0.0357,
         "median_delta": 0.0,
+        "metric_missing_pairs_n": 0,
+        "metric_missing_qids": [],
+        "metric_valid_pairs_n": 7,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_02",
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_02",
+          "q_test_03"
+        ],
+        "missing_reason": "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES",
         "preference_direction": "higher_is_better",
         "qids_benefited": [
           "q_test_03"
@@ -316,11 +495,30 @@
       },
       "controlled_scientific_conclusion": "MIXED_RESULTS_NO_CLEAR_SUPERIORITY",
       "generation_quality": {
-        "classification": "MIXED",
+        "classification": "STABLE",
+        "common_answer_pairs_n": 4,
+        "common_answer_qids": [
+          "q_dev_01",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_03"
+        ],
         "generation_benefit_count": 1,
         "generation_damage_count": 1,
         "metric": "groundedness",
-        "valid_comparisons_n": 4
+        "metric_missing_pairs_n": 3,
+        "metric_missing_qids": [
+          "q_dev_02",
+          "q_dev_03",
+          "q_test_02"
+        ],
+        "metric_valid_pairs_n": 4,
+        "metric_valid_qids": [
+          "q_dev_01",
+          "q_dev_04",
+          "q_test_01",
+          "q_test_03"
+        ]
       },
       "retrieval_ranking": {
         "classification": "STABLE",

@@ -3,12 +3,13 @@
   "metric_dictionary_version": "1.0.0",
   "metrics": {
     "abstention_correctness": {
-      "abstention_policy": "COMPUTED",
+      "abstention_policy": "COMPUTED_WHEN_ABSTAINED",
       "canonical_name": "abstention_correctness",
-      "denominator": "overall average over all queries (n=8 per strategy)",
+      "denominator": "queries where strategy abstained (n_valid recorded non-null scores)",
       "domain": "[0.0, 1.0]",
       "json_path": "results[strategy][*].evaluation.generation_evaluation.abstention_correctness.score",
-      "missing_policy": "NA_EXPLICIT",
+      "missing_policy": "NOT_APPLICABLE_WHEN_SUBSTANTIVE_ANSWER_PRODUCED",
+      "n_valid_policy": "EXPLICIT_COUNT_OF_NON_NULL_ABSTENTION_EVALUATIONS",
       "preference_direction": "higher_is_better",
       "type": "float",
       "unit": "ratio"

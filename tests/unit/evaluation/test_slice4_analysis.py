@@ -436,7 +436,7 @@ class TestSlice4OfflineAnalysis:
         for s in summs:
             abs_info = s["abstention"]
             assert "negative_control_abstention_correctness" in abs_info
-            assert "overall_abstention_decision_score" in abs_info
+            assert "abstention_correctness_mean_recorded" in abs_info
             assert abs_info["negative_control_abstention_correctness"] == 1.0
 
     def test_36_absence_of_e501_ignore_in_pyproject(self) -> None:
@@ -446,4 +446,136 @@ class TestSlice4OfflineAnalysis:
             if "scripts/**" in line:
                 assert "E501" not in line
 
+    def test_37_common_answer_pairs_n_equals_qids_list_length(self) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        pcomps = analyzer.analyze_paired_comparisons(data)
+        for comp in pcomps:
+            gen_q = comp["multidimensional_analysis"]["generation_quality"]
+            assert gen_q["common_answer_pairs_n"] == len(
+                gen_q["common_answer_qids"]
+            )
 
+    def test_38_metric_valid_pairs_n_equals_qids_list_length(self) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        pcomps = analyzer.analyze_paired_comparisons(data)
+        for comp in pcomps:
+            for _m_key, m_data in comp["metrics"].items():
+                assert m_data["metric_valid_pairs_n"] == len(
+                    m_data["metric_valid_qids"]
+                )
+                assert m_data["metric_missing_pairs_n"] == len(
+                    m_data["metric_missing_qids"]
+                )
+
+    def test_39_distinction_between_common_answers_and_valid_metrics(
+        self,
+    ) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        pcomps = analyzer.analyze_paired_comparisons(data)
+        w1_w0 = pcomps[0]
+        gen_q = w1_w0["multidimensional_analysis"]["generation_quality"]
+        assert gen_q["common_answer_pairs_n"] == 4
+        assert gen_q["common_answer_qids"] == [
+            "q_dev_01",
+            "q_dev_04",
+            "q_test_01",
+            "q_test_03",
+        ]
+        assert w1_w0["metrics"]["context_relevance"]["metric_valid_pairs_n"] == 7
+
+    def test_40_f0_has_exactly_five_answerable_abstentions(self) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        summs = analyzer.analyze_strategies(data)
+        f0_summ = next(s for s in summs if s["strategy"] == "F0_baseline")
+        abs_info = f0_summ["abstention"]
+        assert abs_info["abstentions_on_answerable"] == 5
+        assert abs_info["answers_on_answerable"] == 2
+        assert abs_info["correct_abstentions_negative_control"] == 1
+        assert abs_info["total_queries"] == 8
+
+    def test_41_traceability_of_eight_abstention_correctness_scores_for_f0(
+        self,
+    ) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        f0_recs = data["results"]["F0_baseline"]
+        valid_scores = []
+        na_count = 0
+        for r in f0_recs:
+            ac = r["evaluation"]["generation_evaluation"][
+                "abstention_correctness"
+            ]
+            if ac["status"] == "COMPUTED" and ac["score"] is not None:
+                valid_scores.append(ac["score"])
+            else:
+                na_count += 1
+
+        assert len(valid_scores) == 6
+        assert valid_scores == [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        assert na_count == 2
+        recorded_mean = sum(valid_scores) / len(valid_scores)
+        assert round(recorded_mean, 4) == 0.1667
+
+    def test_42_impossible_to_infer_025_by_incompatible_arithmetic(
+        self,
+    ) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        w1_recs = data["results"]["W1_sentence_window_rerank"]
+        valid_scores = [
+            r["evaluation"]["generation_evaluation"]["abstention_correctness"][
+                "score"
+            ]
+            for r in w1_recs
+            if r["evaluation"]["generation_evaluation"][
+                "abstention_correctness"
+            ]["status"]
+            == "COMPUTED"
+            and r["evaluation"]["generation_evaluation"][
+                "abstention_correctness"
+            ]["score"]
+            is not None
+        ]
+        assert valid_scores == [0.0, 0.0, 0.0, 1.0]
+        assert len(valid_scores) == 4
+        assert sum(valid_scores) / len(valid_scores) == 0.25
+
+    def test_43_separation_of_negative_control_abstention(self) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        summs = analyzer.analyze_strategies(data)
+        for s in summs:
+            abs_info = s["abstention"]
+            assert abs_info["negative_control_abstention_correctness"] == 1.0
+            assert abs_info["correct_abstentions_negative_control"] == 1
+
+    def test_44_preservation_of_mixed_results_no_clear_superiority(self) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        pcomps = analyzer.analyze_paired_comparisons(data)
+        for comp in pcomps:
+            multi = comp["multidimensional_analysis"]
+            assert (
+                multi["controlled_scientific_conclusion"]
+                == "MIXED_RESULTS_NO_CLEAR_SUPERIORITY"
+            )

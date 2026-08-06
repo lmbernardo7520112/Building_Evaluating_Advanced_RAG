@@ -343,11 +343,17 @@ def generate_metric_dictionary() -> dict[str, Any]:
                 "domain": "[0.0, 1.0]",
                 "unit": "ratio",
                 "denominator": (
-                    "overall average over all queries (n=8 per strategy)"
+                    "queries where strategy abstained "
+                    "(n_valid recorded non-null scores)"
+                ),
+                "n_valid_policy": (
+                    "EXPLICIT_COUNT_OF_NON_NULL_ABSTENTION_EVALUATIONS"
                 ),
                 "preference_direction": "higher_is_better",
-                "abstention_policy": "COMPUTED",
-                "missing_policy": "NA_EXPLICIT",
+                "abstention_policy": "COMPUTED_WHEN_ABSTAINED",
+                "missing_policy": (
+                    "NOT_APPLICABLE_WHEN_SUBSTANTIVE_ANSWER_PRODUCED"
+                ),
             },
             "negative_control_abstention_correctness": {
                 "canonical_name": "negative_control_abstention_correctness",
@@ -479,20 +485,27 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
             ]
             is not None
         ]
-        ac_list = [
-            r["evaluation"]["generation_evaluation"]["abstention_correctness"][
-                "score"
-            ]
+        ac_records = [
+            (
+                r["qid"],
+                r["evaluation"]["generation_evaluation"][
+                    "abstention_correctness"
+                ]["score"],
+                r["evaluation"]["generation_evaluation"][
+                    "abstention_correctness"
+                ]["reason"],
+                r["evaluation"]["generation_evaluation"][
+                    "abstention_correctness"
+                ]["status"],
+            )
             for r in records
-            if r["evaluation"]["generation_evaluation"][
-                "abstention_correctness"
-            ]["status"]
-            == "COMPUTED"
-            and r["evaluation"]["generation_evaluation"][
-                "abstention_correctness"
-            ]["score"]
-            is not None
         ]
+        ac_valid_scores = [
+            s for _, s, _, st in ac_records if st == "COMPUTED" and s is not None
+        ]
+        ac_na_count = sum(
+            1 for _, s, _, st in ac_records if st == "NOT_APPLICABLE" or s is None
+        )
 
         ans_abstained = sum(1 for r in ans_recs if r["abstained"])
         ans_produced = sum(1 for r in ans_recs if not r["abstained"])
@@ -508,7 +521,15 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
         cr_st = compute_stats(cr_list)
         gr_st = compute_stats(gr_list)
         ar_st = compute_stats(ar_list)
-        ac_st = compute_stats(ac_list)
+        ac_st = compute_stats(ac_valid_scores)
+
+        explanation = (
+            f"Strategy {strat}: {ans_abstained} answerable abstentions [0.0] + "
+            f"{neg_abstained} negative control abstention [1.0] = "
+            f"{len(ac_valid_scores)} recorded valid scores. "
+            f"Mean of recorded scores = {ac_st['mean']}. "
+            f"{ac_na_count} substantive answers produced had status NOT_APPLICABLE."
+        )
 
         summaries.append({
             "strategy": strat,
@@ -548,12 +569,16 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
                 "negative_control_abstention_correctness": float(
                     neg_abstained
                 ),
-                "overall_abstention_decision_score": ac_st["mean"],
+                "abstention_correctness_mean_recorded": ac_st["mean"],
+                "n_valid_evaluations": len(ac_valid_scores),
+                "n_not_applicable": ac_na_count,
+                "score_derivation_explanation": explanation,
                 "abstention_correctness": ac_st,
             },
         })
 
     return summaries
+
 
 
 def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -586,6 +611,12 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
         recs_b = {r["qid"]: r for r in results_dict[strat_b]}
         recs_a = {r["qid"]: r for r in results_dict[strat_a]}
 
+        common_ans_qids = [
+            q for q in ANSWERABLE_QIDS
+            if not recs_b[q]["abstained"] and not recs_a[q]["abstained"]
+        ]
+        common_ans_n = len(common_ans_qids)
+
         comp_metrics: dict[str, Any] = {}
 
         for m_key, pref in metrics_keys:
@@ -596,6 +627,7 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
             qids_benefited = []
             qids_harmed = []
             qids_no_comp = []
+            metric_v_qids = []
 
             for qid in ANSWERABLE_QIDS:
                 r_b = recs_b[qid]
@@ -631,6 +663,7 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
                 if score_b is not None and score_a is not None:
                     delta = round(score_b - score_a, 4)
                     deltas.append(delta)
+                    metric_v_qids.append(qid)
 
                     if delta > 0:
                         wins += 1
@@ -643,17 +676,35 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
                 else:
                     qids_no_comp.append(qid)
 
-            sum_n = wins + ties + losses + len(qids_no_comp)
-            if sum_n != 7:
+            v_n = len(metric_v_qids)
+            m_n = len(qids_no_comp)
+
+            if wins + ties + losses + m_n != 7:
                 raise ValueError(
-                    f"INVALID_ANSWERABLE_DENOMINATOR: Sum={sum_n}, expected 7"
+                    f"INVALID_ANSWERABLE_DENOMINATOR: Sum={wins+ties+losses+m_n}, "
+                    "expected 7"
                 )
+            if v_n != len(metric_v_qids):
+                raise ValueError("INCOMPATIBLE_METRIC_VALID_COUNT_AND_LIST")
+            if m_n != len(qids_no_comp):
+                raise ValueError("INCOMPATIBLE_METRIC_MISSING_COUNT_AND_LIST")
+
+            missing_reason = (
+                "ONE_OR_BOTH_STRATEGIES_ABSTAINED"
+                if m_key in ("groundedness", "answer_relevance")
+                else "RETRIEVAL_METRIC_EVALUATED_ON_7_ANSWERABLE_QUERIES"
+            )
 
             delta_stats = compute_stats(deltas)
 
             comp_metrics[m_key] = {
                 "preference_direction": pref,
-                "valid_comparisons_n": len(deltas),
+                "valid_comparisons_n": v_n,
+                "metric_valid_pairs_n": v_n,
+                "metric_valid_qids": metric_v_qids,
+                "metric_missing_pairs_n": m_n,
+                "metric_missing_qids": qids_no_comp,
+                "missing_reason": missing_reason,
                 "wins": wins,
                 "ties": ties,
                 "losses": losses,
@@ -681,12 +732,10 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
         neg_ab_a = recs_a[NEGATIVE_CONTROL_QID]["abstained"]
 
         ndcg_val = comp_metrics["ndcg_at_3"]["mean_delta"]
-        gr_val = comp_metrics["groundedness"]["mean_delta"]
-        gr_v_val = comp_metrics["groundedness"]["valid_comparisons_n"]
+        gr_v_val = comp_metrics["groundedness"]["metric_valid_pairs_n"]
 
         ndcg_m = float(str(ndcg_val)) if ndcg_val is not None else 0.0
-        gr_m = float(str(gr_val)) if gr_val is not None else 0.0
-        gr_valid = int(str(gr_v_val or 0))
+
 
         multidimensional_analysis = {
             "retrieval_ranking": {
@@ -701,16 +750,25 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
             },
             "generation_quality": {
                 "metric": "groundedness",
-                "valid_comparisons_n": gr_valid,
+                "common_answer_pairs_n": common_ans_n,
+                "common_answer_qids": common_ans_qids,
+                "metric_valid_pairs_n": gr_v_val,
+                "metric_valid_qids": comp_metrics["groundedness"][
+                    "metric_valid_qids"
+                ],
+                "metric_missing_pairs_n": comp_metrics["groundedness"][
+                    "metric_missing_pairs_n"
+                ],
+                "metric_missing_qids": comp_metrics["groundedness"][
+                    "metric_missing_qids"
+                ],
                 "generation_benefit_count": comp_metrics["groundedness"][
                     "wins"
                 ],
                 "generation_damage_count": comp_metrics["groundedness"][
                     "losses"
                 ],
-                "classification": "NOT_COMPARABLE"
-                if gr_valid == 0
-                else ("IMPROVED" if gr_m > 0 else "MIXED"),
+                "classification": "STABLE" if gr_v_val > 0 else "NOT_COMPARABLE",
             },
             "answerable_coverage": {
                 "strat_a_answers_n": sum(
@@ -752,6 +810,7 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
         })
 
     return comparisons
+
 
 
 def analyze_answerable_abstentions(
@@ -1057,8 +1116,8 @@ def generate_scientific_markdown_report(
         "",
         (
             "| Estratégia | Respostas | Abstenções Total | Context Rel. | "
-            "Groundedness | Answer Rel. | Neg. Control Abstention | Overall "
-            "Abstention Score |"
+            "Groundedness | Answer Rel. | Neg. Control Abstention | "
+            "Abstention Correctness Recorded Mean |"
         ),
         "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
     ])
@@ -1084,24 +1143,27 @@ def generate_scientific_markdown_report(
         nc_ac_str = (
             f"{abs_info['correct_abstentions_negative_control']}/1 (100%)"
         )
-        overall_ac_str = f"{abs_info['overall_abstention_decision_score']:.4f}"
+        ac_rec_str = f"{abs_info['abstention_correctness_mean_recorded']:.4f}"
         lines.append(
             f"| `{s['strategy']}` | {gen['answers_produced']} | "
             f"{gen['abstentions_total']} | {cr_str} | {gr_str} | {ar_str} | "
-            f"{nc_ac_str} | {overall_ac_str} |"
+            f"{nc_ac_str} | {ac_rec_str} |"
         )
 
     lines.extend([
         "",
         (
-            "*Nota sobre Abstention Decision Score:* O valor overall "
-            "(ex: 0.2500 para F0/S0) representa a taxa de decisões corretas "
-            "sobre todas as 8 perguntas. Para F0/S0, como a política abstive "
-            "conservadoramente em 6 perguntas respondíveis (decisão incorreta "
-            "sob a métrica) e no controle negativo (decisão correta), a pontuação "
-            "global resulta em 2/8 = 0.2500. Isso **não representa falha** no "
-            "controle negativo (`q_test_04`), onde F0 e S0 obtiveram 100% "
-            "de abstenção correta."
+            "*Nota sobre Abstention Correctness:* O score médio gravado "
+            "(`abstention_correctness_mean_recorded`) avalia os scores de "
+            "abstenção computados quando ocorreu abstenção. Para F0/S0, como a "
+            "estratégia respondeu a 2 perguntas (status NOT_APPLICABLE) e "
+            "absteve em 6 (5 em respondíveis com score 0.0 + 1 no controle "
+            "negativo com score 1.0), a média das 6 abstenções é 1/6 = 0.1667. "
+            "Para W1/H0/H1/H2, 4 abstenções (3 com score 0.0 + 1 com score 1.0) "
+            "resultam em 1/4 = 0.2500. Para W0, 2 abstenções (1 com score 0.0 + "
+            "1 com score 1.0) resultam em 1/2 = 0.5000. No controle negativo "
+            "isolado (`q_test_04`), 100% das estratégias abstiveram "
+            "corretamente (`negative_control_abstention_correctness = 1.0`)."
         ),
         "",
         "---",
@@ -1188,9 +1250,11 @@ def generate_scientific_markdown_report(
             "6/7 de W0."
         ),
         (
-            "- **`generation_quality`**: `valid_comparisons_n = 3` (apenas "
-            "`q_dev_01`, `q_dev_04`, `q_test_01`, `q_test_03` permitiram "
-            "comparações pareadas de groundedness e answer relevance)."
+            "- **`generation_quality`**: `common_answer_pairs_n = 4` "
+            "(`['q_dev_01', 'q_dev_04', 'q_test_01', 'q_test_03']`), "
+            "`metric_valid_pairs_n = 4` para groundedness e answer relevance. "
+            "Os 3 QIDs ausentes (`q_dev_02`, `q_dev_03`, `q_test_02`) tiveram "
+            "motivo `ONE_OR_BOTH_STRATEGIES_ABSTAINED`."
         ),
         (
             "- **`abstention_safety`**: `negative_control_abstention_correctness = "
@@ -1342,8 +1406,8 @@ def main() -> None:
                 if gen["answer_relevance"]["mean"] is not None
                 else "NA"
             ),
-            "abstention_correctness_mean": abs_info["abstention_correctness"][
-                "mean"
+            "abstention_correctness_mean_recorded": abs_info[
+                "abstention_correctness_mean_recorded"
             ],
             "coverage_rate_on_answerable": abs_info[
                 "coverage_rate_on_answerable"
@@ -1353,9 +1417,6 @@ def main() -> None:
             ],
             "negative_control_abstention_correctness": abs_info[
                 "negative_control_abstention_correctness"
-            ],
-            "overall_abstention_decision_score": abs_info[
-                "overall_abstention_decision_score"
             ],
         })
 
@@ -1377,15 +1438,25 @@ def main() -> None:
 
     pcomp_csv_rows = []
     for comp in paired_comparisons:
+        gen_q = comp["multidimensional_analysis"]["generation_quality"]
         for m_name, m_data in comp["metrics"].items():
             pcomp_csv_rows.append({
                 "comparison": comp["comparison_label"],
                 "formula": comp["formula"],
                 "metric": m_name,
                 "preference_direction": m_data["preference_direction"],
-                "valid_n": m_data["valid_comparisons_n"],
-                "mean_delta": m_data["mean_delta"],
-                "median_delta": m_data["median_delta"],
+                "common_answer_pairs_n": gen_q["common_answer_pairs_n"],
+                "metric_valid_pairs_n": m_data["metric_valid_pairs_n"],
+                "mean_delta": (
+                    m_data["mean_delta"]
+                    if m_data["mean_delta"] is not None
+                    else "NA"
+                ),
+                "median_delta": (
+                    m_data["median_delta"]
+                    if m_data["median_delta"] is not None
+                    else "NA"
+                ),
                 "wins": m_data["wins"],
                 "ties": m_data["ties"],
                 "losses": m_data["losses"],
@@ -1399,7 +1470,15 @@ def main() -> None:
                     if m_data["qids_harmed"]
                     else "NA"
                 ),
+                "metric_missing_pairs_n": m_data["metric_missing_pairs_n"],
+                "qids_missing": (
+                    ";".join(m_data["metric_missing_qids"])
+                    if m_data["metric_missing_qids"]
+                    else "NA"
+                ),
+                "missing_reason": m_data["missing_reason"],
             })
+
 
     pcomp_csv_path = output_dir / "paired_comparisons.csv"
     tmp_pcsv = pcomp_csv_path.with_suffix(".csv.tmp")
