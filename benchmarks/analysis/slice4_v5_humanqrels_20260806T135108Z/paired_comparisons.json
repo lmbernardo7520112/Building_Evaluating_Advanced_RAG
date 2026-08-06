@@ -1,49 +1,12 @@
 [
   {
-    "abstention_decision_changes": [
-      {
-        "qid": "q_dev_03",
-        "strat_a_abstained": false,
-        "strat_b_abstained": true
-      },
-      {
-        "qid": "q_test_02",
-        "strat_a_abstained": false,
-        "strat_b_abstained": true
-      }
-    ],
+    "answerable_qids_n": 7,
     "comparison_label": "Sentence Window Rerank vs Baseline Window",
     "formula": "delta = W1_sentence_window_rerank - W0_sentence_window",
-    "four_dimension_classification": {
-      "abstention_safety": "STABLE_HIGH_PERFORMANCE",
-      "coverage_response": "DEGRADED",
-      "generation": "MIXED",
-      "retrieval": "IMPROVED"
-    },
     "metrics": {
-      "abstention_correctness": {
-        "losses": 0,
-        "mean_delta": 0.0,
-        "median_delta": 0.0,
-        "preference_direction": "higher_is_better",
-        "qids_benefited": [],
-        "qids_harmed": [],
-        "qids_no_comparison": [
-          "q_dev_01",
-          "q_dev_03",
-          "q_dev_04",
-          "q_test_01",
-          "q_test_02",
-          "q_test_03"
-        ],
-        "reranker_benefit_count": 0,
-        "reranker_damage_count": 0,
-        "std_delta": 0.0,
-        "ties": 2,
-        "valid_comparisons_n": 2,
-        "wins": 0
-      },
       "answer_relevance": {
+        "benefit_count": 1,
+        "damage_count": 0,
         "losses": 0,
         "mean_delta": 0.025,
         "median_delta": 0.0,
@@ -55,20 +18,19 @@
         "qids_no_comparison": [
           "q_dev_02",
           "q_dev_03",
-          "q_test_02",
-          "q_test_04"
+          "q_test_02"
         ],
-        "reranker_benefit_count": 1,
-        "reranker_damage_count": 0,
         "std_delta": 0.05,
         "ties": 3,
         "valid_comparisons_n": 4,
         "wins": 1
       },
       "context_relevance": {
+        "benefit_count": 0,
+        "damage_count": 4,
         "losses": 4,
-        "mean_delta": -0.3,
-        "median_delta": -0.1,
+        "mean_delta": -0.3429,
+        "median_delta": -0.2,
         "preference_direction": "higher_is_better",
         "qids_benefited": [],
         "qids_harmed": [
@@ -78,14 +40,14 @@
           "q_test_02"
         ],
         "qids_no_comparison": [],
-        "reranker_benefit_count": 0,
-        "reranker_damage_count": 4,
-        "std_delta": 0.3703,
-        "ties": 4,
-        "valid_comparisons_n": 8,
+        "std_delta": 0.378,
+        "ties": 3,
+        "valid_comparisons_n": 7,
         "wins": 0
       },
       "groundedness": {
+        "benefit_count": 0,
+        "damage_count": 1,
         "losses": 1,
         "mean_delta": -0.125,
         "median_delta": 0.0,
@@ -97,17 +59,16 @@
         "qids_no_comparison": [
           "q_dev_02",
           "q_dev_03",
-          "q_test_02",
-          "q_test_04"
+          "q_test_02"
         ],
-        "reranker_benefit_count": 0,
-        "reranker_damage_count": 1,
         "std_delta": 0.25,
         "ties": 3,
         "valid_comparisons_n": 4,
         "wins": 0
       },
       "mrr_at_3": {
+        "benefit_count": 0,
+        "damage_count": 1,
         "losses": 1,
         "mean_delta": -0.0714,
         "median_delta": 0.0,
@@ -116,17 +77,15 @@
         "qids_harmed": [
           "q_dev_04"
         ],
-        "qids_no_comparison": [
-          "q_test_04"
-        ],
-        "reranker_benefit_count": 0,
-        "reranker_damage_count": 1,
+        "qids_no_comparison": [],
         "std_delta": 0.189,
         "ties": 6,
         "valid_comparisons_n": 7,
         "wins": 0
       },
       "ndcg_at_3": {
+        "benefit_count": 3,
+        "damage_count": 2,
         "losses": 2,
         "mean_delta": 0.0369,
         "median_delta": 0.0,
@@ -140,17 +99,15 @@
           "q_dev_01",
           "q_dev_04"
         ],
-        "qids_no_comparison": [
-          "q_test_04"
-        ],
-        "reranker_benefit_count": 3,
-        "reranker_damage_count": 2,
+        "qids_no_comparison": [],
         "std_delta": 0.2521,
         "ties": 2,
         "valid_comparisons_n": 7,
         "wins": 3
       },
       "recall_at_3": {
+        "benefit_count": 1,
+        "damage_count": 0,
         "losses": 0,
         "mean_delta": 0.0238,
         "median_delta": 0.0,
@@ -159,52 +116,68 @@
           "q_dev_03"
         ],
         "qids_harmed": [],
-        "qids_no_comparison": [
-          "q_test_04"
-        ],
-        "reranker_benefit_count": 1,
-        "reranker_damage_count": 0,
+        "qids_no_comparison": [],
         "std_delta": 0.063,
         "ties": 6,
         "valid_comparisons_n": 7,
         "wins": 1
       }
     },
+    "multidimensional_analysis": {
+      "abstention_safety": {
+        "classification": "STABLE_HIGH_PERFORMANCE",
+        "negative_control_abstention_correctness": 1.0,
+        "negative_control_qid": "q_test_04",
+        "strat_a_negative_control_abstained": true,
+        "strat_b_negative_control_abstained": true
+      },
+      "answerable_coverage": {
+        "abstain_to_responder_qids": [],
+        "classification": "DEGRADED",
+        "coverage_benefit_count": 0,
+        "coverage_damage_count": 2,
+        "responder_to_abstain_qids": [
+          "q_dev_03",
+          "q_test_02"
+        ],
+        "strat_a_answers_n": 6,
+        "strat_b_answers_n": 4
+      },
+      "controlled_scientific_conclusion": "MIXED_RESULTS_NO_CLEAR_SUPERIORITY",
+      "generation_quality": {
+        "classification": "MIXED",
+        "generation_benefit_count": 0,
+        "generation_damage_count": 1,
+        "metric": "groundedness",
+        "valid_comparisons_n": 4
+      },
+      "retrieval_ranking": {
+        "classification": "LOCALIZED_IMPROVEMENT",
+        "metric": "ndcg_at_3",
+        "qids_benefited": [
+          "q_dev_02",
+          "q_dev_03",
+          "q_test_03"
+        ],
+        "qids_harmed": [
+          "q_dev_01",
+          "q_dev_04"
+        ],
+        "ranking_benefit_count": 3,
+        "ranking_damage_count": 2
+      }
+    },
     "strategy_a": "W0_sentence_window",
     "strategy_b": "W1_sentence_window_rerank"
   },
   {
-    "abstention_decision_changes": [],
+    "answerable_qids_n": 7,
     "comparison_label": "Hierarchical Rerank vs Auto-Merging Base",
     "formula": "delta = H2_auto_merging_rerank - H1_auto_merging",
-    "four_dimension_classification": {
-      "abstention_safety": "STABLE_HIGH_PERFORMANCE",
-      "coverage_response": "STABLE",
-      "generation": "MIXED",
-      "retrieval": "DEGRADED"
-    },
     "metrics": {
-      "abstention_correctness": {
-        "losses": 0,
-        "mean_delta": 0.0,
-        "median_delta": 0.0,
-        "preference_direction": "higher_is_better",
-        "qids_benefited": [],
-        "qids_harmed": [],
-        "qids_no_comparison": [
-          "q_dev_01",
-          "q_dev_04",
-          "q_test_01",
-          "q_test_03"
-        ],
-        "reranker_benefit_count": 0,
-        "reranker_damage_count": 0,
-        "std_delta": 0.0,
-        "ties": 4,
-        "valid_comparisons_n": 4,
-        "wins": 0
-      },
       "answer_relevance": {
+        "benefit_count": 0,
+        "damage_count": 0,
         "losses": 0,
         "mean_delta": 0.0,
         "median_delta": 0.0,
@@ -214,19 +187,18 @@
         "qids_no_comparison": [
           "q_dev_02",
           "q_dev_03",
-          "q_test_02",
-          "q_test_04"
+          "q_test_02"
         ],
-        "reranker_benefit_count": 0,
-        "reranker_damage_count": 0,
         "std_delta": 0.0,
         "ties": 4,
         "valid_comparisons_n": 4,
         "wins": 0
       },
       "context_relevance": {
+        "benefit_count": 2,
+        "damage_count": 1,
         "losses": 1,
-        "mean_delta": 0.0625,
+        "mean_delta": 0.0714,
         "median_delta": 0.0,
         "preference_direction": "higher_is_better",
         "qids_benefited": [
@@ -237,14 +209,14 @@
           "q_dev_03"
         ],
         "qids_no_comparison": [],
-        "reranker_benefit_count": 2,
-        "reranker_damage_count": 1,
-        "std_delta": 0.3068,
-        "ties": 5,
-        "valid_comparisons_n": 8,
+        "std_delta": 0.3302,
+        "ties": 4,
+        "valid_comparisons_n": 7,
         "wins": 2
       },
       "groundedness": {
+        "benefit_count": 1,
+        "damage_count": 1,
         "losses": 1,
         "mean_delta": 0.0,
         "median_delta": 0.0,
@@ -258,17 +230,16 @@
         "qids_no_comparison": [
           "q_dev_02",
           "q_dev_03",
-          "q_test_02",
-          "q_test_04"
+          "q_test_02"
         ],
-        "reranker_benefit_count": 1,
-        "reranker_damage_count": 1,
         "std_delta": 0.0816,
         "ties": 2,
         "valid_comparisons_n": 4,
         "wins": 1
       },
       "mrr_at_3": {
+        "benefit_count": 0,
+        "damage_count": 1,
         "losses": 1,
         "mean_delta": -0.0714,
         "median_delta": 0.0,
@@ -277,17 +248,15 @@
         "qids_harmed": [
           "q_dev_03"
         ],
-        "qids_no_comparison": [
-          "q_test_04"
-        ],
-        "reranker_benefit_count": 0,
-        "reranker_damage_count": 1,
+        "qids_no_comparison": [],
         "std_delta": 0.189,
         "ties": 6,
         "valid_comparisons_n": 7,
         "wins": 0
       },
       "ndcg_at_3": {
+        "benefit_count": 2,
+        "damage_count": 3,
         "losses": 3,
         "mean_delta": -0.1046,
         "median_delta": 0.0,
@@ -301,17 +270,15 @@
           "q_dev_04",
           "q_test_02"
         ],
-        "qids_no_comparison": [
-          "q_test_04"
-        ],
-        "reranker_benefit_count": 2,
-        "reranker_damage_count": 3,
+        "qids_no_comparison": [],
         "std_delta": 0.3702,
         "ties": 2,
         "valid_comparisons_n": 7,
         "wins": 2
       },
       "recall_at_3": {
+        "benefit_count": 1,
+        "damage_count": 2,
         "losses": 2,
         "mean_delta": -0.0357,
         "median_delta": 0.0,
@@ -323,15 +290,52 @@
           "q_dev_03",
           "q_dev_04"
         ],
-        "qids_no_comparison": [
-          "q_test_04"
-        ],
-        "reranker_benefit_count": 1,
-        "reranker_damage_count": 2,
+        "qids_no_comparison": [],
         "std_delta": 0.1791,
         "ties": 4,
         "valid_comparisons_n": 7,
         "wins": 1
+      }
+    },
+    "multidimensional_analysis": {
+      "abstention_safety": {
+        "classification": "STABLE_HIGH_PERFORMANCE",
+        "negative_control_abstention_correctness": 1.0,
+        "negative_control_qid": "q_test_04",
+        "strat_a_negative_control_abstained": true,
+        "strat_b_negative_control_abstained": true
+      },
+      "answerable_coverage": {
+        "abstain_to_responder_qids": [],
+        "classification": "STABLE",
+        "coverage_benefit_count": 0,
+        "coverage_damage_count": 0,
+        "responder_to_abstain_qids": [],
+        "strat_a_answers_n": 4,
+        "strat_b_answers_n": 4
+      },
+      "controlled_scientific_conclusion": "MIXED_RESULTS_NO_CLEAR_SUPERIORITY",
+      "generation_quality": {
+        "classification": "MIXED",
+        "generation_benefit_count": 1,
+        "generation_damage_count": 1,
+        "metric": "groundedness",
+        "valid_comparisons_n": 4
+      },
+      "retrieval_ranking": {
+        "classification": "STABLE",
+        "metric": "ndcg_at_3",
+        "qids_benefited": [
+          "q_dev_01",
+          "q_test_03"
+        ],
+        "qids_harmed": [
+          "q_dev_03",
+          "q_dev_04",
+          "q_test_02"
+        ],
+        "ranking_benefit_count": 2,
+        "ranking_damage_count": 3
       }
     },
     "strategy_a": "H1_auto_merging",

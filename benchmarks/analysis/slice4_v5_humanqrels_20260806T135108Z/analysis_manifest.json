@@ -1,7 +1,7 @@
 {
   "analysis_schema_version": "1.0.0",
   "analyzer_version": "1.0.0",
-  "controlled_scientific_conclusion": "EVIDENCE_OF_SUPERIORITY_IN_THIS_SLICE",
+  "controlled_scientific_conclusion": "MIXED_RESULTS_NO_CLEAR_SUPERIORITY",
   "denominators": {
     "answerable_queries": 7,
     "negative_control_queries": 1,
@@ -40,15 +40,15 @@
     },
     "metric_dictionary.json": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/metric_dictionary.json",
-      "sha256": "f7d32f121817a93194130d8303d5b6174501994857ce50d0b7de6ff9cf0181d3"
+      "sha256": "5d9190183bf5735a15caf65d969d15483b49bab3f8ff0ebe40426f8e22981480"
     },
     "paired_comparisons.csv": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/paired_comparisons.csv",
-      "sha256": "4d1d7349833e17850eb2b1c210506526ba37603f10f7e62358472e42fa38362e"
+      "sha256": "668f6264d2ff4854dd92e40955ed56f7deeda45920ff2929b4391b074d6af39a"
     },
     "paired_comparisons.json": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/paired_comparisons.json",
-      "sha256": "2e003b9acbacc09d5e519bd8de9d2c1827fe7bb7777f65a10a0b1389019ea0fe"
+      "sha256": "6d81a214d0b485ec86e188de604ae6a32625fb7f0e0475b0c60d36e2f2ec94a9"
     },
     "per_question_metrics.csv": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/per_question_metrics.csv",
@@ -56,18 +56,18 @@
     },
     "slice4_v5_scientific_analysis_report.md": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/slice4_v5_scientific_analysis_report.md",
-      "sha256": "576c6ec2aed652533269e5e4a51ddb63c374481fe054be6cdcb8efec26cfc1d6"
+      "sha256": "261e7739220e655efed0c3a470dbeb1db52531037e70fbd41abd3b3f578dee7a"
     },
     "strategy_summary.csv": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/strategy_summary.csv",
-      "sha256": "5b4a7416a4bdd4bb51be555653f859b0f301eefaf67d47a2135ff3583d3dc06a"
+      "sha256": "e6f17c59c2dc46c0204a1e3b6ad06902d5e02fe0781f39716679fe8a391138f1"
     },
     "strategy_summary.json": {
       "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/strategy_summary.json",
-      "sha256": "7c7f93120b8a7810829d78318e277c71d47033bb8ee72a030cbf4d342b66467d"
+      "sha256": "537c0f8d37008b93eca5e5baddecef9c35d961b5ee6091e63becccea51f2defc"
     }
   },
-  "timestamp_utc": "2026-08-06T15:26:31Z",
+  "timestamp_utc": "2026-08-06T16:04:20Z",
   "zero_llm_calls": true,
   "zero_network_calls": true
 }

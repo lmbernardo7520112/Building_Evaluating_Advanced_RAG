@@ -5,7 +5,7 @@
     "abstention_correctness": {
       "abstention_policy": "COMPUTED",
       "canonical_name": "abstention_correctness",
-      "denominator": "all queries (n=8 per strategy)",
+      "denominator": "overall average over all queries (n=8 per strategy)",
       "domain": "[0.0, 1.0]",
       "json_path": "results[strategy][*].evaluation.generation_evaluation.abstention_correctness.score",
       "missing_policy": "NA_EXPLICIT",
@@ -74,6 +74,17 @@
       "denominator": "answerable queries (n=7 per strategy)",
       "domain": "[0.0, 1.0]",
       "json_path": "results[strategy][*].evaluation.deterministic_v2_metrics.ndcg_at_k.score",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    },
+    "negative_control_abstention_correctness": {
+      "abstention_policy": "COMPUTED",
+      "canonical_name": "negative_control_abstention_correctness",
+      "denominator": "negative control query (q_test_04, n=1)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][q_test_04].evaluation.generation_evaluation.abstention_correctness.score",
       "missing_policy": "NA_EXPLICIT",
       "preference_direction": "higher_is_better",
       "type": "float",

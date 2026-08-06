@@ -292,7 +292,7 @@ class TestSlice4OfflineAnalysis:
         pcomps = analyzer.analyze_paired_comparisons(data)
         ndcg_comp = pcomps[0]["metrics"]["ndcg_at_3"]
         assert ndcg_comp["losses"] == 1
-        assert ndcg_comp["reranker_damage_count"] == 1
+        assert ndcg_comp["damage_count"] == 1
 
     def test_19_reranker_benefit_identification(self) -> None:
         data = create_minimal_valid_result_json()
@@ -304,7 +304,7 @@ class TestSlice4OfflineAnalysis:
         ]["ndcg_at_k"]["score"] = 0.2
         pcomps = analyzer.analyze_paired_comparisons(data)
         ndcg_comp = pcomps[0]["metrics"]["ndcg_at_3"]
-        assert ndcg_comp["reranker_benefit_count"] == 1
+        assert ndcg_comp["benefit_count"] == 1
 
     def test_20_classification_retrieval_failure(self) -> None:
         data = create_minimal_valid_result_json()
@@ -370,7 +370,6 @@ class TestSlice4OfflineAnalysis:
         assert "urllib.request" not in analyzer_source
         assert "requests" not in analyzer_source
 
-
     def test_28_zero_modification_of_inputs(self) -> None:
         res_p = Path("benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json")
         h_before = analyzer.compute_sha256(res_p)
@@ -388,7 +387,63 @@ class TestSlice4OfflineAnalysis:
         pcomps = analyzer.analyze_paired_comparisons(data)
         ab_cases = analyzer.analyze_answerable_abstentions(data, create_minimal_qrels())
         report = analyzer.generate_scientific_markdown_report(data, summs, pcomps, ab_cases, {})
-        assert "EVIDENCE_OF_SUPERIORITY_IN_THIS_SLICE" in report
-        assert "Slice 4" in report
+        assert "MIXED_RESULTS_NO_CLEAR_SUPERIORITY" in report
+
+    def test_31_paired_comparison_denominator_exact_seven(self) -> None:
+        data = create_minimal_valid_result_json()
+        pcomps = analyzer.analyze_paired_comparisons(data)
+        for comp in pcomps:
+            for _m_key, m_data in comp["metrics"].items():
+                w = m_data["wins"]
+                t = m_data["ties"]
+                losses_cnt = m_data["losses"]
+                missing = len(m_data["qids_no_comparison"])
+                assert w + t + losses_cnt + missing == 7
+
+    def test_32_exclusion_of_q_test_04_from_main_metrics(self) -> None:
+        data = create_minimal_valid_result_json()
+        pcomps = analyzer.analyze_paired_comparisons(data)
+        for comp in pcomps:
+            for _m_key, m_data in comp["metrics"].items():
+                assert "q_test_04" not in m_data["qids_benefited"]
+                assert "q_test_04" not in m_data["qids_harmed"]
+                assert "q_test_04" not in m_data["qids_no_comparison"]
+
+
+    def test_33_multidimensional_analysis_separation(self) -> None:
+        data = create_minimal_valid_result_json()
+        pcomps = analyzer.analyze_paired_comparisons(data)
+        for comp in pcomps:
+            multi = comp["multidimensional_analysis"]
+            assert "retrieval_ranking" in multi
+            assert "generation_quality" in multi
+            assert "answerable_coverage" in multi
+            assert "abstention_safety" in multi
+
+    def test_34_coverage_damage_and_benefit_tracking(self) -> None:
+        res_p = Path(
+            "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json"
+        )
+        data = json.loads(res_p.read_text(encoding="utf-8"))
+        pcomps = analyzer.analyze_paired_comparisons(data)
+        w1_w0 = pcomps[0]["multidimensional_analysis"]["answerable_coverage"]
+        assert w1_w0["coverage_damage_count"] == 2
+        assert w1_w0["responder_to_abstain_qids"] == ["q_dev_03", "q_test_02"]
+
+    def test_35_unambiguous_abstention_correctness(self) -> None:
+        data = create_minimal_valid_result_json()
+        summs = analyzer.analyze_strategies(data)
+        for s in summs:
+            abs_info = s["abstention"]
+            assert "negative_control_abstention_correctness" in abs_info
+            assert "overall_abstention_decision_score" in abs_info
+            assert abs_info["negative_control_abstention_correctness"] == 1.0
+
+    def test_36_absence_of_e501_ignore_in_pyproject(self) -> None:
+        pyproject_path = Path("pyproject.toml")
+        content = pyproject_path.read_text(encoding="utf-8")
+        for line in content.splitlines():
+            if "scripts/**" in line:
+                assert "E501" not in line
 
 

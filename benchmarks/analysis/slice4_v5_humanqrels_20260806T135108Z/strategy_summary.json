@@ -16,6 +16,8 @@
       "correct_abstentions_negative_control": 1,
       "coverage_rate_on_answerable": 0.2857,
       "incorrect_answers_negative_control": 0,
+      "negative_control_abstention_correctness": 1.0,
+      "overall_abstention_decision_score": 0.1667,
       "total_queries": 8
     },
     "generation": {
@@ -104,6 +106,8 @@
       "correct_abstentions_negative_control": 1,
       "coverage_rate_on_answerable": 0.2857,
       "incorrect_answers_negative_control": 0,
+      "negative_control_abstention_correctness": 1.0,
+      "overall_abstention_decision_score": 0.1667,
       "total_queries": 8
     },
     "generation": {
@@ -192,6 +196,8 @@
       "correct_abstentions_negative_control": 1,
       "coverage_rate_on_answerable": 0.8571,
       "incorrect_answers_negative_control": 0,
+      "negative_control_abstention_correctness": 1.0,
+      "overall_abstention_decision_score": 0.5,
       "total_queries": 8
     },
     "generation": {
@@ -280,6 +286,8 @@
       "correct_abstentions_negative_control": 1,
       "coverage_rate_on_answerable": 0.5714,
       "incorrect_answers_negative_control": 0,
+      "negative_control_abstention_correctness": 1.0,
+      "overall_abstention_decision_score": 0.25,
       "total_queries": 8
     },
     "generation": {
@@ -368,6 +376,8 @@
       "correct_abstentions_negative_control": 1,
       "coverage_rate_on_answerable": 0.5714,
       "incorrect_answers_negative_control": 0,
+      "negative_control_abstention_correctness": 1.0,
+      "overall_abstention_decision_score": 0.25,
       "total_queries": 8
     },
     "generation": {
@@ -456,6 +466,8 @@
       "correct_abstentions_negative_control": 1,
       "coverage_rate_on_answerable": 0.5714,
       "incorrect_answers_negative_control": 0,
+      "negative_control_abstention_correctness": 1.0,
+      "overall_abstention_decision_score": 0.25,
       "total_queries": 8
     },
     "generation": {
@@ -544,6 +556,8 @@
       "correct_abstentions_negative_control": 1,
       "coverage_rate_on_answerable": 0.5714,
       "incorrect_answers_negative_control": 0,
+      "negative_control_abstention_correctness": 1.0,
+      "overall_abstention_decision_score": 0.25,
       "total_queries": 8
     },
     "generation": {

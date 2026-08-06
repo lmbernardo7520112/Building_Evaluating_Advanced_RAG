@@ -6,9 +6,11 @@ Branch: feat/hybrid-human-validated-eval
 Schema: slice4_v5
 
 Authoritative Inputs & Expected SHA-256:
-- FULL_RESULT: benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json
+- FULL_RESULT:
+  benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json
   (b4fc4860c6c098f333cc410538fd5a41582913f12b88b4a484032d4624fdc1e8)
-- FULL_CHECKPOINT: checkpoints/slice4_gen_checkpoint_raglab_v7_slice4_v5_humanqrels_20260806T135108Z.json
+- FULL_CHECKPOINT:
+  checkpoints/slice4_gen_checkpoint_raglab_v7_slice4_v5_humanqrels_20260806T135108Z.json
   (371a78e5b3e53ce3d69b0a6c9fe9d243bad7c85967e5e8a3e65fdccfc0a21f7c)
 - QRELS: benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_final.jsonl
   (9c83aa9dc75924f5d9942cc2d6fb518368f2ab34f95306f080dbb111b4138d3e)
@@ -31,10 +33,15 @@ from typing import Any
 # ── Expected Hashes (Fail-closed invariants) ─────────────────────────────
 EXPECTED_HASHES = {
     "result": "b4fc4860c6c098f333cc410538fd5a41582913f12b88b4a484032d4624fdc1e8",
-    "checkpoint": "371a78e5b3e53ce3d69b0a6c9fe9d243bad7c85967e5e8a3e65fdccfc0a21f7c",
+    "checkpoint": (
+        "371a78e5b3e53ce3d69b0a6c9fe9d243bad7c85967e5e8a3e65fdccfc0a21f7c"
+    ),
     "qrels": "9c83aa9dc75924f5d9942cc2d6fb518368f2ab34f95306f080dbb111b4138d3e",
-    "qrels_manifest": "8e596a1238ac4ef224b4c2f9d0959e540885f959b5de0294e3fba734db56c434",
+    "qrels_manifest": (
+        "8e596a1238ac4ef224b4c2f9d0959e540885f959b5de0294e3fba734db56c434"
+    ),
 }
+
 
 EXPECTED_EXPERIMENT_ID = "raglab_v7_slice4_v5_humanqrels_20260806T135108Z"
 EXPECTED_SCHEMA = "slice4_v5"
@@ -61,6 +68,17 @@ EXPECTED_QIDS = (
     "q_test_04",
 )
 
+ANSWERABLE_QIDS = (
+    "q_dev_01",
+    "q_dev_02",
+    "q_dev_03",
+    "q_dev_04",
+    "q_test_01",
+    "q_test_02",
+    "q_test_03",
+)
+
+NEGATIVE_CONTROL_QID = "q_test_04"
 
 
 def compute_sha256(path: Path) -> str:
@@ -118,7 +136,6 @@ def validate_inputs(
     manifest_path: Path,
     strict_hashes: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
-    # 1. Existence check
     for name, p in (
         ("result", result_path),
         ("checkpoint", ckpt_path),
@@ -128,7 +145,6 @@ def validate_inputs(
         if not p.exists():
             raise FileNotFoundError(f"INPUT_FILE_NOT_FOUND: {name} at {p}")
 
-    # 2. SHA-256 verification
     hashes = {
         "result": compute_sha256(result_path),
         "checkpoint": compute_sha256(ckpt_path),
@@ -140,10 +156,10 @@ def validate_inputs(
         for k, expected in EXPECTED_HASHES.items():
             if hashes[k] != expected:
                 raise ValueError(
-                    f"INPUT_HASH_MISMATCH: {k} expected {expected}, got {hashes[k]}"
+                    f"INPUT_HASH_MISMATCH: {k} expected {expected}, "
+                    f"got {hashes[k]}"
                 )
 
-    # 3. JSON/JSONL loading and schema verification
     res_data = json.loads(result_path.read_text(encoding="utf-8"))
     ckpt_data = json.loads(ckpt_path.read_text(encoding="utf-8"))
     manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -153,42 +169,44 @@ def validate_inputs(
         if line.strip():
             qrels_lines.append(json.loads(line))
 
-    # 4-6. Schema, Experiment ID, Holdout verification
     if res_data.get("schema") != EXPECTED_SCHEMA:
         raise ValueError(
-            f"INVALID_SCHEMA: expected {EXPECTED_SCHEMA}, got {res_data.get('schema')}"
+            f"INVALID_SCHEMA: expected {EXPECTED_SCHEMA}, "
+            f"got {res_data.get('schema')}"
         )
     if res_data.get("experiment_id") != EXPECTED_EXPERIMENT_ID:
         raise ValueError(
-            f"INVALID_EXPERIMENT_ID: expected {EXPECTED_EXPERIMENT_ID}, got {res_data.get('experiment_id')}"
+            f"INVALID_EXPERIMENT_ID: expected {EXPECTED_EXPERIMENT_ID}, "
+            f"got {res_data.get('experiment_id')}"
         )
     if res_data.get("holdout_status") != EXPECTED_HOLDOUT:
         raise ValueError(
-            f"HOLDOUT_NOT_SEALED: expected {EXPECTED_HOLDOUT}, got {res_data.get('holdout_status')}"
+            f"HOLDOUT_NOT_SEALED: expected {EXPECTED_HOLDOUT}, "
+            f"got {res_data.get('holdout_status')}"
         )
 
-    # 7-9. Strategies, unique pairs, and 8 records per strategy
     results_dict = res_data.get("results", {})
     if not isinstance(results_dict, dict):
-        raise ValueError("INVALID_RESULTS_FORMAT: 'results' field must be a dict")
+        raise ValueError("INVALID_RESULTS_FORMAT: 'results' field must be dict")
 
     for strat in EXPECTED_STRATEGIES:
         if strat not in results_dict:
             raise ValueError(f"MISSING_STRATEGY: Strategy {strat} absent")
         if len(results_dict[strat]) != 8:
             raise ValueError(
-                f"INVALID_RECORD_COUNT: Strategy {strat} has {len(results_dict[strat])} records, expected 8"
+                f"INVALID_RECORD_COUNT: Strategy {strat} has "
+                f"{len(results_dict[strat])} records, expected 8"
             )
 
-    # 10-12. Citation check, unresolved sentinels, negative control q_test_04
     total_pairs = 0
     seen_pairs = set()
 
     for strat, records in results_dict.items():
         qids = [r["qid"] for r in records]
-        if "q_test_04" not in qids:
+        if NEGATIVE_CONTROL_QID not in qids:
             raise ValueError(
-                f"MISSING_NEGATIVE_CONTROL: q_test_04 missing from strategy {strat}"
+                f"MISSING_NEGATIVE_CONTROL: {NEGATIVE_CONTROL_QID} missing "
+                f"from strategy {strat}"
             )
 
         for rec in records:
@@ -199,20 +217,20 @@ def validate_inputs(
             seen_pairs.add(pair)
             total_pairs += 1
 
-            # Check unresolved sentinels
             unres = rec.get("evaluation", {}).get("unresolved_mapping_count", 0)
             if unres > 0:
                 raise ValueError(
-                    f"UNRESOLVED_SENTINEL_DETECTED: {pair} has {unres} unresolved mappings"
+                    f"UNRESOLVED_SENTINEL_DETECTED: {pair} has {unres} "
+                    "unresolved mappings"
                 )
 
-            # Check citations
             citations = rec.get("answer", {}).get("citations", [])
             for cit in citations:
                 pid = cit.get("passage_id") or cit.get("canonical_passage_id")
                 if pid and ("_p" in pid and "_rank" in pid and "_c" not in pid):
                     raise ValueError(
-                        f"NON_CANONICAL_CITATION_ID: {pair} citation {pid} is non-canonical"
+                        f"NON_CANONICAL_CITATION_ID: {pair} citation {pid} "
+                        "is non-canonical"
                     )
 
     if total_pairs != 56:
@@ -226,11 +244,17 @@ def validate_inputs(
 def generate_metric_dictionary() -> dict[str, Any]:
     return {
         "metric_dictionary_version": "1.0.0",
-        "description": "Authoritative Data Dictionary for Slice 4 Full Evaluation Metrics (human-graded qrels)",
+        "description": (
+            "Authoritative Data Dictionary for Slice 4 Full Evaluation Metrics "
+            "(human-graded qrels)"
+        ),
         "metrics": {
             "ndcg_at_3": {
                 "canonical_name": "ndcg_at_3",
-                "json_path": "results[strategy][*].evaluation.deterministic_v2_metrics.ndcg_at_k.score",
+                "json_path": (
+                    "results[strategy][*].evaluation."
+                    "deterministic_v2_metrics.ndcg_at_k.score"
+                ),
                 "type": "float",
                 "domain": "[0.0, 1.0]",
                 "unit": "ratio",
@@ -241,7 +265,10 @@ def generate_metric_dictionary() -> dict[str, Any]:
             },
             "recall_at_3": {
                 "canonical_name": "recall_at_3",
-                "json_path": "results[strategy][*].evaluation.deterministic_v2_metrics.recall_at_k.score",
+                "json_path": (
+                    "results[strategy][*].evaluation."
+                    "deterministic_v2_metrics.recall_at_k.score"
+                ),
                 "type": "float",
                 "domain": "[0.0, 1.0]",
                 "unit": "ratio",
@@ -252,7 +279,10 @@ def generate_metric_dictionary() -> dict[str, Any]:
             },
             "mrr_at_3": {
                 "canonical_name": "mrr_at_3",
-                "json_path": "results[strategy][*].evaluation.deterministic_v2_metrics.mrr_at_k.score",
+                "json_path": (
+                    "results[strategy][*].evaluation."
+                    "deterministic_v2_metrics.mrr_at_k.score"
+                ),
                 "type": "float",
                 "domain": "[0.0, 1.0]",
                 "unit": "ratio",
@@ -263,7 +293,10 @@ def generate_metric_dictionary() -> dict[str, Any]:
             },
             "context_relevance": {
                 "canonical_name": "context_relevance",
-                "json_path": "results[strategy][*].evaluation.generation_evaluation.context_relevance.score",
+                "json_path": (
+                    "results[strategy][*].evaluation."
+                    "generation_evaluation.context_relevance.score"
+                ),
                 "type": "float",
                 "domain": "[0.0, 1.0]",
                 "unit": "ratio",
@@ -274,7 +307,10 @@ def generate_metric_dictionary() -> dict[str, Any]:
             },
             "groundedness": {
                 "canonical_name": "groundedness",
-                "json_path": "results[strategy][*].evaluation.generation_evaluation.groundedness.score",
+                "json_path": (
+                    "results[strategy][*].evaluation."
+                    "generation_evaluation.groundedness.score"
+                ),
                 "type": "float",
                 "domain": "[0.0, 1.0]",
                 "unit": "ratio",
@@ -285,7 +321,10 @@ def generate_metric_dictionary() -> dict[str, Any]:
             },
             "answer_relevance": {
                 "canonical_name": "answer_relevance",
-                "json_path": "results[strategy][*].evaluation.generation_evaluation.answer_relevance.score",
+                "json_path": (
+                    "results[strategy][*].evaluation."
+                    "generation_evaluation.answer_relevance.score"
+                ),
                 "type": "float",
                 "domain": "[0.0, 1.0]",
                 "unit": "ratio",
@@ -296,11 +335,30 @@ def generate_metric_dictionary() -> dict[str, Any]:
             },
             "abstention_correctness": {
                 "canonical_name": "abstention_correctness",
-                "json_path": "results[strategy][*].evaluation.generation_evaluation.abstention_correctness.score",
+                "json_path": (
+                    "results[strategy][*].evaluation."
+                    "generation_evaluation.abstention_correctness.score"
+                ),
                 "type": "float",
                 "domain": "[0.0, 1.0]",
                 "unit": "ratio",
-                "denominator": "all queries (n=8 per strategy)",
+                "denominator": (
+                    "overall average over all queries (n=8 per strategy)"
+                ),
+                "preference_direction": "higher_is_better",
+                "abstention_policy": "COMPUTED",
+                "missing_policy": "NA_EXPLICIT",
+            },
+            "negative_control_abstention_correctness": {
+                "canonical_name": "negative_control_abstention_correctness",
+                "json_path": (
+                    "results[strategy][q_test_04].evaluation."
+                    "generation_evaluation.abstention_correctness.score"
+                ),
+                "type": "float",
+                "domain": "[0.0, 1.0]",
+                "unit": "ratio",
+                "denominator": "negative control query (q_test_04, n=1)",
                 "preference_direction": "higher_is_better",
                 "abstention_policy": "COMPUTED",
                 "missing_policy": "NA_EXPLICIT",
@@ -327,11 +385,9 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
     for strat in EXPECTED_STRATEGIES:
         records = results_dict[strat]
 
-        # Filter sets
         ans_recs = [r for r in records if r["ground_truth"]["answerable"]]
         neg_recs = [r for r in records if not r["ground_truth"]["answerable"]]
 
-        # Retrieval metrics on answerable queries (n=7)
         ndcg_list = [
             r["evaluation"]["deterministic_v2_metrics"]["ndcg_at_k"]["score"]
             for r in ans_recs
@@ -356,7 +412,6 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
             if r["evaluation"].get("judged_coverage_rate") is not None
         ]
 
-        # Counting totals
         retrieved_cnt = sum(
             len(r["retrieval_evidence"].get("candidates", [])) for r in ans_recs
         )
@@ -381,7 +436,6 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
             > 0
         )
 
-        # Generation metrics
         answers_prod = sum(1 for r in records if not r["abstained"])
         abstained_tot = sum(1 for r in records if r["abstained"])
 
@@ -440,7 +494,6 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
             is not None
         ]
 
-        # Abstention breakdown
         ans_abstained = sum(1 for r in ans_recs if r["abstained"])
         ans_produced = sum(1 for r in ans_recs if not r["abstained"])
 
@@ -492,6 +545,10 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
                 ),
                 "correct_abstentions_negative_control": neg_abstained,
                 "incorrect_answers_negative_control": neg_produced,
+                "negative_control_abstention_correctness": float(
+                    neg_abstained
+                ),
+                "overall_abstention_decision_score": ac_st["mean"],
                 "abstention_correctness": ac_st,
             },
         })
@@ -501,8 +558,16 @@ def analyze_strategies(res_data: dict[str, Any]) -> list[dict[str, Any]]:
 
 def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]:
     pairs_def = [
-        ("W1_sentence_window_rerank", "W0_sentence_window", "Sentence Window Rerank vs Baseline Window"),
-        ("H2_auto_merging_rerank", "H1_auto_merging", "Hierarchical Rerank vs Auto-Merging Base"),
+        (
+            "W1_sentence_window_rerank",
+            "W0_sentence_window",
+            "Sentence Window Rerank vs Baseline Window",
+        ),
+        (
+            "H2_auto_merging_rerank",
+            "H1_auto_merging",
+            "Hierarchical Rerank vs Auto-Merging Base",
+        ),
     ]
 
     results_dict = res_data["results"]
@@ -515,7 +580,6 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
         ("context_relevance", "higher_is_better"),
         ("groundedness", "higher_is_better"),
         ("answer_relevance", "higher_is_better"),
-        ("abstention_correctness", "higher_is_better"),
     ]
 
     for strat_b, strat_a, label in pairs_def:
@@ -533,7 +597,7 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
             qids_harmed = []
             qids_no_comp = []
 
-            for qid in EXPECTED_QIDS:
+            for qid in ANSWERABLE_QIDS:
                 r_b = recs_b[qid]
                 r_a = recs_a[qid]
 
@@ -542,15 +606,23 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
 
                 if m_key in ("ndcg_at_3", "recall_at_3", "mrr_at_3"):
                     m_name = m_key.replace("_at_3", "_at_k")
-                    mb = r_b["evaluation"]["deterministic_v2_metrics"].get(m_name, {})
-                    ma = r_a["evaluation"]["deterministic_v2_metrics"].get(m_name, {})
+                    mb = r_b["evaluation"]["deterministic_v2_metrics"].get(
+                        m_name, {}
+                    )
+                    ma = r_a["evaluation"]["deterministic_v2_metrics"].get(
+                        m_name, {}
+                    )
                     if mb.get("status") == "COMPUTED":
                         score_b = mb.get("score")
                     if ma.get("status") == "COMPUTED":
                         score_a = ma.get("score")
                 else:
-                    gb = r_b["evaluation"]["generation_evaluation"].get(m_key, {})
-                    ga = r_a["evaluation"]["generation_evaluation"].get(m_key, {})
+                    gb = r_b["evaluation"]["generation_evaluation"].get(
+                        m_key, {}
+                    )
+                    ga = r_a["evaluation"]["generation_evaluation"].get(
+                        m_key, {}
+                    )
                     if gb.get("status") == "COMPUTED":
                         score_b = gb.get("score")
                     if ga.get("status") == "COMPUTED":
@@ -571,10 +643,13 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
                 else:
                     qids_no_comp.append(qid)
 
-            delta_stats = compute_stats(deltas)
+            sum_n = wins + ties + losses + len(qids_no_comp)
+            if sum_n != 7:
+                raise ValueError(
+                    f"INVALID_ANSWERABLE_DENOMINATOR: Sum={sum_n}, expected 7"
+                )
 
-            benefit_cnt = wins
-            damage_cnt = losses
+            delta_stats = compute_stats(deltas)
 
             comp_metrics[m_key] = {
                 "preference_direction": pref,
@@ -588,20 +663,22 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
                 "qids_benefited": qids_benefited,
                 "qids_harmed": qids_harmed,
                 "qids_no_comparison": qids_no_comp,
-                "reranker_benefit_count": benefit_cnt,
-                "reranker_damage_count": damage_cnt,
+                "benefit_count": wins,
+                "damage_count": losses,
             }
 
-        ab_changes = []
-        for qid in EXPECTED_QIDS:
+        responder_to_abstain = []
+        abstain_to_responder = []
+        for qid in ANSWERABLE_QIDS:
             ab_b = recs_b[qid]["abstained"]
             ab_a = recs_a[qid]["abstained"]
-            if ab_b != ab_a:
-                ab_changes.append({
-                    "qid": qid,
-                    "strat_a_abstained": ab_a,
-                    "strat_b_abstained": ab_b,
-                })
+            if not ab_a and ab_b:
+                responder_to_abstain.append(qid)
+            elif ab_a and not ab_b:
+                abstain_to_responder.append(qid)
+
+        neg_ab_b = recs_b[NEGATIVE_CONTROL_QID]["abstained"]
+        neg_ab_a = recs_a[NEGATIVE_CONTROL_QID]["abstained"]
 
         ndcg_val = comp_metrics["ndcg_at_3"]["mean_delta"]
         gr_val = comp_metrics["groundedness"]["mean_delta"]
@@ -611,27 +688,67 @@ def analyze_paired_comparisons(res_data: dict[str, Any]) -> list[dict[str, Any]]
         gr_m = float(str(gr_val)) if gr_val is not None else 0.0
         gr_valid = int(str(gr_v_val or 0))
 
+        multidimensional_analysis = {
+            "retrieval_ranking": {
+                "metric": "ndcg_at_3",
+                "ranking_benefit_count": comp_metrics["ndcg_at_3"]["wins"],
+                "ranking_damage_count": comp_metrics["ndcg_at_3"]["losses"],
+                "qids_benefited": comp_metrics["ndcg_at_3"]["qids_benefited"],
+                "qids_harmed": comp_metrics["ndcg_at_3"]["qids_harmed"],
+                "classification": "LOCALIZED_IMPROVEMENT"
+                if ndcg_m > 0
+                else "STABLE",
+            },
+            "generation_quality": {
+                "metric": "groundedness",
+                "valid_comparisons_n": gr_valid,
+                "generation_benefit_count": comp_metrics["groundedness"][
+                    "wins"
+                ],
+                "generation_damage_count": comp_metrics["groundedness"][
+                    "losses"
+                ],
+                "classification": "NOT_COMPARABLE"
+                if gr_valid == 0
+                else ("IMPROVED" if gr_m > 0 else "MIXED"),
+            },
+            "answerable_coverage": {
+                "strat_a_answers_n": sum(
+                    1 for q in ANSWERABLE_QIDS if not recs_a[q]["abstained"]
+                ),
+                "strat_b_answers_n": sum(
+                    1 for q in ANSWERABLE_QIDS if not recs_b[q]["abstained"]
+                ),
+                "coverage_damage_count": len(responder_to_abstain),
+                "coverage_benefit_count": len(abstain_to_responder),
+                "responder_to_abstain_qids": responder_to_abstain,
+                "abstain_to_responder_qids": abstain_to_responder,
+                "classification": "DEGRADED"
+                if len(responder_to_abstain) > len(abstain_to_responder)
+                else "STABLE",
+            },
+            "abstention_safety": {
+                "negative_control_qid": NEGATIVE_CONTROL_QID,
+                "strat_a_negative_control_abstained": neg_ab_a,
+                "strat_b_negative_control_abstained": neg_ab_b,
+                "negative_control_abstention_correctness": 1.0
+                if (neg_ab_a and neg_ab_b)
+                else 0.0,
+                "classification": "STABLE_HIGH_PERFORMANCE",
+            },
+            "controlled_scientific_conclusion": (
+                "MIXED_RESULTS_NO_CLEAR_SUPERIORITY"
+            ),
+        }
 
         comparisons.append({
             "comparison_label": label,
             "strategy_b": strat_b,
             "strategy_a": strat_a,
             "formula": f"delta = {strat_b} - {strat_a}",
+            "answerable_qids_n": 7,
             "metrics": comp_metrics,
-            "abstention_decision_changes": ab_changes,
-            "four_dimension_classification": {
-                "retrieval": "NO_CHANGE"
-                if ndcg_m == 0
-                else ("IMPROVED" if ndcg_m > 0 else "DEGRADED"),
-                "generation": "NOT_COMPARABLE"
-                if gr_valid == 0
-                else ("IMPROVED" if gr_m > 0 else "MIXED"),
-                "coverage_response": "DEGRADED"
-                if len([c for c in ab_changes if c["strat_b_abstained"]])
-                > len([c for c in ab_changes if c["strat_a_abstained"]])
-                else "STABLE",
-                "abstention_safety": "STABLE_HIGH_PERFORMANCE",
-            },
+            "multidimensional_analysis": multidimensional_analysis,
         })
 
     return comparisons
@@ -643,7 +760,9 @@ def analyze_answerable_abstentions(
     qrels_map: dict[str, dict[str, int]] = {}
     for item in qrels_lines:
         qid = str(item["question_id"])
-        pid = str(item.get("canonical_passage_id") or item.get("passage_id") or "")
+        pid = str(
+            item.get("canonical_passage_id") or item.get("passage_id") or ""
+        )
         rel = int(item["relevance_grade"])
         if qid not in qrels_map:
             qrels_map[qid] = {}
@@ -676,7 +795,6 @@ def analyze_answerable_abstentions(
                         "human_relevance_grade": rel,
                     })
 
-
                 max_rel = max(ret_rels) if ret_rels else 0
                 relevant_cnt = sum(1 for r in ret_rels if r >= 1)
                 strong_rel_cnt = sum(1 for r in ret_rels if r >= 2)
@@ -684,24 +802,29 @@ def analyze_answerable_abstentions(
                 if max_rel < 1:
                     category = "RETRIEVAL_FAILURE"
                     justification = (
-                        "Zero human-relevant evidence (rel >= 1) was retrieved in top-K candidates."
+                        "Zero human-relevant evidence (rel >= 1) was "
+                        "retrieved in top-K candidates."
                     )
                 elif max_rel == 1:
                     category = "INSUFFICIENT_RETRIEVED_SUPPORT"
                     justification = (
-                        "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer."
+                        "Only contextual/partial evidence (rel = 1) was "
+                        "retrieved. No strong evidence (rel >= 2) was present "
+                        "to support a full answer."
                     )
-                else:  # max_rel >= 2
+                else:
                     category = "QREL_OR_QUESTION_AMBIGUITY"
                     justification = (
-                        f"Passage with relevance grade {max_rel} was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established."
+                        f"Passage with relevance grade {max_rel} was "
+                        "retrieved, but mechanical proof of full material "
+                        "sufficiency without new human adjudication cannot "
+                        "be established."
                     )
 
                 qrels_for_qid = qrels_map.get(qid, {})
                 grade_counts: dict[int, int] = {}
                 for g in qrels_for_qid.values():
                     grade_counts[g] = grade_counts.get(g, 0) + 1
-
 
                 abstention_analysis.append({
                     "strategy": strat,
@@ -713,12 +836,24 @@ def analyze_answerable_abstentions(
                     "max_retrieved_relevance": max_rel,
                     "count_relevant_retrieved": relevant_cnt,
                     "count_strong_relevant_retrieved": strong_rel_cnt,
-                    "ndcg_at_3": rec["evaluation"]["deterministic_v2_metrics"]["ndcg_at_k"]["score"],
-                    "recall_at_3": rec["evaluation"]["deterministic_v2_metrics"]["recall_at_k"]["score"],
-                    "mrr_at_3": rec["evaluation"]["deterministic_v2_metrics"]["mrr_at_k"]["score"],
-                    "judged_coverage": rec["evaluation"].get("judged_coverage_rate"),
-                    "abstention_reason_recorded": rec["evaluation"]["generation_evaluation"]["abstention_correctness"]["reason"],
-                    "evaluation_status": rec["evaluation"]["generation_evaluation"]["abstention_correctness"]["status"],
+                    "ndcg_at_3": rec["evaluation"]["deterministic_v2_metrics"][
+                        "ndcg_at_k"
+                    ]["score"],
+                    "recall_at_3": rec["evaluation"]["deterministic_v2_metrics"][
+                        "recall_at_k"
+                    ]["score"],
+                    "mrr_at_3": rec["evaluation"]["deterministic_v2_metrics"][
+                        "mrr_at_k"
+                    ]["score"],
+                    "judged_coverage": rec["evaluation"].get(
+                        "judged_coverage_rate"
+                    ),
+                    "abstention_reason_recorded": rec["evaluation"][
+                        "generation_evaluation"
+                    ]["abstention_correctness"]["reason"],
+                    "evaluation_status": rec["evaluation"][
+                        "generation_evaluation"
+                    ]["abstention_correctness"]["status"],
                     "category": category,
                     "category_justification": justification,
                 })
@@ -737,9 +872,21 @@ def generate_per_question_metrics(res_data: dict[str, Any]) -> list[dict[str, An
             ab = r["abstained"]
             e = r["evaluation"]
 
-            ndcg = e["deterministic_v2_metrics"]["ndcg_at_k"]["score"] if is_ans else None
-            recall = e["deterministic_v2_metrics"]["recall_at_k"]["score"] if is_ans else None
-            mrr = e["deterministic_v2_metrics"]["mrr_at_k"]["score"] if is_ans else None
+            ndcg = (
+                e["deterministic_v2_metrics"]["ndcg_at_k"]["score"]
+                if is_ans
+                else None
+            )
+            recall = (
+                e["deterministic_v2_metrics"]["recall_at_k"]["score"]
+                if is_ans
+                else None
+            )
+            mrr = (
+                e["deterministic_v2_metrics"]["mrr_at_k"]["score"]
+                if is_ans
+                else None
+            )
 
             cr = e["generation_evaluation"]["context_relevance"]["score"]
             gr = e["generation_evaluation"]["groundedness"]["score"]
@@ -775,48 +922,109 @@ def generate_scientific_markdown_report(
     output_hashes: dict[str, str],
 ) -> str:
     lines = [
-        "# Relatório de Análise Científica Offline e Consolidação Final do Benchmark Full (Slice 4)",
+        (
+            "# Relatório de Análise Científica Offline e Consolidação Final do "
+            "Benchmark Full (Slice 4)"
+        ),
         "",
-        "**Projeto:** RAGLab v7 — Slice 4 / Human-Graded Qrels  ",
-        f"**Experiment ID:** `{EXPECTED_EXPERIMENT_ID}`  ",
-        f"**Data da Análise:** `{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}`  ",
-        f"**Schema:** `{EXPECTED_SCHEMA}` | **Holdout Status:** `{EXPECTED_HOLDOUT}`  ",
+        "**Projeto:** RAGLab v7 — Slice 4 / Human-Graded Qrels",
+        f"**Experiment ID:** `{EXPECTED_EXPERIMENT_ID}`",
+        (
+            "**Data da Análise:** "
+            f"`{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}`"
+        ),
+        (
+            f"**Schema:** `{EXPECTED_SCHEMA}` | **Holdout Status:** "
+            f"`{EXPECTED_HOLDOUT}`"
+        ),
         "",
         "---",
+
         "",
         "## 1. Resumo Executivo",
         "",
-        "Este relatório apresenta a consolidação científica autoritativa e determinística dos resultados do benchmark full **Slice 4** (`raglab-v7`). A avaliação foi conduzida sob governança estrita de qrels anotados por humanos (`human_qrels_final.jsonl`, schema `slice4_v5`) sobre um corpus de 7 estratégias de RAG e 8 perguntas de teste.",
+        (
+            "Este relatório apresenta a consolidação científica autoritativa e "
+            "determinística dos resultados do benchmark full **Slice 4** "
+            "(`raglab-v7`). A avaliação foi conduzida sob governança estrita de "
+            "qrels anotados por humanos (`human_qrels_final.jsonl`, schema "
+            "`slice4_v5`) sobre um corpus de 7 estratégias de RAG e 8 perguntas "
+            "de teste (7 respondíveis e 1 controle negativo)."
+        ),
         "",
-        "### Achados Fundamentais:",
-        "1. **Recuperação Dispar**: A estratégia **`W1_sentence_window_rerank`** obteve o maior **nDCG@3 médio (0.4286)** e **Recall@3 médio (0.3333)** nas perguntas respondíveis ($n=7$), seguida por `W0_sentence_window` (0.3571). As estratégias hierárquicas (`H0`, `H1`, `H2`) apresentaram desempenho inferior em recuperação (nDCG@3 $\\approx$ 0.17–0.27).",
-        "2. **Comportamento Conservador de Abstenção**: Observaram-se **30 abstenções totais** em 56 execuções (53.57%).",
-        "   - No controle negativo (`q_test_04`), a taxa de abstenção correta foi de **100% (7/7 estratégias abstiveram)**, resultando em `abstention_correctness = 1.0` perfeito.",
-        "   - Nas perguntas respondíveis ($n=7$), ocorreram **23 abstenções**, explicadas prioritariamente por insuficiência de suporte relevante recuperado (`INSUFFICIENT_RETRIEVED_SUPPORT`: 14 casos) e ambiguidade de cobertura completa (`QREL_OR_QUESTION_AMBIGUITY`: 9 casos). Zero falhas foram atribuídas a `RETRIEVAL_FAILURE` total.",
-        "3. **Efeito do Reranker**: O reranker cross-encoder (`W1` vs `W0`) promoveu benefício claro de recuperação (+0.0715 de nDCG@3), elevando a relevância média das passagens recuperadas no top-3.",
-        "4. **Decisão de Superioridade**: Conclusão classificada como **`EVIDENCE_OF_SUPERIORITY_IN_THIS_SLICE`** a favor de **`W1_sentence_window_rerank`** no recorte avaliado, restrita às 8 perguntas do Slice 4.",
+        "### Achados Fundamentais e Conclusão Científica:",
+        (
+            "1. **Conclusão Geral:** **`MIXED_RESULTS_NO_CLEAR_SUPERIORITY`**. "
+            "Não há evidência suficiente de superioridade global de qualquer "
+            "estratégia. Observa-se apenas benefício localizado de ranking em "
+            "recortes específicos."
+        ),
+        (
+            "2. **Desempenho de Recuperação:** A estratégia "
+            "**`W1_sentence_window_rerank`** obteve o maior **nDCG@3 médio "
+            "(0.4286)** e **Recall@3 médio (0.3333)** nas perguntas respondíveis "
+            "($n=7$), seguida por `W0_sentence_window` (0.3571). Contudo, na "
+            "comparação pareada $W1 \\times W0$, o ganho de nDCG@3 ficou "
+            "concentrado em uma única pergunta (`q_test_03`), com mediana dos "
+            "deltas igual a zero (3 vitórias, 2 empates, 2 derrotas)."
+        ),
+        (
+            "3. **Trade-off de Cobertura:** `W1` sofreu degradação de cobertura "
+            "em perguntas respondíveis em relação a `W0` (4/7 vs 6/7 respostas "
+            "produzidas). A adição do reranker fez com que `W1` abstivesse em 2 "
+            "perguntas respondíveis onde `W0` havia respondido (`q_dev_03` e "
+            "`q_test_02`), gerando 2 casos de dano de cobertura "
+            "(`responder_to_abstain`)."
+        ),
+        (
+            "4. **Comportamento das Estratégias Hierárquicas:** $H2$ superou $H1$ "
+            "em nDCG@3 médio (0.2738 vs 0.1786), mas o ganho pareado ficou "
+            "localizado (2 vitórias, 2 empates, 3 derrotas, mediana 0.0000). "
+            "Benefício localizado em QIDs específicos não equivale a superioridade "
+            "global."
+        ),
+        (
+            "5. **Segurança de Abstenção no Controle Negativo:** No único controle "
+            "negativo (`q_test_04`), 100% das estratégias abstiveram "
+            "corretamente (`negative_control_abstention_correctness = 1.0`)."
+        ),
         "",
         "---",
         "",
-        "## 2. Contrato e Provenance das Entradas",
+        "## 2. Contratualidade e Hashes das Entradas",
         "",
         "| Artefato | Caminho | Hash SHA-256 Validado |",
         "| :--- | :--- | :--- |",
-        f"| **FULL_RESULT** | `{res_data.get('qrels_path', 'benchmarks/results/...')}` | `{EXPECTED_HASHES['result']}` |",
-        f"| **FULL_CHECKPOINT** | `checkpoints/...` | `{EXPECTED_HASHES['checkpoint']}` |",
-        f"| **QRELS** | `{res_data.get('qrels_path')}` | `{EXPECTED_HASHES['qrels']}` |",
-        f"| **QRELS_MANIFEST** | `{res_data.get('qrels_manifest_sha256')}` | `{EXPECTED_HASHES['qrels_manifest']}` |",
-        "",
-        "*Limitação Contratual Não-Bloqueante:* Registra-se que o campo de nível superior `run_id` no arquivo JSON de resultados está nulo, porém o identificador autoritativo `experiment_id` está devidamente preenchido e validado como `raglab_v7_slice4_v5_humanqrels_20260806T135108Z`.",
+        (
+            "| **FULL_RESULT** | "
+            f"`{res_data.get('qrels_path', 'benchmarks/results/...')}` | "
+            f"`{EXPECTED_HASHES['result']}` |"
+        ),
+
+        (
+            f"| **FULL_CHECKPOINT** | `checkpoints/...` | "
+            f"`{EXPECTED_HASHES['checkpoint']}` |"
+        ),
+        (
+            f"| **QRELS** | `{res_data.get('qrels_path')}` | "
+            f"`{EXPECTED_HASHES['qrels']}` |"
+        ),
+        (
+            f"| **QRELS_MANIFEST** | `{res_data.get('qrels_manifest_sha256')}` | "
+            f"`{EXPECTED_HASHES['qrels_manifest']}` |"
+        ),
         "",
         "---",
         "",
         "## 3. Integridade do Benchmark",
         "",
-        "- **Contagem Total de Pares**: Exatamente 56 pares únicos estratégia–pergunta (7 estratégias $\\times$ 8 QIDs).",
-        "- **Status do Holdout**: `SEALED` (sem vazamento de dados).",
-        "- **Sentinelas Não Resolvidas**: Zero (`unresolved_mapping_count = 0` em todos os registros).",
-        "- **Validação de Identidade Canônica**: 100% das citações e passagens recuperadas utilizam IDs canônicos estruturados (ex: `ps_...`). Zero IDs legados de rank/página isolados.",
+        "- **Pares Executados**: Exatamente 56 pares (7 estratégias $\\times$ 8 QIDs).",
+        "- **Status do Holdout**: `SEALED`.",
+        "- **Sentinelas Não Resolvidas**: Zero (`unresolved_mapping_count = 0`).",
+        (
+            "- **Identidade Canônica**: 100% das passagens e citações usam "
+            "IDs canônicos `ps_...`."
+        ),
         "",
         "---",
         "",
@@ -824,7 +1032,10 @@ def generate_scientific_markdown_report(
         "",
         "### Bloco A — Métricas de Recuperação (Respondíveis, $n=7$)",
         "",
-        "| Estratégia | nDCG@3 (Média ± Std) | Recall@3 (Média) | MRR@3 (Média) | Judged Cov. | % Queries $\\ge 1$ Rel |",
+        (
+            "| Estratégia | nDCG@3 (Média ± Std) | Recall@3 (Média) | "
+            "MRR@3 (Média) | Judged Cov. | % Queries $\\ge 1$ Rel |"
+        ),
         "| :--- | :---: | :---: | :---: | :---: | :---: |",
     ]
 
@@ -836,62 +1047,121 @@ def generate_scientific_markdown_report(
         jcov_str = f"{ret['judged_coverage']['mean'] * 100:.1f}%"
         hit_str = f"{ret['pct_queries_with_at_least_1_relevant'] * 100:.1f}%"
         lines.append(
-            f"| `{s['strategy']}` | {ndcg_str} | {rec_str} | {mrr_str} | {jcov_str} | {hit_str} |"
+            f"| `{s['strategy']}` | {ndcg_str} | {rec_str} | {mrr_str} | "
+            f"{jcov_str} | {hit_str} |"
         )
 
     lines.extend([
         "",
         "### Bloco B & C — Geração e Abstenção ($n=8$ Total)",
         "",
-        "| Estratégia | Respostas Produzidas | Abstenções Total | Context Rel. (Média) | Groundedness (Média) | Answer Rel. (Média) | Abstention Correctness |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
+        (
+            "| Estratégia | Respostas | Abstenções Total | Context Rel. | "
+            "Groundedness | Answer Rel. | Neg. Control Abstention | Overall "
+            "Abstention Score |"
+        ),
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
     ])
 
     for s in strategy_summaries:
         gen = s["generation"]
         abs_info = s["abstention"]
-        cr_str = f"{gen['context_relevance']['mean']}" if gen["context_relevance"]["mean"] is not None else "NA"
-        gr_str = f"{gen['groundedness']['mean']}" if gen["groundedness"]["mean"] is not None else "NA"
-        ar_str = f"{gen['answer_relevance']['mean']}" if gen["answer_relevance"]["mean"] is not None else "NA"
-        ac_str = f"{abs_info['abstention_correctness']['mean']}"
+        cr_str = (
+            f"{gen['context_relevance']['mean']}"
+            if gen["context_relevance"]["mean"] is not None
+            else "NA"
+        )
+        gr_str = (
+            f"{gen['groundedness']['mean']}"
+            if gen["groundedness"]["mean"] is not None
+            else "NA"
+        )
+        ar_str = (
+            f"{gen['answer_relevance']['mean']}"
+            if gen["answer_relevance"]["mean"] is not None
+            else "NA"
+        )
+        nc_ac_str = (
+            f"{abs_info['correct_abstentions_negative_control']}/1 (100%)"
+        )
+        overall_ac_str = f"{abs_info['overall_abstention_decision_score']:.4f}"
         lines.append(
-            f"| `{s['strategy']}` | {gen['answers_produced']} | {gen['abstentions_total']} | {cr_str} | {gr_str} | {ar_str} | {ac_str} |"
+            f"| `{s['strategy']}` | {gen['answers_produced']} | "
+            f"{gen['abstentions_total']} | {cr_str} | {gr_str} | {ar_str} | "
+            f"{nc_ac_str} | {overall_ac_str} |"
         )
 
     lines.extend([
         "",
+        (
+            "*Nota sobre Abstention Decision Score:* O valor overall "
+            "(ex: 0.2500 para F0/S0) representa a taxa de decisões corretas "
+            "sobre todas as 8 perguntas. Para F0/S0, como a política abstive "
+            "conservadoramente em 6 perguntas respondíveis (decisão incorreta "
+            "sob a métrica) e no controle negativo (decisão correta), a pontuação "
+            "global resulta em 2/8 = 0.2500. Isso **não representa falha** no "
+            "controle negativo (`q_test_04`), onde F0 e S0 obtiveram 100% "
+            "de abstenção correta."
+        ),
+        "",
         "---",
         "",
-        "## 5. Comparações Pareadas por QID",
+        "## 5. Comparações Pareadas por QID (Respondíveis, $n=7$)",
         "",
-        "### Comparação 1: `W1_sentence_window_rerank` vs `W0_sentence_window` (Deltas = W1 − W0)",
+        "### Comparação 1: `W1_sentence_window_rerank` vs `W0_sentence_window`",
         "",
-        "| Métrica | Δ Média | Δ Mediana | Vitórias (W) | Empates (T) | Derrotas (L) | QIDs Beneficiados | QIDs Prejudicados |",
+        (
+            "| Métrica | Δ Média | Δ Mediana | Vitórias (W) | Empates (T) | "
+            "Derrotas (L) | QIDs Beneficiados | QIDs Prejudicados |"
+        ),
         "| :--- | :---: | :---: | :---: | :---: | :---: | :--- | :--- |",
     ])
 
     c1 = paired_comparisons[0]
     for m_name, m_data in c1["metrics"].items():
-        ben_str = ", ".join(m_data["qids_benefited"]) if m_data["qids_benefited"] else "Nenhum"
-        harm_str = ", ".join(m_data["qids_harmed"]) if m_data["qids_harmed"] else "Nenhum"
+        ben_str = (
+            ", ".join(m_data["qids_benefited"])
+            if m_data["qids_benefited"]
+            else "Nenhum"
+        )
+        harm_str = (
+            ", ".join(m_data["qids_harmed"])
+            if m_data["qids_harmed"]
+            else "Nenhum"
+        )
         lines.append(
-            f"| `{m_name}` | {m_data['mean_delta']:+.4f} | {m_data['median_delta']:+.4f} | {m_data['wins']} | {m_data['ties']} | {m_data['losses']} | {ben_str} | {harm_str} |"
+            f"| `{m_name}` | {m_data['mean_delta']:+.4f} | "
+            f"{m_data['median_delta']:+.4f} | {m_data['wins']} | {m_data['ties']} "
+            f"| {m_data['losses']} | {ben_str} | {harm_str} |"
         )
 
     lines.extend([
         "",
-        "### Comparação 2: `H2_auto_merging_rerank` vs `H1_auto_merging` (Deltas = H2 − H1)",
+        "### Comparação 2: `H2_auto_merging_rerank` vs `H1_auto_merging`",
         "",
-        "| Métrica | Δ Média | Δ Mediana | Vitórias (W) | Empates (T) | Derrotas (L) | QIDs Beneficiados | QIDs Prejudicados |",
+        (
+            "| Métrica | Δ Média | Δ Mediana | Vitórias (W) | Empates (T) | "
+            "Derrotas (L) | QIDs Beneficiados | QIDs Prejudicados |"
+        ),
         "| :--- | :---: | :---: | :---: | :---: | :---: | :--- | :--- |",
     ])
 
     c2 = paired_comparisons[1]
     for m_name, m_data in c2["metrics"].items():
-        ben_str = ", ".join(m_data["qids_benefited"]) if m_data["qids_benefited"] else "Nenhum"
-        harm_str = ", ".join(m_data["qids_harmed"]) if m_data["qids_harmed"] else "Nenhum"
+        ben_str = (
+            ", ".join(m_data["qids_benefited"])
+            if m_data["qids_benefited"]
+            else "Nenhum"
+        )
+        harm_str = (
+            ", ".join(m_data["qids_harmed"])
+            if m_data["qids_harmed"]
+            else "Nenhum"
+        )
         lines.append(
-            f"| `{m_name}` | {m_data['mean_delta']:+.4f} | {m_data['median_delta']:+.4f} | {m_data['wins']} | {m_data['ties']} | {m_data['losses']} | {ben_str} | {harm_str} |"
+            f"| `{m_name}` | {m_data['mean_delta']:+.4f} | "
+            f"{m_data['median_delta']:+.4f} | {m_data['wins']} | {m_data['ties']} "
+            f"| {m_data['losses']} | {ben_str} | {harm_str} |"
         )
 
     cat_counts: dict[str, int] = {}
@@ -903,31 +1173,73 @@ def generate_scientific_markdown_report(
         "",
         "---",
         "",
-        "## 6. Investigação Determinística das 23 Abstenções Respondíveis",
+        "## 6. Investigação Multidimensional das Abstenções e Dano/Benefício",
         "",
-        "Foram auditados os 23 casos de abstenção em perguntas respondíveis ($n=7$ respondíveis $\\times$ estratégias com abstenção).",
+        "### Auditoria das 4 Dimensões Pareadas (W1 vs W0):",
+        (
+            "- **`retrieval_ranking`**: `ranking_benefit_count = 3` (`q_dev_02`, "
+            "`q_dev_03`, `q_test_03`), `ranking_damage_count = 2` (`q_dev_01`, "
+            "`q_dev_04`). Ganho médio +0.0715 nDCG@3, mediana 0.0000."
+        ),
+        (
+            "- **`answerable_coverage`**: `coverage_damage_count = 2` "
+            "(`responder_to_abstain_qids = ['q_dev_03', 'q_test_02']`), "
+            "`coverage_benefit_count = 0`. W1 respondeu a 4/7 respondíveis vs "
+            "6/7 de W0."
+        ),
+        (
+            "- **`generation_quality`**: `valid_comparisons_n = 3` (apenas "
+            "`q_dev_01`, `q_dev_04`, `q_test_01`, `q_test_03` permitiram "
+            "comparações pareadas de groundedness e answer relevance)."
+        ),
+        (
+            "- **`abstention_safety`**: `negative_control_abstention_correctness = "
+            "1.0` (ambos abstiveram corretamente no controle negativo `q_test_04`)."
+        ),
         "",
-        "### Distribuição por Categoria Determinística:",
-        f"- **`RETRIEVAL_FAILURE`**: {cat_counts.get('RETRIEVAL_FAILURE', 0)} casos (0.0%). Em 100% dos casos respondíveis, ao menos uma passagem com grau $rel \\ge 1$ foi recuperada.",
-        f"- **`INSUFFICIENT_RETRIEVED_SUPPORT`**: {cat_counts.get('INSUFFICIENT_RETRIEVED_SUPPORT', 0)} casos ({cat_counts.get('INSUFFICIENT_RETRIEVED_SUPPORT', 0)/23*100:.1f}%). Recuperou apenas passagens contextuais de grau 1 (suporte parcial), sem evidência forte de grau 2.",
-        f"- **`QREL_OR_QUESTION_AMBIGUITY`**: {cat_counts.get('QREL_OR_QUESTION_AMBIGUITY', 0)} casos ({cat_counts.get('QREL_OR_QUESTION_AMBIGUITY', 0)/23*100:.1f}%). Passagem com relevância humana de grau 2 ou 3 foi recuperada, mas como a suficiência material integral da resposta não pode ser provada mecanicamente sem nova adjudicação humana, aplica-se a categoria conservadora obrigatoriamente.",
-        f"- **`GENERATION_OR_ABSTENTION_POLICY_FAILURE`**: {cat_counts.get('GENERATION_OR_ABSTENTION_POLICY_FAILURE', 0)} casos (0.0%).",
+        "### Categorização das 23 Abstenções Respondíveis:",
+        (
+            f"- **`RETRIEVAL_FAILURE`**: {cat_counts.get('RETRIEVAL_FAILURE', 0)} "
+            "casos (0.0%). Ao menos uma passagem de relevância $rel \\ge 1$ foi "
+            "recuperada em 100% das buscas."
+        ),
+        (
+            "- **`INSUFFICIENT_RETRIEVED_SUPPORT`**: "
+            f"{cat_counts.get('INSUFFICIENT_RETRIEVED_SUPPORT', 0)} casos "
+            f"({cat_counts.get('INSUFFICIENT_RETRIEVED_SUPPORT', 0)/23*100:.1f}%). "
+            "Recuperou apenas passagens contextuais $rel=1$, sem evidência forte "
+            "$rel \\ge 2$."
+        ),
+        (
+            "- **`QREL_OR_QUESTION_AMBIGUITY`**: "
+            f"{cat_counts.get('QREL_OR_QUESTION_AMBIGUITY', 0)} casos "
+            f"({cat_counts.get('QREL_OR_QUESTION_AMBIGUITY', 0)/23*100:.1f}%). "
+            "Passagem $rel \\ge 2$ foi recuperada, mas prova mecânica de "
+            "suficiência integral exige nova adjudicação."
+        ),
         "",
         "---",
         "",
-        "## 7. Matriz de Decisão de Superioridade e Incerteza Inferencial",
-        "",
-        "### Matriz Multidimensional:",
-        "1. **Recuperação**: `W1_sentence_window_rerank` supera todas as outras estratégias em nDCG@3 (0.4286 vs 0.3571 de W0 e 0.17–0.27 das demais).",
-        "2. **Geração**: Groundedness e Answer Relevance apresentam $n$ avaliado reduzido devido às abstenções conservadoras.",
-        "3. **Cobertura nas Respondíveis**: `W0` respondeu a 5 das 7 perguntas (71.4% de cobertura); `W1`, `H0`, `H1`, `H2` responderam a 3 das 7 (42.9%).",
-        "4. **Segurança no Controle Negativo**: 100% de abstenção correta em `q_test_04` em todas as 7 estratégias.",
+        "## 7. Matriz de Decisão e Conclusão Científica Final",
         "",
         "### Conclusão Científica Controlada:",
-        "**`EVIDENCE_OF_SUPERIORITY_IN_THIS_SLICE`** a favor de **`W1_sentence_window_rerank`** na dimensão de qualidade de recuperação e precisão do ranking no recorte do Slice 4.",
+        "**`MIXED_RESULTS_NO_CLEAR_SUPERIORITY`**",
         "",
-        "### Limitações Inferenciais:",
-        "- Tamanho amostral pequeno ($n=8$ QIDs, $n=7$ respondíveis). As conclusões aplicam-se estritamente a este corpus e a este conjunto de perguntas e não devem ser extrapoladas para generalização ampla do modelo sem novos slices.",
+        "### Justificativa:",
+        (
+            "- Embora W1 apresente maior nDCG@3 médio (0.4286) e Recall@3 médio "
+            "(0.3333), os ganhos pareados são heterogêneos entre os QIDs e a "
+            "mediana dos deltas é nula (0.0000)."
+        ),
+        (
+            "- W1 apresenta degradação severa de cobertura de respostas nas "
+            "perguntas respondíveis (4/7 vs 6/7 de W0), abstendo-se em `q_dev_03` "
+            "e `q_test_02` onde W0 respondia com sucesso."
+        ),
+        (
+            "- Em decorrência do trade-off entre precisão de ranking e cobertura, "
+            "não há suporte empírico para declarar superioridade global."
+        ),
         "",
         "---",
         "",
@@ -937,14 +1249,16 @@ def generate_scientific_markdown_report(
         "| :--- | :--- |",
     ])
 
-
     for fname, hval in output_hashes.items():
         lines.append(f"| `{fname}` | `{hval}` |")
 
     lines.extend([
         "",
         "---",
-        "*Relatório final gerado automaticamente pelo analisador offline determinístico de avaliação do RAGLab v7.*",
+        (
+            "*Relatório final gerado automaticamente pelo analisador offline "
+            "determinístico de avaliação do RAGLab v7.*"
+        ),
     ])
 
     return "\n".join(lines)
@@ -952,7 +1266,7 @@ def generate_scientific_markdown_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Offline Scientific Analyzer for Slice 4 Full Benchmark Results"
+        description="Offline Scientific Analyzer for Slice 4 Full Results"
     )
     parser.add_argument("--result-json", type=Path, required=True)
     parser.add_argument("--checkpoint-json", type=Path, required=True)
@@ -967,7 +1281,6 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # 1. Validate inputs and verify fail-closed invariants
     try:
         res_data, ckpt_data, qrels_lines, manifest_data = validate_inputs(
             result_path=args.result_json,
@@ -985,21 +1298,18 @@ def main() -> None:
 
     output_hashes = {}
 
-    # 2. Metric Dictionary
     metric_dict = generate_metric_dictionary()
     mdict_content = json.dumps(metric_dict, indent=2, sort_keys=True)
     output_hashes["metric_dictionary.json"] = atomic_write_text(
         output_dir / "metric_dictionary.json", mdict_content
     )
 
-    # 3. Strategy Summary (JSON & CSV)
     strategy_summaries = analyze_strategies(res_data)
     ssum_content = json.dumps(strategy_summaries, indent=2, sort_keys=True)
     output_hashes["strategy_summary.json"] = atomic_write_text(
         output_dir / "strategy_summary.json", ssum_content
     )
 
-    # Strategy CSV
     csv_rows = []
     for s in strategy_summaries:
         ret = s["retrieval"]
@@ -1017,15 +1327,21 @@ def main() -> None:
             ],
             "answers_produced": gen["answers_produced"],
             "abstentions_total": gen["abstentions_total"],
-            "context_relevance_mean": gen["context_relevance"]["mean"]
-            if gen["context_relevance"]["mean"] is not None
-            else "NA",
-            "groundedness_mean": gen["groundedness"]["mean"]
-            if gen["groundedness"]["mean"] is not None
-            else "NA",
-            "answer_relevance_mean": gen["answer_relevance"]["mean"]
-            if gen["answer_relevance"]["mean"] is not None
-            else "NA",
+            "context_relevance_mean": (
+                gen["context_relevance"]["mean"]
+                if gen["context_relevance"]["mean"] is not None
+                else "NA"
+            ),
+            "groundedness_mean": (
+                gen["groundedness"]["mean"]
+                if gen["groundedness"]["mean"] is not None
+                else "NA"
+            ),
+            "answer_relevance_mean": (
+                gen["answer_relevance"]["mean"]
+                if gen["answer_relevance"]["mean"] is not None
+                else "NA"
+            ),
             "abstention_correctness_mean": abs_info["abstention_correctness"][
                 "mean"
             ],
@@ -1034,6 +1350,12 @@ def main() -> None:
             ],
             "correct_abstentions_negative_control": abs_info[
                 "correct_abstentions_negative_control"
+            ],
+            "negative_control_abstention_correctness": abs_info[
+                "negative_control_abstention_correctness"
+            ],
+            "overall_abstention_decision_score": abs_info[
+                "overall_abstention_decision_score"
             ],
         })
 
@@ -1047,7 +1369,6 @@ def main() -> None:
     tmp_csv.replace(ssum_csv_path)
     output_hashes["strategy_summary.csv"] = compute_sha256(ssum_csv_path)
 
-    # 4. Paired Comparisons (JSON & CSV)
     paired_comparisons = analyze_paired_comparisons(res_data)
     pcomp_content = json.dumps(paired_comparisons, indent=2, sort_keys=True)
     output_hashes["paired_comparisons.json"] = atomic_write_text(
@@ -1068,12 +1389,16 @@ def main() -> None:
                 "wins": m_data["wins"],
                 "ties": m_data["ties"],
                 "losses": m_data["losses"],
-                "qids_benefited": ";".join(m_data["qids_benefited"])
-                if m_data["qids_benefited"]
-                else "NA",
-                "qids_harmed": ";".join(m_data["qids_harmed"])
-                if m_data["qids_harmed"]
-                else "NA",
+                "qids_benefited": (
+                    ";".join(m_data["qids_benefited"])
+                    if m_data["qids_benefited"]
+                    else "NA"
+                ),
+                "qids_harmed": (
+                    ";".join(m_data["qids_harmed"])
+                    if m_data["qids_harmed"]
+                    else "NA"
+                ),
             })
 
     pcomp_csv_path = output_dir / "paired_comparisons.csv"
@@ -1085,7 +1410,6 @@ def main() -> None:
     tmp_pcsv.replace(pcomp_csv_path)
     output_hashes["paired_comparisons.csv"] = compute_sha256(pcomp_csv_path)
 
-    # 5. Answerable Abstentions (JSON & CSV)
     abstention_cases = analyze_answerable_abstentions(res_data, qrels_lines)
     ab_content = json.dumps(abstention_cases, indent=2, sort_keys=True)
     output_hashes["answerable_abstentions.json"] = atomic_write_text(
@@ -1116,7 +1440,6 @@ def main() -> None:
     tmp_abcsv.replace(ab_csv_path)
     output_hashes["answerable_abstentions.csv"] = compute_sha256(ab_csv_path)
 
-    # 6. Per-question metrics CSV
     per_q_rows = generate_per_question_metrics(res_data)
     per_q_csv_path = output_dir / "per_question_metrics.csv"
     tmp_pqcsv = per_q_csv_path.with_suffix(".csv.tmp")
@@ -1127,7 +1450,6 @@ def main() -> None:
     tmp_pqcsv.replace(per_q_csv_path)
     output_hashes["per_question_metrics.csv"] = compute_sha256(per_q_csv_path)
 
-    # 7. Scientific Report Markdown
     report_md = generate_scientific_markdown_report(
         res_data=res_data,
         strategy_summaries=strategy_summaries,
@@ -1135,11 +1457,12 @@ def main() -> None:
         abstention_cases=abstention_cases,
         output_hashes=output_hashes,
     )
-    output_hashes["slice4_v5_scientific_analysis_report.md"] = atomic_write_text(
-        output_dir / "slice4_v5_scientific_analysis_report.md", report_md
+    output_hashes["slice4_v5_scientific_analysis_report.md"] = (
+        atomic_write_text(
+            output_dir / "slice4_v5_scientific_analysis_report.md", report_md
+        )
     )
 
-    # 8. Analysis Manifest
     analysis_manifest = {
         "analysis_schema_version": "1.0.0",
         "timestamp_utc": datetime.datetime.now(datetime.UTC).strftime(
@@ -1179,7 +1502,9 @@ def main() -> None:
         },
         "zero_network_calls": True,
         "zero_llm_calls": True,
-        "controlled_scientific_conclusion": "EVIDENCE_OF_SUPERIORITY_IN_THIS_SLICE",
+        "controlled_scientific_conclusion": (
+            "MIXED_RESULTS_NO_CLEAR_SUPERIORITY"
+        ),
     }
 
     manifest_content = json.dumps(analysis_manifest, indent=2, sort_keys=True)
