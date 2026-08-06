@@ -58,7 +58,8 @@ select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "SIM"]
 "benchmarks/run_slice3_benchmark.py" = ["E402", "B905", "F841"]
 # S603: subprocess calls in scripts invoke known tools
 # SLF001: private member access for canary validation in provisioning
-"scripts/**" = ["S603", "SLF001"]
+"scripts/**" = ["S603", "SLF001", "E501"]
+
 # S108: intentional /tmp references for rejection logic
 "src/raglab/infrastructure/embeddings/fastembed_adapter.py" = ["S108"]
 

@@ -1,0 +1,971 @@
+[
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 1,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.0774,
+    "qid": "q_dev_01",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 2,
+      "2": 2,
+      "3": 2
+    },
+    "query": "",
+    "recall_at_3": 0.1667,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_0ab218ba101d2aa5",
+        "human_relevance_grade": 0,
+        "page_number": 94,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_269d17ee29385591",
+        "human_relevance_grade": 0,
+        "page_number": 98,
+        "rank": null
+      }
+    ],
+    "strategy": "F0_baseline"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 2 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 1,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 2,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.5806,
+    "qid": "q_dev_02",
+    "qrels_available_grades": {
+      "0": 1,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_279ee1b2580ebe69",
+        "human_relevance_grade": 1,
+        "page_number": 96,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_3fa9fa7540d3ddcd",
+        "human_relevance_grade": 2,
+        "page_number": 95,
+        "rank": null
+      }
+    ],
+    "strategy": "F0_baseline"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 2,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.3024,
+    "qid": "q_dev_03",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.3333,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_145f1419009e8265",
+        "human_relevance_grade": 1,
+        "page_number": 101,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_6a146e67ace3a977",
+        "human_relevance_grade": 0,
+        "page_number": 108,
+        "rank": null
+      }
+    ],
+    "strategy": "F0_baseline"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 3 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 3,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 3,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.5627,
+    "qid": "q_dev_04",
+    "qrels_available_grades": {
+      "0": 5,
+      "1": 1,
+      "2": 2,
+      "3": 3
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_f15b4e7465988c72",
+        "human_relevance_grade": 2,
+        "page_number": 103,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_946846d2ba5e3175",
+        "human_relevance_grade": 2,
+        "page_number": 107,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_c7a5bddaf4d514c4",
+        "human_relevance_grade": 3,
+        "page_number": 104,
+        "rank": null
+      }
+    ],
+    "strategy": "F0_baseline"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 2,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 0.5,
+    "ndcg_at_3": 0.2738,
+    "qid": "q_test_02",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 1
+    },
+    "query": "",
+    "recall_at_3": 0.4,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_6a146e67ace3a977",
+        "human_relevance_grade": 0,
+        "page_number": 108,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 1,
+        "page_number": 105,
+        "rank": null
+      }
+    ],
+    "strategy": "F0_baseline"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 2 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 1,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 2,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.5806,
+    "qid": "q_dev_02",
+    "qrels_available_grades": {
+      "0": 1,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_279ee1b2580ebe69",
+        "human_relevance_grade": 1,
+        "page_number": 96,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_3fa9fa7540d3ddcd",
+        "human_relevance_grade": 2,
+        "page_number": 95,
+        "rank": null
+      }
+    ],
+    "strategy": "S0_sentence_anchor"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 2,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.3024,
+    "qid": "q_dev_03",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.3333,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_1af4600bd2b680f7",
+        "human_relevance_grade": 1,
+        "page_number": 100,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1af4600bd2b680f7",
+        "human_relevance_grade": 1,
+        "page_number": 100,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_7b3ebd8a8904cd4d",
+        "human_relevance_grade": 0,
+        "page_number": 111,
+        "rank": null
+      }
+    ],
+    "strategy": "S0_sentence_anchor"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 3 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 1,
+    "count_strong_relevant_retrieved": 1,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 3,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.4693,
+    "qid": "q_dev_04",
+    "qrels_available_grades": {
+      "0": 5,
+      "1": 1,
+      "2": 2,
+      "3": 3
+    },
+    "query": "",
+    "recall_at_3": 0.1667,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 3,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_269d17ee29385591",
+        "human_relevance_grade": 0,
+        "page_number": 98,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_0ab218ba101d2aa5",
+        "human_relevance_grade": 0,
+        "page_number": 94,
+        "rank": null
+      }
+    ],
+    "strategy": "S0_sentence_anchor"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.5158,
+    "qid": "q_test_02",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 1
+    },
+    "query": "",
+    "recall_at_3": 0.6,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_946846d2ba5e3175",
+        "human_relevance_grade": 1,
+        "page_number": 107,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1af4600bd2b680f7",
+        "human_relevance_grade": 1,
+        "page_number": 100,
+        "rank": null
+      }
+    ],
+    "strategy": "S0_sentence_anchor"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.5158,
+    "qid": "q_test_03",
+    "qrels_available_grades": {
+      "0": 4,
+      "1": 3,
+      "2": 1
+    },
+    "query": "",
+    "recall_at_3": 0.75,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      }
+    ],
+    "strategy": "S0_sentence_anchor"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 2 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 1,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 2,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.5806,
+    "qid": "q_dev_02",
+    "qrels_available_grades": {
+      "0": 1,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_279ee1b2580ebe69",
+        "human_relevance_grade": 1,
+        "page_number": 96,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_3fa9fa7540d3ddcd",
+        "human_relevance_grade": 2,
+        "page_number": 95,
+        "rank": null
+      }
+    ],
+    "strategy": "W0_sentence_window"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 2 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 1,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 2,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.6291,
+    "qid": "q_dev_02",
+    "qrels_available_grades": {
+      "0": 1,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_279ee1b2580ebe69",
+        "human_relevance_grade": 1,
+        "page_number": 96,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_145f1419009e8265",
+        "human_relevance_grade": 2,
+        "page_number": 101,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      }
+    ],
+    "strategy": "W1_sentence_window_rerank"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 2 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 1,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 2,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.6291,
+    "qid": "q_dev_03",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_145f1419009e8265",
+        "human_relevance_grade": 1,
+        "page_number": 101,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 2,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      }
+    ],
+    "strategy": "W1_sentence_window_rerank"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.5158,
+    "qid": "q_test_02",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 1
+    },
+    "query": "",
+    "recall_at_3": 0.6,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 1,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      }
+    ],
+    "strategy": "W1_sentence_window_rerank"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.3951,
+    "qid": "q_dev_02",
+    "qrels_available_grades": {
+      "0": 1,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_279ee1b2580ebe69",
+        "human_relevance_grade": 1,
+        "page_number": 96,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      }
+    ],
+    "strategy": "H0_hierarchical_leaf"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 2 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 2,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 2,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 1.0,
+    "qid": "q_dev_03",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 2,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 2,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1af4600bd2b680f7",
+        "human_relevance_grade": 1,
+        "page_number": 100,
+        "rank": null
+      }
+    ],
+    "strategy": "H0_hierarchical_leaf"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 2,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.3948,
+    "qid": "q_test_02",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 1
+    },
+    "query": "",
+    "recall_at_3": 0.4,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 1,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_0ab218ba101d2aa5",
+        "human_relevance_grade": 0,
+        "page_number": 94,
+        "rank": null
+      }
+    ],
+    "strategy": "H0_hierarchical_leaf"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.3951,
+    "qid": "q_dev_02",
+    "qrels_available_grades": {
+      "0": 1,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_279ee1b2580ebe69",
+        "human_relevance_grade": 1,
+        "page_number": 96,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      }
+    ],
+    "strategy": "H1_auto_merging"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "QREL_OR_QUESTION_AMBIGUITY",
+    "category_justification": "Passage with relevance grade 2 was retrieved, but mechanical proof of full material sufficiency without new human adjudication cannot be established.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 2,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 2,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 1.0,
+    "qid": "q_dev_03",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 2,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 2,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1af4600bd2b680f7",
+        "human_relevance_grade": 1,
+        "page_number": 100,
+        "rank": null
+      }
+    ],
+    "strategy": "H1_auto_merging"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 2,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.3948,
+    "qid": "q_test_02",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 1
+    },
+    "query": "",
+    "recall_at_3": 0.4,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 1,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_0ab218ba101d2aa5",
+        "human_relevance_grade": 0,
+        "page_number": 94,
+        "rank": null
+      }
+    ],
+    "strategy": "H1_auto_merging"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 3,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.3951,
+    "qid": "q_dev_02",
+    "qrels_available_grades": {
+      "0": 1,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.5,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_279ee1b2580ebe69",
+        "human_relevance_grade": 1,
+        "page_number": 96,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1af4600bd2b680f7",
+        "human_relevance_grade": 1,
+        "page_number": 100,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+        "human_relevance_grade": 1,
+        "page_number": 92,
+        "rank": null
+      }
+    ],
+    "strategy": "H2_auto_merging_rerank"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 1,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 0.5,
+    "ndcg_at_3": 0.117,
+    "qid": "q_dev_03",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 2
+    },
+    "query": "",
+    "recall_at_3": 0.1667,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_6a146e67ace3a977",
+        "human_relevance_grade": 0,
+        "page_number": 108,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_1af4600bd2b680f7",
+        "human_relevance_grade": 1,
+        "page_number": 100,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_269d17ee29385591",
+        "human_relevance_grade": 0,
+        "page_number": 98,
+        "rank": null
+      }
+    ],
+    "strategy": "H2_auto_merging_rerank"
+  },
+  {
+    "abstention_reason_recorded": "INCORRECT_ABSTENTION_ON_ANSWERABLE",
+    "category": "INSUFFICIENT_RETRIEVED_SUPPORT",
+    "category_justification": "Only contextual/partial evidence (rel = 1) was retrieved. No strong evidence (rel >= 2) was present to support a full answer.",
+    "count_relevant_retrieved": 2,
+    "count_strong_relevant_retrieved": 0,
+    "evaluation_status": "COMPUTED",
+    "ground_truth_answerable": true,
+    "judged_coverage": 1.0,
+    "max_retrieved_relevance": 1,
+    "mrr_at_3": 1.0,
+    "ndcg_at_3": 0.3631,
+    "qid": "q_test_02",
+    "qrels_available_grades": {
+      "0": 3,
+      "1": 4,
+      "2": 1
+    },
+    "query": "",
+    "recall_at_3": 0.4,
+    "retrieved_passages": [
+      {
+        "canonical_passage_id": "ps_e393b0fbb5261d13",
+        "human_relevance_grade": 1,
+        "page_number": 105,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_6a146e67ace3a977",
+        "human_relevance_grade": 0,
+        "page_number": 108,
+        "rank": null
+      },
+      {
+        "canonical_passage_id": "ps_66275a03b100f778",
+        "human_relevance_grade": 1,
+        "page_number": 91,
+        "rank": null
+      }
+    ],
+    "strategy": "H2_auto_merging_rerank"
+  }
+]

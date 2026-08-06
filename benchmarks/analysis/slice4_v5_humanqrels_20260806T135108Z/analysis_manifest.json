@@ -1,0 +1,73 @@
+{
+  "analysis_schema_version": "1.0.0",
+  "analyzer_version": "1.0.0",
+  "controlled_scientific_conclusion": "EVIDENCE_OF_SUPERIORITY_IN_THIS_SLICE",
+  "denominators": {
+    "answerable_queries": 7,
+    "negative_control_queries": 1,
+    "strategies": 7,
+    "total_evaluations": 56,
+    "total_queries": 8
+  },
+  "experiment_id": "raglab_v7_slice4_v5_humanqrels_20260806T135108Z",
+  "inputs": {
+    "checkpoint_json": {
+      "path": "checkpoints/slice4_gen_checkpoint_raglab_v7_slice4_v5_humanqrels_20260806T135108Z.json",
+      "sha256": "371a78e5b3e53ce3d69b0a6c9fe9d243bad7c85967e5e8a3e65fdccfc0a21f7c"
+    },
+    "qrels_jsonl": {
+      "path": "benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_final.jsonl",
+      "sha256": "9c83aa9dc75924f5d9942cc2d6fb518368f2ab34f95306f080dbb111b4138d3e"
+    },
+    "qrels_manifest": {
+      "path": "benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_manifest.json",
+      "sha256": "8e596a1238ac4ef224b4c2f9d0959e540885f959b5de0294e3fba734db56c434"
+    },
+    "result_json": {
+      "path": "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json",
+      "sha256": "b4fc4860c6c098f333cc410538fd5a41582913f12b88b4a484032d4624fdc1e8"
+    }
+  },
+  "na_policy": "EXPLICIT_NA_WITH_REASON_NO_ZERO_IMPUTATION",
+  "outputs": {
+    "answerable_abstentions.csv": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/answerable_abstentions.csv",
+      "sha256": "39d0679e54450e828cc12aeeb7ab7dd30be897259d819f11636b2145dc94d96c"
+    },
+    "answerable_abstentions.json": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/answerable_abstentions.json",
+      "sha256": "309d7e50b56d56020c54131ef960e01d0cd42623c26c4af601be58c6551c35de"
+    },
+    "metric_dictionary.json": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/metric_dictionary.json",
+      "sha256": "f7d32f121817a93194130d8303d5b6174501994857ce50d0b7de6ff9cf0181d3"
+    },
+    "paired_comparisons.csv": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/paired_comparisons.csv",
+      "sha256": "4d1d7349833e17850eb2b1c210506526ba37603f10f7e62358472e42fa38362e"
+    },
+    "paired_comparisons.json": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/paired_comparisons.json",
+      "sha256": "2e003b9acbacc09d5e519bd8de9d2c1827fe7bb7777f65a10a0b1389019ea0fe"
+    },
+    "per_question_metrics.csv": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/per_question_metrics.csv",
+      "sha256": "ca6258748c36d7aa53e335f64b790db4c4fa2f71526703da78a58a8ab9eeec37"
+    },
+    "slice4_v5_scientific_analysis_report.md": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/slice4_v5_scientific_analysis_report.md",
+      "sha256": "576c6ec2aed652533269e5e4a51ddb63c374481fe054be6cdcb8efec26cfc1d6"
+    },
+    "strategy_summary.csv": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/strategy_summary.csv",
+      "sha256": "5b4a7416a4bdd4bb51be555653f859b0f301eefaf67d47a2135ff3583d3dc06a"
+    },
+    "strategy_summary.json": {
+      "path": "benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/strategy_summary.json",
+      "sha256": "7c7f93120b8a7810829d78318e277c71d47033bb8ee72a030cbf4d342b66467d"
+    }
+  },
+  "timestamp_utc": "2026-08-06T15:26:31Z",
+  "zero_llm_calls": true,
+  "zero_network_calls": true
+}

@@ -1,0 +1,94 @@
+{
+  "description": "Authoritative Data Dictionary for Slice 4 Full Evaluation Metrics (human-graded qrels)",
+  "metric_dictionary_version": "1.0.0",
+  "metrics": {
+    "abstention_correctness": {
+      "abstention_policy": "COMPUTED",
+      "canonical_name": "abstention_correctness",
+      "denominator": "all queries (n=8 per strategy)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][*].evaluation.generation_evaluation.abstention_correctness.score",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    },
+    "answer_relevance": {
+      "abstention_policy": "NOT_APPLICABLE",
+      "canonical_name": "answer_relevance",
+      "denominator": "non-abstained substantive answers (n_valid)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][*].evaluation.generation_evaluation.answer_relevance.score",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    },
+    "context_relevance": {
+      "abstention_policy": "COMPUTED_IF_EVIDENCE_EXISTS",
+      "canonical_name": "context_relevance",
+      "denominator": "evaluable queries with context (n_valid)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][*].evaluation.generation_evaluation.context_relevance.score",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    },
+    "groundedness": {
+      "abstention_policy": "NOT_APPLICABLE",
+      "canonical_name": "groundedness",
+      "denominator": "non-abstained substantive answers (n_valid)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][*].evaluation.generation_evaluation.groundedness.score",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    },
+    "judged_coverage_rate": {
+      "abstention_policy": "COMPUTED",
+      "canonical_name": "judged_coverage_rate",
+      "denominator": "retrieved candidates (k=3 per query)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][*].evaluation.judged_coverage_rate",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    },
+    "mrr_at_3": {
+      "abstention_policy": "COMPUTED_ON_RETRIEVAL",
+      "canonical_name": "mrr_at_3",
+      "denominator": "answerable queries (n=7 per strategy)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][*].evaluation.deterministic_v2_metrics.mrr_at_k.score",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    },
+    "ndcg_at_3": {
+      "abstention_policy": "COMPUTED_ON_RETRIEVAL",
+      "canonical_name": "ndcg_at_3",
+      "denominator": "answerable queries (n=7 per strategy)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][*].evaluation.deterministic_v2_metrics.ndcg_at_k.score",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    },
+    "recall_at_3": {
+      "abstention_policy": "COMPUTED_ON_RETRIEVAL",
+      "canonical_name": "recall_at_3",
+      "denominator": "answerable queries (n=7 per strategy)",
+      "domain": "[0.0, 1.0]",
+      "json_path": "results[strategy][*].evaluation.deterministic_v2_metrics.recall_at_k.score",
+      "missing_policy": "NA_EXPLICIT",
+      "preference_direction": "higher_is_better",
+      "type": "float",
+      "unit": "ratio"
+    }
+  }
+}

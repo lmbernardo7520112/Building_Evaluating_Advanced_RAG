@@ -1,0 +1,618 @@
+[
+  {
+    "abstention": {
+      "abstention_correctness": {
+        "max": 1.0,
+        "mean": 0.1667,
+        "median": 0.0,
+        "min": 0.0,
+        "n_valid": 6,
+        "std": 0.4082
+      },
+      "abstention_rate_on_answerable": 0.7143,
+      "abstentions_on_answerable": 5,
+      "answerable_queries": 7,
+      "answers_on_answerable": 2,
+      "correct_abstentions_negative_control": 1,
+      "coverage_rate_on_answerable": 0.2857,
+      "incorrect_answers_negative_control": 0,
+      "total_queries": 8
+    },
+    "generation": {
+      "abstentions_total": 6,
+      "answer_relevance": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 2,
+        "std": 0.0
+      },
+      "answers_produced": 2,
+      "context_relevance": {
+        "max": 1.0,
+        "mean": 0.3375,
+        "median": 0.2,
+        "min": 0.0,
+        "n_valid": 8,
+        "std": 0.3662
+      },
+      "groundedness": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 2,
+        "std": 0.0
+      }
+    },
+    "retrieval": {
+      "judged_count_total": 21,
+      "judged_coverage": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "mapped_count_total": 21,
+      "mrr_at_3": {
+        "max": 1.0,
+        "mean": 0.9286,
+        "median": 1.0,
+        "min": 0.5,
+        "n_valid": 7,
+        "std": 0.189
+      },
+      "ndcg_at_3": {
+        "max": 0.6151,
+        "mean": 0.401,
+        "median": 0.3948,
+        "min": 0.0774,
+        "n_valid": 7,
+        "std": 0.1979
+      },
+      "pct_queries_with_at_least_1_relevant": 1.0,
+      "recall_at_3": {
+        "max": 0.75,
+        "mean": 0.45,
+        "median": 0.5,
+        "min": 0.1667,
+        "n_valid": 7,
+        "std": 0.1798
+      },
+      "retrieved_count_total": 21,
+      "unresolved_count_total": 0
+    },
+    "strategy": "F0_baseline"
+  },
+  {
+    "abstention": {
+      "abstention_correctness": {
+        "max": 1.0,
+        "mean": 0.1667,
+        "median": 0.0,
+        "min": 0.0,
+        "n_valid": 6,
+        "std": 0.4082
+      },
+      "abstention_rate_on_answerable": 0.7143,
+      "abstentions_on_answerable": 5,
+      "answerable_queries": 7,
+      "answers_on_answerable": 2,
+      "correct_abstentions_negative_control": 1,
+      "coverage_rate_on_answerable": 0.2857,
+      "incorrect_answers_negative_control": 0,
+      "total_queries": 8
+    },
+    "generation": {
+      "abstentions_total": 6,
+      "answer_relevance": {
+        "max": 0.5,
+        "mean": 0.35,
+        "median": 0.35,
+        "min": 0.2,
+        "n_valid": 2,
+        "std": 0.2121
+      },
+      "answers_produced": 2,
+      "context_relevance": {
+        "max": 1.0,
+        "mean": 0.325,
+        "median": 0.25,
+        "min": 0.0,
+        "n_valid": 8,
+        "std": 0.3576
+      },
+      "groundedness": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 2,
+        "std": 0.0
+      }
+    },
+    "retrieval": {
+      "judged_count_total": 21,
+      "judged_coverage": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "mapped_count_total": 21,
+      "mrr_at_3": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "ndcg_at_3": {
+        "max": 0.5806,
+        "mean": 0.4564,
+        "median": 0.4708,
+        "min": 0.3024,
+        "n_valid": 7,
+        "std": 0.1001
+      },
+      "pct_queries_with_at_least_1_relevant": 1.0,
+      "recall_at_3": {
+        "max": 0.75,
+        "mean": 0.4786,
+        "median": 0.5,
+        "min": 0.1667,
+        "n_valid": 7,
+        "std": 0.1863
+      },
+      "retrieved_count_total": 21,
+      "unresolved_count_total": 0
+    },
+    "strategy": "S0_sentence_anchor"
+  },
+  {
+    "abstention": {
+      "abstention_correctness": {
+        "max": 1.0,
+        "mean": 0.5,
+        "median": 0.5,
+        "min": 0.0,
+        "n_valid": 2,
+        "std": 0.7071
+      },
+      "abstention_rate_on_answerable": 0.1429,
+      "abstentions_on_answerable": 1,
+      "answerable_queries": 7,
+      "answers_on_answerable": 6,
+      "correct_abstentions_negative_control": 1,
+      "coverage_rate_on_answerable": 0.8571,
+      "incorrect_answers_negative_control": 0,
+      "total_queries": 8
+    },
+    "generation": {
+      "abstentions_total": 2,
+      "answer_relevance": {
+        "max": 1.0,
+        "mean": 0.8833,
+        "median": 1.0,
+        "min": 0.3,
+        "n_valid": 6,
+        "std": 0.2858
+      },
+      "answers_produced": 6,
+      "context_relevance": {
+        "max": 1.0,
+        "mean": 0.75,
+        "median": 1.0,
+        "min": 0.0,
+        "n_valid": 8,
+        "std": 0.4106
+      },
+      "groundedness": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 6,
+        "std": 0.0
+      }
+    },
+    "retrieval": {
+      "judged_count_total": 21,
+      "judged_coverage": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "mapped_count_total": 21,
+      "mrr_at_3": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "ndcg_at_3": {
+        "max": 0.5806,
+        "mean": 0.4794,
+        "median": 0.4708,
+        "min": 0.3401,
+        "n_valid": 7,
+        "std": 0.0738
+      },
+      "pct_queries_with_at_least_1_relevant": 1.0,
+      "recall_at_3": {
+        "max": 0.75,
+        "mean": 0.4786,
+        "median": 0.5,
+        "min": 0.1667,
+        "n_valid": 7,
+        "std": 0.1863
+      },
+      "retrieved_count_total": 21,
+      "unresolved_count_total": 0
+    },
+    "strategy": "W0_sentence_window"
+  },
+  {
+    "abstention": {
+      "abstention_correctness": {
+        "max": 1.0,
+        "mean": 0.25,
+        "median": 0.0,
+        "min": 0.0,
+        "n_valid": 4,
+        "std": 0.5
+      },
+      "abstention_rate_on_answerable": 0.4286,
+      "abstentions_on_answerable": 3,
+      "answerable_queries": 7,
+      "answers_on_answerable": 4,
+      "correct_abstentions_negative_control": 1,
+      "coverage_rate_on_answerable": 0.5714,
+      "incorrect_answers_negative_control": 0,
+      "total_queries": 8
+    },
+    "generation": {
+      "abstentions_total": 4,
+      "answer_relevance": {
+        "max": 1.0,
+        "mean": 0.85,
+        "median": 1.0,
+        "min": 0.4,
+        "n_valid": 4,
+        "std": 0.3
+      },
+      "answers_produced": 4,
+      "context_relevance": {
+        "max": 1.0,
+        "mean": 0.45,
+        "median": 0.2,
+        "min": 0.0,
+        "n_valid": 8,
+        "std": 0.4629
+      },
+      "groundedness": {
+        "max": 1.0,
+        "mean": 0.875,
+        "median": 1.0,
+        "min": 0.5,
+        "n_valid": 4,
+        "std": 0.25
+      }
+    },
+    "retrieval": {
+      "judged_count_total": 21,
+      "judged_coverage": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "mapped_count_total": 21,
+      "mrr_at_3": {
+        "max": 1.0,
+        "mean": 0.9286,
+        "median": 1.0,
+        "min": 0.5,
+        "n_valid": 7,
+        "std": 0.189
+      },
+      "ndcg_at_3": {
+        "max": 1.0,
+        "mean": 0.5163,
+        "median": 0.5158,
+        "min": 0.1269,
+        "n_valid": 7,
+        "std": 0.2852
+      },
+      "pct_queries_with_at_least_1_relevant": 1.0,
+      "recall_at_3": {
+        "max": 0.75,
+        "mean": 0.5024,
+        "median": 0.5,
+        "min": 0.1667,
+        "n_valid": 7,
+        "std": 0.1749
+      },
+      "retrieved_count_total": 21,
+      "unresolved_count_total": 0
+    },
+    "strategy": "W1_sentence_window_rerank"
+  },
+  {
+    "abstention": {
+      "abstention_correctness": {
+        "max": 1.0,
+        "mean": 0.25,
+        "median": 0.0,
+        "min": 0.0,
+        "n_valid": 4,
+        "std": 0.5
+      },
+      "abstention_rate_on_answerable": 0.4286,
+      "abstentions_on_answerable": 3,
+      "answerable_queries": 7,
+      "answers_on_answerable": 4,
+      "correct_abstentions_negative_control": 1,
+      "coverage_rate_on_answerable": 0.5714,
+      "incorrect_answers_negative_control": 0,
+      "total_queries": 8
+    },
+    "generation": {
+      "abstentions_total": 4,
+      "answer_relevance": {
+        "max": 1.0,
+        "mean": 0.95,
+        "median": 1.0,
+        "min": 0.8,
+        "n_valid": 4,
+        "std": 0.1
+      },
+      "answers_produced": 4,
+      "context_relevance": {
+        "max": 1.0,
+        "mean": 0.4875,
+        "median": 0.45,
+        "min": 0.0,
+        "n_valid": 8,
+        "std": 0.4704
+      },
+      "groundedness": {
+        "max": 1.0,
+        "mean": 0.975,
+        "median": 1.0,
+        "min": 0.9,
+        "n_valid": 4,
+        "std": 0.05
+      }
+    },
+    "retrieval": {
+      "judged_count_total": 21,
+      "judged_coverage": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "mapped_count_total": 21,
+      "mrr_at_3": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "ndcg_at_3": {
+        "max": 1.0,
+        "mean": 0.5262,
+        "median": 0.3951,
+        "min": 0.1161,
+        "n_valid": 7,
+        "std": 0.2989
+      },
+      "pct_queries_with_at_least_1_relevant": 1.0,
+      "recall_at_3": {
+        "max": 0.75,
+        "mean": 0.4976,
+        "median": 0.5,
+        "min": 0.3333,
+        "n_valid": 7,
+        "std": 0.1293
+      },
+      "retrieved_count_total": 21,
+      "unresolved_count_total": 0
+    },
+    "strategy": "H0_hierarchical_leaf"
+  },
+  {
+    "abstention": {
+      "abstention_correctness": {
+        "max": 1.0,
+        "mean": 0.25,
+        "median": 0.0,
+        "min": 0.0,
+        "n_valid": 4,
+        "std": 0.5
+      },
+      "abstention_rate_on_answerable": 0.4286,
+      "abstentions_on_answerable": 3,
+      "answerable_queries": 7,
+      "answers_on_answerable": 4,
+      "correct_abstentions_negative_control": 1,
+      "coverage_rate_on_answerable": 0.5714,
+      "incorrect_answers_negative_control": 0,
+      "total_queries": 8
+    },
+    "generation": {
+      "abstentions_total": 4,
+      "answer_relevance": {
+        "max": 1.0,
+        "mean": 0.95,
+        "median": 1.0,
+        "min": 0.8,
+        "n_valid": 4,
+        "std": 0.1
+      },
+      "answers_produced": 4,
+      "context_relevance": {
+        "max": 1.0,
+        "mean": 0.4875,
+        "median": 0.45,
+        "min": 0.0,
+        "n_valid": 8,
+        "std": 0.4704
+      },
+      "groundedness": {
+        "max": 1.0,
+        "mean": 0.975,
+        "median": 1.0,
+        "min": 0.9,
+        "n_valid": 4,
+        "std": 0.05
+      }
+    },
+    "retrieval": {
+      "judged_count_total": 21,
+      "judged_coverage": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "mapped_count_total": 21,
+      "mrr_at_3": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "ndcg_at_3": {
+        "max": 1.0,
+        "mean": 0.5262,
+        "median": 0.3951,
+        "min": 0.1161,
+        "n_valid": 7,
+        "std": 0.2989
+      },
+      "pct_queries_with_at_least_1_relevant": 1.0,
+      "recall_at_3": {
+        "max": 0.75,
+        "mean": 0.4976,
+        "median": 0.5,
+        "min": 0.3333,
+        "n_valid": 7,
+        "std": 0.1293
+      },
+      "retrieved_count_total": 21,
+      "unresolved_count_total": 0
+    },
+    "strategy": "H1_auto_merging"
+  },
+  {
+    "abstention": {
+      "abstention_correctness": {
+        "max": 1.0,
+        "mean": 0.25,
+        "median": 0.0,
+        "min": 0.0,
+        "n_valid": 4,
+        "std": 0.5
+      },
+      "abstention_rate_on_answerable": 0.4286,
+      "abstentions_on_answerable": 3,
+      "answerable_queries": 7,
+      "answers_on_answerable": 4,
+      "correct_abstentions_negative_control": 1,
+      "coverage_rate_on_answerable": 0.5714,
+      "incorrect_answers_negative_control": 0,
+      "total_queries": 8
+    },
+    "generation": {
+      "abstentions_total": 4,
+      "answer_relevance": {
+        "max": 1.0,
+        "mean": 0.95,
+        "median": 1.0,
+        "min": 0.8,
+        "n_valid": 4,
+        "std": 0.1
+      },
+      "answers_produced": 4,
+      "context_relevance": {
+        "max": 1.0,
+        "mean": 0.55,
+        "median": 0.6,
+        "min": 0.0,
+        "n_valid": 8,
+        "std": 0.487
+      },
+      "groundedness": {
+        "max": 1.0,
+        "mean": 0.975,
+        "median": 1.0,
+        "min": 0.9,
+        "n_valid": 4,
+        "std": 0.05
+      }
+    },
+    "retrieval": {
+      "judged_count_total": 21,
+      "judged_coverage": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "n_valid": 7,
+        "std": 0.0
+      },
+      "mapped_count_total": 21,
+      "mrr_at_3": {
+        "max": 1.0,
+        "mean": 0.9286,
+        "median": 1.0,
+        "min": 0.5,
+        "n_valid": 7,
+        "std": 0.189
+      },
+      "ndcg_at_3": {
+        "max": 0.6151,
+        "mean": 0.4215,
+        "median": 0.3951,
+        "min": 0.117,
+        "n_valid": 7,
+        "std": 0.1728
+      },
+      "pct_queries_with_at_least_1_relevant": 1.0,
+      "recall_at_3": {
+        "max": 0.75,
+        "mean": 0.4619,
+        "median": 0.4,
+        "min": 0.1667,
+        "n_valid": 7,
+        "std": 0.2204
+      },
+      "retrieved_count_total": 21,
+      "unresolved_count_total": 0
+    },
+    "strategy": "H2_auto_merging_rerank"
+  }
+]
