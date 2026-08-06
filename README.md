@@ -216,6 +216,49 @@ physical_attempts = successful_responses + failed_attempts
 
 ---
 
+## 🔬 Human-Validated RAG Evaluation — Slice 4
+
+RAGLab v7 completed an offline, scientifically governed analysis of Slice 4 under human-graded ground truth (`human_qrels_final.jsonl`, schema `slice4_v5`). The evaluation protocol incorporated dual independent human annotations, adjudication, canonical passage identities (`ps_...`), and fail-closed SHA-256 contracts.
+
+> No recorte avaliado com qrels humanos graduados e adjudicados, as técnicas com reranking apresentaram benefícios localizados de recuperação, mas não superioridade global consistente. O experimento revelou um trade-off entre qualidade do ranking, suficiência da evidência e cobertura de respostas.
+
+### Protocol and Experimental Matrix
+
+- **Evaluated Strategies:** 7 RAG strategies (`F0`, `S0`, `W0`, `W1`, `H0`, `H1`, `H2`).
+- **Controlled Question Set:** 8 total questions (7 answerable, 1 negative control `q_test_04`).
+- **Total Evaluated Combinations:** 56 strategy–question pairs.
+- **Human Annotation Governance:** 2 independent annotators and formal human adjudication.
+- **Canonical Passage Identity:** 100% passage and citation provenance mapped to canonical passage IDs.
+- **Independent Evaluation Dimensions:** Separate accounting for retrieval ranking, generation quality, answerable coverage, and abstention safety.
+- **Offline Scientific Analysis:** Auditability guaranteed by SHA-256 input envelopes with zero external network or LLM calls during analysis.
+- **Controlled Scientific Conclusion:** **`MIXED_RESULTS_NO_CLEAR_SUPERIORITY`**.
+
+### Key Empirical Findings
+
+1. **Retrieval Ranking:** `W1_sentence_window_rerank` achieved the highest average nDCG@3 (0.4286) and Recall@3 (0.3333) across answerable queries ($n=7$), followed by `W0_sentence_window` (0.3571). However, in paired comparisons ($W1 \times W0$), ranking gains were concentrated in a single question (`q_test_03`), resulting in a median delta of 0.0000 (3 wins, 2 ties, 2 losses).
+2. **Answerable Coverage Trade-off:** `W1` produced substantive answers for 4/7 answerable queries, whereas `W0` responded to 6/7. Second-stage reranking caused `W1` to abstain on two queries (`q_dev_03` and `q_test_02`) where `W0` answered successfully, introducing 2 coverage damage cases (`responder_to_abstain`).
+3. **Abstention Safety on Negative Control:** All 7 strategies correctly abstained on the out-of-corpus negative control (`q_test_04`), achieving `negative_control_abstention_correctness = 1.0` (100%).
+4. **Categorization of Answerable Abstentions (23 Total Cases):**
+   - **`RETRIEVAL_FAILURE` (0 cases / 0.0%):** Zero absolute retrieval failures occurred under `rel >= 1` (at least one relevant passage was present in top-k across all queries).
+   - **`INSUFFICIENT_RETRIEVED_SUPPORT` (14 cases / 60.9%):** Only contextual/partial support ($rel = 1$) was retrieved without strong evidence ($rel \ge 2$).
+   - **`QREL_OR_QUESTION_AMBIGUITY` (9 cases / 39.1%):** Passages with $rel \ge 2$ were retrieved, but full material sufficiency without new human adjudication remained ambiguous.
+   - **Generator Attribution:** There is insufficient empirical evidence to causally attribute answerable abstentions to generator failure.
+
+### Scope & Limitations
+
+The empirical conclusions are strictly restricted to this corpus, question set, human qrels, model configuration, and execution run. No claims of universal superiority, state-of-the-art performance, generalizable applicability, or statistical significance are made.
+
+### Audit Artifacts & Links
+
+- 📄 [Scientific Analysis Report](benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/slice4_v5_scientific_analysis_report.md)
+- 📋 [Analysis Manifest](benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/analysis_manifest.json)
+- 📊 [Strategy Summary CSV](benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/strategy_summary.csv)
+- 📈 [Paired Comparisons CSV](benchmarks/analysis/slice4_v5_humanqrels_20260806T135108Z/paired_comparisons.csv)
+- 📖 [Human Annotation Scaffold Gate](docs/gates/gate_b1_human_annotation_scaffold.md)
+
+---
+
+
 ## 🛡 Reliability Engineering
 
 ### Idempotent checkpoint recovery
