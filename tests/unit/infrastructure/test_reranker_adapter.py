@@ -5,12 +5,18 @@ import unittest
 from raglab.domain.entities import RetrievedEvidence
 from raglab.domain.value_objects import ChunkId
 from raglab.infrastructure.retrieval.reranker_adapter import LocalRerankerAdapter
+from tests.unit.infrastructure.deterministic_embedding_double import (
+    DeterministicTestEmbeddingAdapter,
+)
 
 
 class TestLocalRerankerAdapter(unittest.TestCase):
 
     def test_rerank_and_damage_metrics(self) -> None:
-        reranker = LocalRerankerAdapter()
+        reranker = LocalRerankerAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter()
+        )
+
         evidences = [
             RetrievedEvidence(
                 chunk_id=ChunkId("chunk_1"),

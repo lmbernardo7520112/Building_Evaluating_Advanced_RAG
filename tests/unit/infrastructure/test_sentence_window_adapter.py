@@ -7,6 +7,9 @@ from raglab.infrastructure.retrieval.sentence_window_adapter import (
     SentenceWindowAdapter,
     split_into_sentences,
 )
+from tests.unit.infrastructure.deterministic_embedding_double import (
+    DeterministicTestEmbeddingAdapter,
+)
 
 
 class TestSentenceWindowAdapter(unittest.TestCase):
@@ -22,7 +25,11 @@ class TestSentenceWindowAdapter(unittest.TestCase):
         self.assertIn("e.g. típico", sents[1])
 
     def test_sentence_window_retrieval(self) -> None:
-        adapter = SentenceWindowAdapter(window_size=1)
+        adapter = SentenceWindowAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter(),
+            window_size=1,
+        )
+
         pages = [
             DocumentPage(
                 document_id="doc1",

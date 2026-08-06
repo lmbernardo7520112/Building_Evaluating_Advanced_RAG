@@ -1056,22 +1056,11 @@ class TestHumanQrelsV2GovernanceAndMetrics:
         try:
             embed_model: Any = load_embedding_model(logger)
         except Exception:
-            class DummyEmbedModel:
-                model_name = "dummy"
-                def embed_texts(self, texts: Any) -> Any:
-                    return [[0.1] * 384 for _ in texts]
-                def _get_query_embedding(self, query: Any) -> Any:
-                    return [0.1] * 384
-                def _get_text_embedding(self, text: Any) -> Any:
-                    return [0.1] * 384
-                def embed_documents(self, texts: Any) -> Any:
-                    return [[0.1] * 384 for _ in texts]
-                def embed_query(self, text: Any) -> Any:
-                    return [0.1] * 384
-                @property
-                def dimension(self) -> int:
-                    return 384
-            embed_model = DummyEmbedModel()
+            from tests.unit.infrastructure.deterministic_embedding_double import (
+                DeterministicTestEmbeddingAdapter,
+            )
+            embed_model = DeterministicTestEmbeddingAdapter()
+
 
         retrievers = build_retrievers(
             pages, embed_model, strategies=("W1_sentence_window_rerank",)
@@ -1112,6 +1101,7 @@ class TestHumanQrelsV2GovernanceAndMetrics:
 
             judged_count = sum(1 for c in cands if c["judged_status"] == "JUDGED")
             assert judged_count > 0
+
 
 
     # 62. Testes de borda e fail-closed (ETAPA 5 & 6)
@@ -1237,22 +1227,11 @@ class TestHumanQrelsV2GovernanceAndMetrics:
         try:
             embed_model: Any = load_embedding_model(logger)
         except Exception:
-            class DummyEmbedModel:
-                model_name = "dummy"
-                def embed_texts(self, texts: Any) -> Any:
-                    return [[0.1] * 384 for _ in texts]
-                def _get_query_embedding(self, query: Any) -> Any:
-                    return [0.1] * 384
-                def _get_text_embedding(self, text: Any) -> Any:
-                    return [0.1] * 384
-                def embed_documents(self, texts: Any) -> Any:
-                    return [[0.1] * 384 for _ in texts]
-                def embed_query(self, text: Any) -> Any:
-                    return [0.1] * 384
-                @property
-                def dimension(self) -> int:
-                    return 384
-            embed_model = DummyEmbedModel()
+            from tests.unit.infrastructure.deterministic_embedding_double import (
+                DeterministicTestEmbeddingAdapter,
+            )
+            embed_model = DeterministicTestEmbeddingAdapter()
+
 
         retrievers = build_retrievers(
             pages, embed_model, strategies=("W1_sentence_window_rerank",)
