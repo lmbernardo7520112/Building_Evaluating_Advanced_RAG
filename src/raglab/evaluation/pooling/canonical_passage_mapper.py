@@ -35,6 +35,7 @@ class CanonicalPassageMapper:
             cur = Path(__file__).resolve().parent
             default_path = None
             for p in [cur] + list(cur.parents):
+
                 candidate = (
                     p
                     / "benchmarks"
@@ -45,7 +46,18 @@ class CanonicalPassageMapper:
                 if candidate.exists():
                     default_path = candidate
                     break
+            if default_path and default_path.exists():
+                registry_entries = (
+                    CanonicalPassageMapper.from_registry_file(default_path).entries
+                )
+            else:
+
+                registry_entries = []
+
         self.entries: list[PassageRegistryEntry] = registry_entries or []
+
+
+
 
 
 
@@ -187,6 +199,7 @@ class CanonicalPassageMapper:
                     notes="Matched by exact substring containment on same page",
                 )
             elif not text and len(page_passages) == 1:
+                # Page fallback for candidates without text when single passage exists
                 entry = page_passages[0]
                 return CanonicalMappingResult(
                     source_chunk_id=chunk_id,
@@ -197,6 +210,8 @@ class CanonicalPassageMapper:
                     confidence=0.85,
                     notes="Matched single canonical passage on page",
                 )
+
+
 
             elif len(matching_passages) > 1:
                 return CanonicalMappingResult(

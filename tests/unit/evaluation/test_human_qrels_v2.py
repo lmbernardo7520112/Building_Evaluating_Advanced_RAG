@@ -943,3 +943,219 @@ class TestHumanQrelsV2GovernanceAndMetrics:
         assert _EVAL_SCHEMA_VERSION == "slice4_v5"
         hist_v4 = list(Path("benchmarks/results").glob("*.json"))
         assert len(hist_v4) > 0
+
+    # 61. Teste offline de reprodução do caminho real para W1 x q_dev_01 (ETAPA 6)
+    def test_61_real_w1_retriever_canonical_mapping_offline(self) -> None:
+        from typing import Any
+        from benchmarks.run_slice4_benchmark import (
+            _REPO_ROOT,
+            DEFAULT_QRELS_MANIFEST_PATH,
+            DEFAULT_QRELS_PATH,
+            build_retrievers,
+            load_embedding_model,
+            load_pdf_pages,
+            serialize_retrieval_evidence,
+        )
+        from raglab.evaluation.contracts.human_qrels_v2 import load_human_qrels_set
+        from raglab.evaluation.pooling.canonical_passage_mapper import (
+            CanonicalPassageMapper,
+        )
+
+        pdf_path = (
+            _REPO_ROOT.parent
+            / "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
+        )
+        if not pdf_path.exists():
+            pytest.skip("PDF file not available locally")
+
+        import logging
+
+        logger = logging.getLogger("test_61")
+        pages = load_pdf_pages(pdf_path, logger)
+        embed_model = load_embedding_model(logger)
+        retrievers = build_retrievers(
+            pages, embed_model, strategies=("W1_sentence_window_rerank",)
+        )
+        retriever: Any = retrievers["W1_sentence_window_rerank"]
+
+        qrels_set = load_human_qrels_set(
+            DEFAULT_QRELS_PATH, DEFAULT_QRELS_MANIFEST_PATH
+        )
+        mapper = CanonicalPassageMapper()
+
+        query_text = "O que é demonstração por exaustão e quando é aplicável?"
+        candidates = retriever.retrieve(query_text, top_k=3)
+        assert len(candidates) == 3
+
+        evidence_rec = serialize_retrieval_evidence(
+            candidates,
+            [92],
+            mapper=mapper,
+            qrels_set=qrels_set,
+            question_id="q_dev_01",
+        )
+
+        assert evidence_rec["candidate_count"] == 3
+        assert evidence_rec["mapped_count"] == 3
+        assert evidence_rec["unresolved_mapping_count"] == 0
+
+        cands = evidence_rec["candidates"]
+        for c in cands:
+            pid = c["canonical_passage_id"]
+            assert str(pid).startswith("ps_")
+            assert not str(pid).endswith("_rank1")
+            assert not str(pid).endswith("_rank2")
+            assert not str(pid).endswith("_rank3")
+            assert "raw_candidate_id" in c
+            assert c["raw_candidate_id"] != ""
+
+        judged_count = sum(1 for c in cands if c["judged_status"] == "JUDGED")
+        assert judged_count > 0
+
+    # 62. Testes de borda e fail-closed (ETAPA 5 & 6)
+    def test_62_edge_cases_fail_closed(self) -> None:
+        from unittest.mock import MagicMock
+
+        from benchmarks.run_slice4_benchmark import (
+            map_candidate_to_canonical,
+        )
+        from raglab.evaluation.pooling.canonical_passage_mapper import (
+            CanonicalPassageMapper,
+        )
+
+        mapper = CanonicalPassageMapper()
+
+        # 1. Perda de metadados / página ausente -> fail closed
+        bad_cand = {"chunk_id": "bad_chunk", "document_id": "gersting_discrete_math", "text": "bad text"}
+        rec1 = map_candidate_to_canonical(bad_cand, mapper, rank=1)
+        assert rec1["canonical_passage_id"] == "UNMAPPED_NEEDS_REVIEW"
+        assert rec1["mapping_status"] == "UNMAPPED"
+
+        # 2. Página ambígua -> se texto não bate e houver >1 passagens na página -> UNMAPPED
+        # Na página 91 há 1 passagem, mas para teste mock de página ambígua:
+        # 3. Exatamente 1 passagem por página -> fallback permitido
+        valid_cand_p92 = {
+            "chunk_id": "gersting_discrete_math_p92_c0",
+            "document_id": "gersting_discrete_math",
+            "page_number": 92,
+            "text": "",
+        }
+        rec3 = map_candidate_to_canonical(valid_cand_p92, mapper, rank=1)
+        assert rec3["canonical_passage_id"].startswith("ps_")
+
+        # 5. MagicMock em page_number ou metadados não é aceito como metadado válido
+        mock_cand = MagicMock()
+        mock_cand.page_number = MagicMock()
+        mock_cand.text = "mock text"
+        rec5 = map_candidate_to_canonical(mock_cand, mapper, rank=1)
+        assert rec5["canonical_passage_id"] == "UNMAPPED_NEEDS_REVIEW"
+
+    # 63. Teste do caminho de serialização com fakes (ETAPA 7)
+    def test_63_serialization_path_fake_generators(self) -> None:
+        from benchmarks.run_slice4_benchmark import (
+            _EVAL_SCHEMA_VERSION,
+            DEFAULT_QRELS_MANIFEST_PATH,
+            DEFAULT_QRELS_PATH,
+            serialize_retrieval_evidence,
+        )
+        from raglab.evaluation.contracts.human_qrels_v2 import load_human_qrels_set
+        from raglab.evaluation.pooling.canonical_passage_mapper import (
+            CanonicalPassageMapper,
+        )
+
+        qrels_set = load_human_qrels_set(
+            DEFAULT_QRELS_PATH, DEFAULT_QRELS_MANIFEST_PATH
+        )
+        mapper = CanonicalPassageMapper()
+
+        cand_data = [
+            {
+                "chunk_id": "gersting_discrete_math_p92_s36",
+                "document_id": "gersting_discrete_math",
+                "page_number": 92,
+                "text": "Demonstração por Exaustão",
+            }
+        ]
+
+        evidence_rec = serialize_retrieval_evidence(
+            cand_data,
+            [92],
+            mapper=mapper,
+            qrels_set=qrels_set,
+            question_id="q_dev_01",
+        )
+
+        assert _EVAL_SCHEMA_VERSION == "slice4_v5"
+        assert evidence_rec["mapped_count"] == 1
+        assert evidence_rec["unresolved_mapping_count"] == 0
+        c0 = evidence_rec["candidates"][0]
+        assert c0["canonical_passage_id"].startswith("ps_")
+        assert c0["raw_candidate_id"] == "gersting_discrete_math_p92_s36"
+        assert c0["judged_status"] == "JUDGED"
+
+    # 64. Teste de paridade ordenada entre Preflight e Produção (ETAPA 8)
+    def test_64_preflight_production_mapping_parity(self) -> None:
+        from typing import Any
+        from benchmarks.run_slice4_benchmark import (
+            _REPO_ROOT,
+            DEFAULT_QRELS_MANIFEST_PATH,
+            DEFAULT_QRELS_PATH,
+            build_retrievers,
+            load_embedding_model,
+            load_pdf_pages,
+            map_candidate_to_canonical,
+            serialize_retrieval_evidence,
+        )
+        from raglab.evaluation.contracts.human_qrels_v2 import load_human_qrels_set
+        from raglab.evaluation.pooling.canonical_passage_mapper import (
+            CanonicalPassageMapper,
+        )
+
+        pdf_path = (
+            _REPO_ROOT.parent
+            / "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
+        )
+        if not pdf_path.exists():
+            pytest.skip("PDF file not available locally")
+
+        import logging
+
+        logger = logging.getLogger("test_64")
+        pages = load_pdf_pages(pdf_path, logger)
+        embed_model = load_embedding_model(logger)
+        retrievers = build_retrievers(
+            pages, embed_model, strategies=("W1_sentence_window_rerank",)
+        )
+        retriever: Any = retrievers["W1_sentence_window_rerank"]
+        qrels_set = load_human_qrels_set(
+            DEFAULT_QRELS_PATH, DEFAULT_QRELS_MANIFEST_PATH
+        )
+        mapper = CanonicalPassageMapper()
+
+        query_text = "O que é demonstração por exaustão e quando é aplicável?"
+        candidates = retriever.retrieve(query_text, top_k=3)
+
+        # Path A (Preflight)
+        preflight_pairs = []
+        for idx, c in enumerate(candidates):
+            rec = map_candidate_to_canonical(
+                c, mapper, rank=idx + 1, qrels_set=qrels_set, question_id="q_dev_01"
+            )
+            preflight_pairs.append((rec["raw_candidate_id"], rec["canonical_passage_id"]))
+
+        # Path B (Production)
+        evidence_rec = serialize_retrieval_evidence(
+            candidates,
+            [92],
+            mapper=mapper,
+            qrels_set=qrels_set,
+            question_id="q_dev_01",
+        )
+        production_pairs = [
+            (c["raw_candidate_id"], c["canonical_passage_id"])
+            for c in evidence_rec["candidates"]
+        ]
+
+        # Exact ordered equality requirement (ETAPA 8)
+        assert preflight_pairs == production_pairs
+        print("PREFLIGHT_PRODUCTION_MAPPING_PARITY_OK")
