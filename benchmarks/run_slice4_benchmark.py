@@ -334,6 +334,210 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# ─── RUN_ID & Checkpoint Isolation Rules (ETAPA 2 & 3) ──────────────
+
+RUN_ID_REGEX = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def validate_run_id_syntax_and_confinement(
+    run_id: str | None,
+    mode: str,
+    checkpoint_dir: Path = CHECKPOINT_DIR,
+) -> str:
+    """Validate syntax, character safety, and path confinement of run_id."""
+    if not run_id or not isinstance(run_id, str):
+        raise ValueError("RUN_ID_EMPTY: --run-id must be provided as a non-empty string")
+
+    run_id_str = run_id.strip()
+    if not run_id_str:
+        raise ValueError("RUN_ID_EMPTY: --run-id cannot be empty or whitespace")
+
+    if len(run_id_str) > 128:
+        raise ValueError(
+            f"INVALID_RUN_ID: run_id length ({len(run_id_str)}) exceeds maximum limit of 128 characters"
+        )
+
+    if not RUN_ID_REGEX.match(run_id_str) or ".." in run_id_str:
+        raise ValueError(
+            f"INVALID_RUN_ID: run_id '{run_id_str}' contains invalid characters or path traversal elements"
+        )
+
+    if mode == "full" and any(
+        leg in run_id_str for leg in ("slice4_v1", "slice4_v2", "slice4_v3")
+    ):
+        raise ValueError(
+            f"INVALID_RUN_ID: run_id '{run_id_str}' uses legacy schema prefix in full v5 mode"
+        )
+
+    target_ckpt = (
+        checkpoint_dir / f"slice4_gen_checkpoint_{run_id_str}.json"
+    ).resolve()
+    base_dir = checkpoint_dir.resolve()
+    try:
+        target_ckpt.relative_to(base_dir)
+    except ValueError as exc:
+        raise ValueError(
+            f"PATH_TRAVERSAL_DETECTED: run_id '{run_id_str}' resolves outside checkpoints/ directory"
+        ) from exc
+
+
+    return run_id_str
+
+
+def validate_checkpoint_compatibility(
+    checkpoint_path: Path,
+    expected_run_id: str,
+    logger: logging.Logger | None = None,
+) -> dict[str, Any]:
+    """Validate checkpoint existence, schema, run_id, sha256 integrity, and holdout exclusion."""
+    if not checkpoint_path.exists():
+        raise ValueError(
+            f"RESUME_CHECKPOINT_NOT_FOUND: Checkpoint file not found at {checkpoint_path}"
+        )
+
+    try:
+        raw_text = checkpoint_path.read_text(encoding="utf-8")
+        raw = json.loads(raw_text)
+    except Exception as exc:
+        raise ValueError(
+            f"RESUME_CHECKPOINT_INCOMPATIBLE: Could not parse checkpoint JSON at {checkpoint_path}: {exc}"
+        ) from exc
+
+    schema = raw.get("schema") or raw.get("artifact_schema_version")
+    if schema != _EVAL_SCHEMA_VERSION:
+        raise ValueError(
+            f"RESUME_CHECKPOINT_INCOMPATIBLE: Checkpoint schema is '{schema}', "
+            f"expected '{_EVAL_SCHEMA_VERSION}'"
+        )
+
+    file_run_id = raw.get("run_id")
+    if file_run_id != expected_run_id:
+        raise ValueError(
+            f"RESUME_CHECKPOINT_INCOMPATIBLE: Checkpoint run_id mismatch "
+            f"('{file_run_id}' != '{expected_run_id}')"
+        )
+
+    completed = raw.get("completed", {})
+    expected_sha = raw.get("sha256")
+    if expected_sha:
+        check_bytes = json.dumps(
+            {
+                "schema": _EVAL_SCHEMA_VERSION,
+                "run_id": expected_run_id,
+                "completed": completed,
+            },
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8")
+        actual_sha = hashlib.sha256(check_bytes).hexdigest()
+        if actual_sha != expected_sha:
+            raise ValueError(
+                f"RESUME_CHECKPOINT_INCOMPATIBLE: Checkpoint SHA-256 payload integrity check failed "
+                f"({actual_sha} != {expected_sha})"
+            )
+
+    for key in completed:
+        if "holdout" in str(key).lower():
+            raise ValueError(
+                f"RESUME_CHECKPOINT_INCOMPATIBLE: Holdout question detected in checkpoint: {key}"
+            )
+
+    return raw
+
+
+def validate_cli_args_and_checkpoint(
+    args: argparse.Namespace,
+    logger: logging.Logger | None = None,
+    checkpoint_dir: Path = CHECKPOINT_DIR,
+) -> None:
+    """Fail-closed CLI & Checkpoint validation BEFORE credentials, cache, or PDF checks."""
+    mode = args.mode
+
+    if mode in ("preflight", "preflight-retrievers", "preflight-human-qrels"):
+        return
+
+    if mode == "full":
+        if not args.run_id:
+            if logger:
+                logger.error(
+                    "FULL_RUN_ID_REQUIRED: --mode full requires an explicit --run-id"
+                )
+            sys.exit(2)
+
+        try:
+            valid_id = validate_run_id_syntax_and_confinement(
+                args.run_id, mode="full", checkpoint_dir=checkpoint_dir
+            )
+        except ValueError as exc:
+            if logger:
+                logger.error("FULL_RUN_ID_INVALID: %s", exc)
+            sys.exit(2)
+
+        if not args.confirm_full_benchmark:
+            if logger:
+                logger.error(
+                    "FULL_CONFIRMATION_REQUIRED: --mode full requires --confirm-full-benchmark flag."
+                )
+            sys.exit(2)
+
+        ckpt_path = checkpoint_dir / f"slice4_gen_checkpoint_{valid_id}.json"
+        if ckpt_path.exists():
+            if logger:
+                logger.error(
+                    "FULL_RUN_ID_COLLISION: Checkpoint file already exists for run_id '%s' at %s. "
+                    "Use --mode resume --run-id %s to resume an existing run.",
+                    valid_id,
+                    ckpt_path,
+                    valid_id,
+                )
+            sys.exit(2)
+
+    elif mode == "resume":
+        if not args.run_id:
+            if logger:
+                logger.error("RESUME_RUN_ID_REQUIRED: --mode resume requires --run-id")
+            sys.exit(2)
+
+        try:
+            valid_id = validate_run_id_syntax_and_confinement(
+                args.run_id, mode="resume", checkpoint_dir=checkpoint_dir
+            )
+        except ValueError as exc:
+            if logger:
+                logger.error("RESUME_RUN_ID_INVALID: %s", exc)
+            sys.exit(2)
+
+        ckpt_path = checkpoint_dir / f"slice4_gen_checkpoint_{valid_id}.json"
+        if not ckpt_path.exists():
+            if logger:
+                logger.error(
+                    "RESUME_CHECKPOINT_NOT_FOUND: No exact checkpoint file found at %s",
+                    ckpt_path,
+                )
+            sys.exit(2)
+
+        try:
+            validate_checkpoint_compatibility(ckpt_path, valid_id, logger)
+        except ValueError as exc:
+            if logger:
+                logger.error("RESUME_CHECKPOINT_INCOMPATIBLE: %s", exc)
+            sys.exit(2)
+
+    elif mode == "smoke":
+        if args.run_id:
+            try:
+                validate_run_id_syntax_and_confinement(
+                    args.run_id, mode="smoke", checkpoint_dir=checkpoint_dir
+                )
+            except ValueError as exc:
+                if logger:
+                    logger.error("SMOKE_RUN_ID_INVALID: %s", exc)
+                sys.exit(2)
+
+
+
+
 
 # ─── Helpers ─────────────────────────────────────────────────────
 
@@ -2568,22 +2772,38 @@ def cmd_smoke(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) 
 
 
 def cmd_full(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) -> None:
+    run_id = args.run_id
+    if not run_id:
+        logger.error("FULL_RUN_ID_REQUIRED: --mode full requires an explicit --run-id")
+        sys.exit(2)
+
     if not args.confirm_full_benchmark:
         logger.error(
-            "Full benchmark requires --confirm-full-benchmark flag. "
-            "Failing closed to prevent accidental execution."
+            "FULL_CONFIRMATION_REQUIRED: --mode full requires --confirm-full-benchmark flag."
         )
-        sys.exit(3)
+        sys.exit(2)
 
-    logger.info("=== FULL BENCHMARK AUTHORIZED === run_id=%s", EXPERIMENT_ID)
+    ckpt_path = CHECKPOINT_DIR / f"slice4_gen_checkpoint_{run_id}.json"
+    if ckpt_path.exists():
+        logger.error(
+            "FULL_RUN_ID_COLLISION: Checkpoint file already exists for run_id '%s' at %s. "
+            "Use --mode resume --run-id %s to resume an existing run.",
+            run_id,
+            ckpt_path,
+            run_id,
+        )
+        sys.exit(2)
+
+    logger.info("=== FULL BENCHMARK AUTHORIZED === run_id=%s", run_id)
     output_path = run_benchmark(
-        run_id=EXPERIMENT_ID,
+        run_id=run_id,
         questions=ACTIVE_QUESTIONS,
         strategy_labels=VALID_STRATEGIES,
         logger=logger,
         pdf_path=pdf_path,
         qrels_path=getattr(args, "qrels_path", None),
         qrels_manifest=getattr(args, "qrels_manifest", None),
+        is_full_run=True,
     )
     logger.info("=== Slice 4 Full Benchmark Complete: %s ===", output_path)
 
@@ -2591,19 +2811,18 @@ def cmd_full(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) -
 def cmd_resume(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) -> None:
     run_id = args.run_id
     if not run_id:
-        logger.error("--mode resume requires --run-id. Example: --run-id %s", EXPERIMENT_ID)
-        sys.exit(3)
+        logger.error("RESUME_RUN_ID_REQUIRED: --mode resume requires --run-id")
+        sys.exit(2)
 
-    # Validate exact checkpoint file exists for run_id (no glob matching smoke files)
     exact_ckpt_path = CHECKPOINT_DIR / f"slice4_gen_checkpoint_{run_id}.json"
     if not exact_ckpt_path.exists():
         logger.error(
-            "CHECKPOINT_NOT_FOUND: No exact checkpoint file found at %s. "
-            "Available: %s",
+            "RESUME_CHECKPOINT_NOT_FOUND: No exact checkpoint file found at %s",
             exact_ckpt_path,
-            list(CHECKPOINT_DIR.glob("*.json")),
         )
-        raise ValueError(f"CHECKPOINT_NOT_FOUND: {exact_ckpt_path}")
+        sys.exit(2)
+
+    validate_checkpoint_compatibility(exact_ckpt_path, run_id, logger)
 
     logger.info("=== RESUME: run_id=%s (checkpoint: %s) ===", run_id, exact_ckpt_path)
     output_path = run_benchmark(
@@ -2616,6 +2835,7 @@ def cmd_resume(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger)
         qrels_manifest=getattr(args, "qrels_manifest", None),
     )
     logger.info("=== Slice 4 Resume Complete: %s ===", output_path)
+
 
 
 # ─── Preflight: validate embedding cache offline ─────────────────
@@ -3073,7 +3293,12 @@ def main(argv: list[str] | None = None) -> None:
     logger = _configure_logging(run_id_for_log)
 
     logger.info("=== RAGLab v7 Slice 4 Benchmark — mode=%s ===", args.mode)
+
+    # Fail-closed CLI and Checkpoint validation BEFORE credentials, cache, or PDF checks
+    validate_cli_args_and_checkpoint(args, logger)
+
     logger.info("Embedding model: %s", EMBEDDING_MODEL)
+
 
     # ── Preflight mode: no Gemini key needed ──────────────────────
     if args.mode == "preflight":

@@ -156,10 +156,18 @@ print('SMOKE_OK: schema válido, sem credenciais')
 
 ### B.4 — Benchmark completo
 
+> **IMPORTANTE**: O operador deve gerar um `NEW_RUN_ID` único e preservá-lo na mesma sessão de terminal ou notas seguras.
+
 ```bash
+NEW_RUN_ID="raglab_v7_slice4_v5_humanqrels_$(date -u +%Y%m%dT%H%M%SZ)"
+
 .venv/bin/python benchmarks/run_slice4_benchmark.py \
-    --mode full \
-    --confirm-full-benchmark
+  --mode full \
+  --run-id "$NEW_RUN_ID" \
+  --confirm-full-benchmark \
+  --pdf-path "$RAGLAB_PDF_PATH" \
+  --qrels-path "$RAGLAB_QRELS_PATH" \
+  --qrels-manifest "$RAGLAB_QRELS_MANIFEST"
 ```
 
 ### B.5 — Remover credencial IMEDIATAMENTE
@@ -177,19 +185,23 @@ echo "CREDENTIAL_REMOVED"
 
 ## Retomada após interrupção
 
+> **NUNCA reutilize RUN_IDs legados (v1, v2 ou v3). Utilize exclusivamente o NEW_RUN_ID gerado para a execução v5.**
+
 ```bash
 cd raglab-v7/
 
-# Listar checkpoints disponíveis
-ls checkpoints/slice4_gen_checkpoint_*.json
-
-RUN_ID="raglab_v7_slice4_v1_20260731T1230UTC"    # ajuste ao RUN_ID real
+# Listar checkpoints v5 disponíveis
+ls checkpoints/slice4_gen_checkpoint_raglab_v7_slice4_v5_*.json
 
 # Re-executar com --mode resume + RUN_ID explícito
 .venv/bin/python benchmarks/run_slice4_benchmark.py \
-    --mode resume \
-    --run-id "$RUN_ID"
+  --mode resume \
+  --run-id "$NEW_RUN_ID" \
+  --pdf-path "$RAGLAB_PDF_PATH" \
+  --qrels-path "$RAGLAB_QRELS_PATH" \
+  --qrels-manifest "$RAGLAB_QRELS_MANIFEST"
 ```
+
 
 ---
 

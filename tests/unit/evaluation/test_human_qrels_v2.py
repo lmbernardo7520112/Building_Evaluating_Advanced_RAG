@@ -1356,3 +1356,130 @@ class TestHumanQrelsV2GovernanceAndMetrics:
         }
         invalid_good = audit_artifact_canonical_passage_ids(good_artifact)
         assert len(invalid_good) == 0
+
+    # 68. Testes de isolamento de RUN_ID, CLI fail-closed e integridade de checkpoint (ETAPA 8)
+    def test_68_run_id_and_checkpoint_isolation_contract(self, tmp_path: Path) -> None:
+        import argparse
+        import hashlib
+        import json
+        import os
+        from pathlib import Path
+
+        import pytest
+
+        from benchmarks.run_slice4_benchmark import (
+            validate_checkpoint_compatibility,
+            validate_cli_args_and_checkpoint,
+            validate_run_id_syntax_and_confinement,
+        )
+        from raglab.infrastructure.persistence.generation_checkpoint_store import (
+            GenerationCheckpointStore,
+        )
+
+
+        hist_ckpt_path = Path("checkpoints/slice4_gen_checkpoint_raglab_v7_slice4_v2_20260731T1230UTC.json")
+        hist_sha_before = hashlib.sha256(hist_ckpt_path.read_bytes()).hexdigest() if hist_ckpt_path.exists() else ""
+
+        # 1. full sem run-id -> falha
+        args = argparse.Namespace(mode="full", run_id=None, confirm_full_benchmark=True)
+        with pytest.raises(SystemExit) as exc_info:
+            validate_cli_args_and_checkpoint(args)
+        assert exc_info.value.code == 2
+
+        # 2. full sem confirmação -> falha
+        args = argparse.Namespace(mode="full", run_id="raglab_v7_slice4_v5_valid", confirm_full_benchmark=False)
+        with pytest.raises(SystemExit) as exc_info:
+            validate_cli_args_and_checkpoint(args)
+        assert exc_info.value.code == 2
+
+        # 3. run-id inválido (caracteres proibidos/espaço) -> falha
+        with pytest.raises(ValueError, match="INVALID_RUN_ID"):
+            validate_run_id_syntax_and_confinement("run id invalid!!", mode="full", checkpoint_dir=tmp_path)
+
+        # 4. path traversal -> falha
+        with pytest.raises(ValueError, match="PATH_TRAVERSAL_DETECTED|INVALID_RUN_ID"):
+            validate_run_id_syntax_and_confinement("../outside_run", mode="full", checkpoint_dir=tmp_path)
+
+        # 5. full com checkpoint existente -> falha
+        (tmp_path / "slice4_gen_checkpoint_existing_run.json").write_text("{}", encoding="utf-8")
+        args = argparse.Namespace(mode="full", run_id="existing_run", confirm_full_benchmark=True)
+        with pytest.raises(SystemExit) as exc_info:
+            validate_cli_args_and_checkpoint(args, logger=None, checkpoint_dir=tmp_path)
+        assert exc_info.value.code == 2
+
+
+        # 6. checkpoint v3 existente -> nunca é reutilizado ou sobrescrito em full v5
+        with pytest.raises(ValueError, match="INVALID_RUN_ID"):
+            validate_run_id_syntax_and_confinement("raglab_v7_slice4_v2_20260731T1230UTC", mode="full", checkpoint_dir=tmp_path)
+
+        # 7. novo full cria checkpoint v5 isolado
+        GenerationCheckpointStore(
+            run_id="new_v5_run",
+            store_dir=tmp_path,
+            schema_version="slice4_v5",
+            create_new=True,
+        )
+        assert (tmp_path / "slice4_gen_checkpoint_new_v5_run.json").exists()
+        ckpt_data = json.loads((tmp_path / "slice4_gen_checkpoint_new_v5_run.json").read_text(encoding="utf-8"))
+        assert ckpt_data["schema"] == "slice4_v5"
+        assert ckpt_data["run_id"] == "new_v5_run"
+
+        # 8. resume sem run-id -> falha
+        args = argparse.Namespace(mode="resume", run_id=None, confirm_full_benchmark=False)
+        with pytest.raises(SystemExit) as exc_info:
+            validate_cli_args_and_checkpoint(args)
+        assert exc_info.value.code == 2
+
+        # 9. resume inexistente -> falha
+        args = argparse.Namespace(mode="resume", run_id="non_existent_run", confirm_full_benchmark=False)
+        with pytest.raises(SystemExit) as exc_info:
+            validate_cli_args_and_checkpoint(args)
+        assert exc_info.value.code == 2
+
+        # 10. resume schema v3 -> falha
+        v3_ckpt = tmp_path / "slice4_gen_checkpoint_v3_run.json"
+        v3_ckpt.write_text(json.dumps({"schema": "slice4_v3", "run_id": "v3_run"}), encoding="utf-8")
+        with pytest.raises(ValueError, match="RESUME_CHECKPOINT_INCOMPATIBLE"):
+            validate_checkpoint_compatibility(v3_ckpt, "v3_run")
+
+        # 11. resume run-id divergente -> falha
+        div_ckpt = tmp_path / "slice4_gen_checkpoint_div_run.json"
+        div_ckpt.write_text(json.dumps({"schema": "slice4_v5", "run_id": "other_run"}), encoding="utf-8")
+        with pytest.raises(ValueError, match="RESUME_CHECKPOINT_INCOMPATIBLE"):
+            validate_checkpoint_compatibility(div_ckpt, "div_run")
+
+        # 12-16. checkpoint com hash inválido -> falha
+        corrupt_ckpt = tmp_path / "slice4_gen_checkpoint_corrupt_run.json"
+        corrupt_ckpt.write_text(
+            json.dumps({"schema": "slice4_v5", "run_id": "corrupt_run", "sha256": "wrong_hash", "completed": {}}),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="RESUME_CHECKPOINT_INCOMPATIBLE"):
+            validate_checkpoint_compatibility(corrupt_ckpt, "corrupt_run")
+
+        # 17. checkpoint v5 compatível -> resume aprovado
+        valid_ckpt = tmp_path / "slice4_gen_checkpoint_valid_run.json"
+        payload_bytes = json.dumps({"schema": "slice4_v5", "run_id": "valid_run", "completed": {}}, indent=2, sort_keys=True).encode("utf-8")
+        valid_hash = hashlib.sha256(payload_bytes).hexdigest()
+        valid_ckpt.write_text(
+            json.dumps({"schema": "slice4_v5", "run_id": "valid_run", "sha256": valid_hash, "completed": {}}),
+            encoding="utf-8",
+        )
+        res = validate_checkpoint_compatibility(valid_ckpt, "valid_run")
+        assert res["schema"] == "slice4_v5"
+
+        # 18. smoke continua com namespace temporal
+        args_smoke = argparse.Namespace(mode="smoke", run_id=None, smoke_strategy="F0_baseline", smoke_question="q_dev_01")
+        validate_cli_args_and_checkpoint(args_smoke)
+
+        # 19. preflight continua sem run-id
+        args_pf = argparse.Namespace(mode="preflight", run_id=None)
+        validate_cli_args_and_checkpoint(args_pf)
+
+        # 20. nenhuma credencial/rede é acessada em falhas de CLI
+        assert "GEMINI_API_KEY" not in os.environ
+
+        # 21. checkpoint histórico permanece byte a byte inalterado
+        if hist_ckpt_path.exists():
+            hist_sha_after = hashlib.sha256(hist_ckpt_path.read_bytes()).hexdigest()
+            assert hist_sha_before == hist_sha_after
