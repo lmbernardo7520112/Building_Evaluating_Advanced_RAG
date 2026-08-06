@@ -350,9 +350,9 @@ class TestGroundTruthV2RuntimeBoundary:
                 assert not (arg_names & forbidden_names), f"Forbidden args found in prompt: {arg_names & forbidden_names}"
 
     def test_17_old_schema_vs_new_schema_versioning(self):
-        """17. protocol_version=raglab_v7_slice4_v3, artifact_schema_version=slice4_v4."""
         assert PROTOCOL_VERSION == "raglab_v7_slice4_v3"
-        assert _EVAL_SCHEMA_VERSION == "slice4_v4"
+        assert _EVAL_SCHEMA_VERSION == "slice4_v5"
+
 
     def test_18_not_computable_metrics_survive_json_serialization(self):
         """18. NOT_COMPUTABLE_* metrics survive JSON serialization and deserialization."""

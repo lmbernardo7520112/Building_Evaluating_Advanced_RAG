@@ -303,7 +303,8 @@ class TestCitationProvenanceIntegration:
                 "truncated": False,
             },
             "evaluation": {
-                "schema_version": "slice4_v4",
+                "schema_version": "slice4_v5",
+
                 "metrics": [
                     {"name": "abstention_correctness", "status": "COMPUTED", "score": 1.0},
                     {"name": "context_relevance", "status": "COMPUTED", "score": 1.0},
