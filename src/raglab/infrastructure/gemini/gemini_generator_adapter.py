@@ -219,9 +219,18 @@ class GeminiGeneratorAdapter:
                 page_num = _extract_page_from_doc_id(ev.document_id)
 
             ev_passage_id = (
-                getattr(ev, "passage_id", None)
-                or f"{ev.document_id}_p{page_num}_rank{ev.rank}"
+                getattr(ev, "canonical_passage_id", None)
+                or getattr(ev, "passage_id", None)
+                or (ev.get("canonical_passage_id") if isinstance(ev, dict) else None)
+                or (ev.get("passage_id") if isinstance(ev, dict) else None)
             )
+            if ev_passage_id and not (
+                isinstance(ev_passage_id, str)
+                and ev_passage_id.startswith("ps_")
+                and "_rank" not in ev_passage_id
+            ):
+                ev_passage_id = None
+
             ev_sha = getattr(ev, "content_sha256", None) or hashlib.sha256(
                 ev.text.encode("utf-8")
             ).hexdigest()
@@ -349,7 +358,14 @@ def sanitize_answer_for_artifact(answer: GeneratedAnswer) -> dict[str, object]:
         "citations": [
             {
                 "evidence_id": getattr(c, "evidence_id", None),
-                "passage_id": getattr(c, "passage_id", None),
+                "passage_id": (
+                    getattr(c, "passage_id", None)
+                    if getattr(c, "passage_id", None)
+                    and str(getattr(c, "passage_id", None)).startswith("ps_")
+                    and "_rank" not in str(getattr(c, "passage_id", None))
+                    else None
+                ),
+
                 "document_id": c.document_id,
                 "page_number": c.page_number,
                 "chunk_id": (

@@ -16,6 +16,7 @@ executed only by a human operator in an isolated terminal.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 
 from raglab.domain.entities import GeneratedAnswer, RetrievedEvidence
@@ -87,9 +88,18 @@ class FakeGeneratorAdapter:
                     page_number=_extract_page(ev.document_id),
                     chunk_id=ev.chunk_id,
                     text_span=ev.text[:40],
+                    evidence_id=f"E{idx + 1}",
+                    passage_id=getattr(
+                        ev, "canonical_passage_id", getattr(ev, "passage_id", None)
+                    ),
+                    content_sha256=getattr(ev, "content_sha256", None)
+                    or hashlib.sha256(ev.text.encode("utf-8")).hexdigest(),
+
+                    retrieval_rank=ev.rank,
                 )
-                for ev in evidence[:3]
+                for idx, ev in enumerate(evidence[:3])
             )
+
 
         return GeneratedAnswer(
             query_id=query_id,

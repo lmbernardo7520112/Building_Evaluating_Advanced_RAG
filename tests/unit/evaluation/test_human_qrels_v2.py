@@ -947,6 +947,7 @@ class TestHumanQrelsV2GovernanceAndMetrics:
     # 61. Teste offline de reprodução do caminho real para W1 x q_dev_01 (ETAPA 6)
     def test_61_real_w1_retriever_canonical_mapping_offline(self) -> None:
         from typing import Any
+
         from benchmarks.run_slice4_benchmark import (
             _REPO_ROOT,
             DEFAULT_QRELS_MANIFEST_PATH,
@@ -1096,6 +1097,7 @@ class TestHumanQrelsV2GovernanceAndMetrics:
     # 64. Teste de paridade ordenada entre Preflight e Produção (ETAPA 8)
     def test_64_preflight_production_mapping_parity(self) -> None:
         from typing import Any
+
         from benchmarks.run_slice4_benchmark import (
             _REPO_ROOT,
             DEFAULT_QRELS_MANIFEST_PATH,
@@ -1159,3 +1161,198 @@ class TestHumanQrelsV2GovernanceAndMetrics:
         # Exact ordered equality requirement (ETAPA 8)
         assert preflight_pairs == production_pairs
         print("PREFLIGHT_PRODUCTION_MAPPING_PARITY_OK")
+
+    # 65. Teste de propagação de identidade canônica para citações no artefato (ETAPA 5)
+    def test_65_real_artifact_citation_canonical_propagation_offline(self) -> None:
+
+        from benchmarks.run_slice4_benchmark import (
+            _EVAL_SCHEMA_VERSION,
+            DEFAULT_QRELS_MANIFEST_PATH,
+            DEFAULT_QRELS_PATH,
+            audit_artifact_canonical_passage_ids,
+            build_citation_map_and_status,
+            serialize_retrieval_evidence,
+        )
+        from raglab.evaluation.contracts.human_qrels_v2 import load_human_qrels_set
+        from raglab.evaluation.pooling.canonical_passage_mapper import (
+            CanonicalPassageMapper,
+        )
+        from raglab.infrastructure.fakes.fake_generator_adapter import (
+            FakeGeneratorAdapter,
+        )
+
+        qrels_set = load_human_qrels_set(
+            DEFAULT_QRELS_PATH, DEFAULT_QRELS_MANIFEST_PATH
+        )
+        mapper = CanonicalPassageMapper()
+
+        cand_data = [
+            {
+                "chunk_id": "gersting_discrete_math_p92_s36",
+                "document_id": "gersting_discrete_math",
+                "page_number": 92,
+                "text": "Demonstração por Exaustão",
+                "rank": 1,
+            },
+            {
+                "chunk_id": "gersting_discrete_math_p96_s20",
+                "document_id": "gersting_discrete_math",
+                "page_number": 96,
+                "text": "uma demonstração por casos , uma forma de demonstração por exaustão",
+                "rank": 2,
+            },
+        ]
+
+
+
+
+        evidence_rec = serialize_retrieval_evidence(
+            cand_data,
+            [92, 96],
+            mapper=mapper,
+            qrels_set=qrels_set,
+            question_id="q_dev_01",
+        )
+
+        assert _EVAL_SCHEMA_VERSION == "slice4_v5"
+        assert evidence_rec["mapped_count"] == 2
+        assert evidence_rec["unresolved_mapping_count"] == 0
+
+        # Build fake answer using FakeGeneratorAdapter
+        gen = FakeGeneratorAdapter()
+        from raglab.domain.entities import RetrievedEvidence
+        ret_evs = [
+            RetrievedEvidence(
+                document_id=c.get("document_id", "gersting_discrete_math"),
+                chunk_id=c["raw_candidate_id"],
+                text=c["text"],
+                score=0.9,
+                rank=idx + 1,
+                passage_id=c["canonical_passage_id"],
+                content_sha256=c["content_sha256"],
+            )
+            for idx, c in enumerate(evidence_rec["candidates"])
+        ]
+
+
+        ans = gen.generate("q_dev_01", "O que é demonstração por exaustão?", ret_evs)
+
+        c_status, c_map = build_citation_map_and_status(
+            answer_text=ans.text,
+            abstained=ans.abstained,
+            evidence=evidence_rec["candidates"],
+            query_id="q_dev_01",
+            citations=ans.citations,
+        )
+
+        assert c_status == "AVAILABLE"
+        assert len(c_map) > 0
+
+        for cit in c_map:
+            pid = cit["passage_id"]
+            assert str(pid).startswith("ps_")
+            assert "_rank" not in str(pid)
+            assert "gersting" not in str(pid)
+            assert "chunk_id" in cit
+            assert cit["chunk_id"] != ""
+            assert "evidence_id" in cit
+            assert "content_sha256" in cit
+
+        # Construct full record to test nesting and audit
+        record = {
+            "qid": "q_dev_01",
+            "schema": "slice4_v5",
+            "retrieval_evidence": evidence_rec,
+            "citation_map": c_map,
+            "answer": {
+                "text": ans.text,
+                "abstained": ans.abstained,
+                "citations": c_map,
+            },
+            "evaluation": {
+                "generation_evaluation": {"name": "context_relevance", "score": 1.0},
+            },
+        }
+
+        # Assert generation_evaluation is nested under evaluation.generation_evaluation
+        assert "generation_evaluation" in record["evaluation"]
+
+        # Assert zero audit failures
+        invalid = audit_artifact_canonical_passage_ids(record)
+        assert len(invalid) == 0
+
+    # 66. Testes fail-closed para citações e passagem canônica (ETAPA 6)
+    def test_66_citation_fail_closed_edge_cases(self) -> None:
+        from benchmarks.run_slice4_benchmark import (
+            audit_artifact_canonical_passage_ids,
+            build_citation_map_and_status,
+        )
+
+
+        # 1. Citação referencia evidence_id inexistente -> falha
+        bad_evidence = [
+            {
+                "evidence_id": "E1",
+                "canonical_passage_id": "ps_1e8ae016ba7f2e40",
+                "chunk_id": "chunk_1",
+                "document_id": "doc1",
+                "page_number": 92,
+                "text": "sample text",
+            }
+        ]
+        with pytest.raises(ValueError, match="CITATION_PROVENANCE_MISMATCH"):
+            build_citation_map_and_status(
+                answer_text="Resposta com [E99]",
+                abstained=False,
+                evidence=bad_evidence,
+                query_id="q_test",
+            )
+
+        # 3. Evidência sem canonical_passage_id / 4. ID sintético -> audit falha
+        synthetic_evidence = [
+            {
+                "evidence_id": "E1",
+                "passage_id": "doc_p92_rank1",
+                "canonical_passage_id": "doc_p92_rank1",
+                "chunk_id": "chunk_1",
+                "document_id": "doc1",
+                "page_number": 92,
+                "text": "sample text",
+            }
+        ]
+        status, cmap = build_citation_map_and_status(
+            answer_text="Resposta com [E1]",
+            abstained=False,
+            evidence=synthetic_evidence,
+            query_id="q_test",
+        )
+        invalid = audit_artifact_canonical_passage_ids(cmap)
+        assert len(invalid) > 0
+
+
+    # 67. Teste da auditoria recursiva de artefatos (ETAPA 7)
+    def test_67_recursive_artifact_audit_validation(self) -> None:
+        from benchmarks.run_slice4_benchmark import audit_artifact_canonical_passage_ids
+
+        # Rejeita artefato contendo ID sintético em passage_id
+        bad_artifact = {
+            "answer": {
+                "citations": [
+                    {"passage_id": "gersting_p92_rank1"},
+                ]
+            }
+        }
+        invalid = audit_artifact_canonical_passage_ids(bad_artifact)
+        assert len(invalid) == 1
+        assert invalid[0][1] == "gersting_p92_rank1"
+
+        # Aceita artefato com passage_id canônico ps_*
+        good_artifact = {
+            "answer": {
+                "citations": [
+                    {"passage_id": "ps_1e8ae016ba7f2e40"},
+                ]
+            }
+        }
+        invalid_good = audit_artifact_canonical_passage_ids(good_artifact)
+        assert len(invalid_good) == 0

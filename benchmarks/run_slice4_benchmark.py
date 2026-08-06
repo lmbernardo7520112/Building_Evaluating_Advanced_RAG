@@ -699,11 +699,11 @@ def build_citation_map_and_status(
             # Derive passage_id and rank
             if isinstance(matched_cand, dict):
                 cand_rank = matched_cand.get("retrieval_rank", matched_cand.get("rank", rank_val))
-                cand_passage_id = matched_cand.get("passage_id")
+                cand_passage_id = matched_cand.get("canonical_passage_id") or matched_cand.get("passage_id")
                 cand_doc = matched_cand.get("document_id", "doc")
             else:
                 cand_rank = getattr(matched_cand, "rank", rank_val)
-                cand_passage_id = getattr(matched_cand, "passage_id", None)
+                cand_passage_id = getattr(matched_cand, "canonical_passage_id", getattr(matched_cand, "passage_id", None))
                 cand_doc = getattr(matched_cand, "document_id", "doc")
 
             cand_rank = int(cand_rank) if isinstance(cand_rank, int) else rank_val
@@ -718,6 +718,7 @@ def build_citation_map_and_status(
                 "content_sha256": cand_sha,
                 "retrieval_rank": cand_rank,
                 "chunk_id": cand_chunk_id,
+                "document_id": cand_doc,
                 "text_sha256": cand_sha,
             })
 
@@ -766,9 +767,16 @@ def build_citation_map_and_status(
             if isinstance(matched_cand, dict):
                 c_sha = matched_cand.get("content_sha256") or matched_cand.get("text_sha256")
                 c_text = matched_cand.get("text")
+                cand_passage_id = matched_cand.get("canonical_passage_id") or matched_cand.get("passage_id")
+                cand_doc = matched_cand.get("document_id", "doc")
             else:
                 c_sha = getattr(matched_cand, "content_sha256", None) or getattr(matched_cand, "text_sha256", None)
                 c_text = getattr(matched_cand, "text", None)
+                cand_passage_id = getattr(matched_cand, "canonical_passage_id", getattr(matched_cand, "passage_id", None))
+                cand_doc = getattr(matched_cand, "document_id", "doc")
+
+            if not cand_passage_id or not isinstance(cand_passage_id, str):
+                cand_passage_id = f"doc_p{cand_page}_rank{n}"
 
             if isinstance(c_sha, str) and len(c_sha) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in c_sha):
                 cand_sha = c_sha
@@ -782,17 +790,43 @@ def build_citation_map_and_status(
             citation_map.append({
                 "marker": marker_str,
                 "evidence_id": f"E{n}",
-                "passage_id": f"doc_p{cand_page}_rank{n}",
+                "passage_id": cand_passage_id,
                 "page_number": cand_page,
                 "content_sha256": cand_sha,
                 "retrieval_rank": n,
                 "chunk_id": cand_chunk_id,
+                "document_id": cand_doc,
                 "text_sha256": cand_sha,
             })
 
         return ("LEGACY", citation_map)
 
+
     return ("UNAVAILABLE", [])
+
+
+def audit_artifact_canonical_passage_ids(
+    data: Any, path: str = ""
+) -> list[tuple[str, Any]]:
+    """Recursively validate every passage_id and canonical_passage_id in slice4_v5 artifact."""
+    invalid: list[tuple[str, Any]] = []
+
+    if isinstance(data, dict):
+        for k, v in data.items():
+            current_path = f"{path}.{k}" if path else k
+            if k in ("passage_id", "canonical_passage_id"):
+                if v is None or not isinstance(v, str) or v == "" or "_rank" in v or ("_p" in v and not v.startswith("ps_") and v != "UNMAPPED_NEEDS_REVIEW") or not v.startswith("ps_") and v != "UNMAPPED_NEEDS_REVIEW":
+                    invalid.append((current_path, v))
+            else:
+                invalid.extend(audit_artifact_canonical_passage_ids(v, current_path))
+    elif isinstance(data, list):
+        for idx, item in enumerate(data):
+            current_path = f"{path}[{idx}]"
+            invalid.extend(audit_artifact_canonical_passage_ids(item, current_path))
+
+    return invalid
+
+
 
 
 def load_embedding_model(
@@ -1752,6 +1786,23 @@ def run_benchmark(
                 citations=answer.citations,
             )
 
+            # Propagate canonical passage_id into answer.citations in sanitized_answer
+            if citation_map:
+                sanitized_citations = []
+                for c_entry in citation_map:
+                    sanitized_citations.append({
+                        "evidence_id": c_entry["evidence_id"],
+                        "passage_id": c_entry["passage_id"],
+                        "document_id": c_entry["document_id"],
+                        "page_number": c_entry["page_number"],
+                        "chunk_id": c_entry["chunk_id"],
+                        "content_sha256": c_entry["content_sha256"],
+                        "retrieval_rank": c_entry["retrieval_rank"],
+                    })
+                sanitized_answer["citations"] = sanitized_citations
+                sanitized_answer["citation_pages"] = [c["page_number"] for c in citation_map]
+
+
             # ── Build typed evaluation with short-circuiting ──────
             evaluation_metrics: list[dict[str, Any]] = []
 
@@ -2239,6 +2290,13 @@ def run_benchmark(
         "results": all_results,
     }
 
+    # Pre-write audit of all passage_id fields in output
+    invalid_passage_ids = audit_artifact_canonical_passage_ids(output)
+    if invalid_passage_ids:
+        raise ValueError(
+            f"CANONICAL_PASSAGE_ID_AUDIT_FAILED: Invalid passage_ids detected in artifact: {invalid_passage_ids!r}"
+        )
+
     # Final secret scan on serialized output
     output_json = json.dumps(output, indent=2, sort_keys=True, ensure_ascii=False)
     for pattern in _SECRET_PATTERNS:
@@ -2268,6 +2326,12 @@ def validate_smoke_result(
     Fail-closed: any missing/invalid field returns SMOKE_FAILED.
     """
     failures: list[str] = []
+
+    # 0. Canonical Passage ID Audit
+    invalid_pids = audit_artifact_canonical_passage_ids(data)
+    if invalid_pids:
+        failures.append(f"CANONICAL_PASSAGE_ID_INVALID: {invalid_pids}")
+
 
     # 1. Secret scan
     serialized = json.dumps(data)
