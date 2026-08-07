@@ -1,0 +1,18 @@
+{
+  "schema_version": "3.0.0",
+  "protocol_version": "raglab_v7_slice4_v3",
+  "created_at_utc": "2026-08-05T16:21:31.831397+00:00",
+  "annotator_a_file_sha256": "4fb500b062f6991d11c76f3071ff35af3fd531a8e49712ee8ea8a23d84a28a57",
+  "annotator_b_file_sha256": "df2e2f83682548810069c2b03173cdfbfa323ca170cb61a7482ca5162045d017",
+  "questions_file_sha256": "90b0079e6f1f60461966812ef130e2679493eef84183a8d0943a889b909ba7b0",
+  "total_disagreement_pairs": 21,
+  "total_abstention_pairs": 10,
+  "overlap_disagreement_abstention_count": 3,
+  "total_adjudication_queue": 28,
+  "abstention_detection_mechanism": "question_attribute_is_abstention_or_type_abstention",
+  "reviewer_order_algorithm": "sha256-domain-separated-v1",
+  "reviewer_order_domain": "raglab:v7:adjudication-reviewer-order",
+  "anonymization_verified": true,
+  "holdout_sealed": true,
+  "adjudication_queue_sha256": "69970a159b5bb8c47ba391fc1e1693dac6eb34cab2aad51573b6fc0a205cb4dc"
+}

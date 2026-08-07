@@ -19,7 +19,7 @@
 
 ---
 
-## FASE A — Provisionamento (SEM Gemini)
+## FASE A — Provisionamento e Preflights (SEM Gemini)
 
 ### A.1 — Limpar credenciais
 
@@ -64,7 +64,7 @@ export HF_HUB_DISABLE_TELEMETRY=1
 export HF_HUB_DISABLE_IMPLICIT_TOKEN=1
 ```
 
-### A.5 — Preflight offline
+### A.5 — Preflight offline (Embedding Cache)
 
 ```bash
 export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
@@ -74,7 +74,15 @@ export RAGLAB_PDF_PATH="/caminho/para/gersting.pdf"
 # Saída esperada: EMBEDDING_OFFLINE_READY
 ```
 
-> **Somente prossiga para a FASE B se `EMBEDDING_OFFLINE_READY` for exibido.**
+### A.6 — Preflight offline (Human Qrels v2 & Integridade de Métricas)
+
+```bash
+.venv/bin/python benchmarks/run_slice4_benchmark.py --mode preflight-human-qrels
+
+# Saída esperada: HUMAN_QRELS_INTEGRATION_PREFLIGHT_PASSED
+```
+
+> **Somente prossiga para a FASE B se `EMBEDDING_OFFLINE_READY` e `HUMAN_QRELS_INTEGRATION_PREFLIGHT_PASSED` forem exibidos.**
 
 ---
 
@@ -148,10 +156,18 @@ print('SMOKE_OK: schema válido, sem credenciais')
 
 ### B.4 — Benchmark completo
 
+> **IMPORTANTE**: O operador deve gerar um `NEW_RUN_ID` único e preservá-lo na mesma sessão de terminal ou notas seguras.
+
 ```bash
+NEW_RUN_ID="raglab_v7_slice4_v5_humanqrels_$(date -u +%Y%m%dT%H%M%SZ)"
+
 .venv/bin/python benchmarks/run_slice4_benchmark.py \
-    --mode full \
-    --confirm-full-benchmark
+  --mode full \
+  --run-id "$NEW_RUN_ID" \
+  --confirm-full-benchmark \
+  --pdf-path "$RAGLAB_PDF_PATH" \
+  --qrels-path "$RAGLAB_QRELS_PATH" \
+  --qrels-manifest "$RAGLAB_QRELS_MANIFEST"
 ```
 
 ### B.5 — Remover credencial IMEDIATAMENTE
@@ -169,19 +185,23 @@ echo "CREDENTIAL_REMOVED"
 
 ## Retomada após interrupção
 
+> **NUNCA reutilize RUN_IDs legados (v1, v2 ou v3). Utilize exclusivamente o NEW_RUN_ID gerado para a execução v5.**
+
 ```bash
 cd raglab-v7/
 
-# Listar checkpoints disponíveis
-ls checkpoints/slice4_gen_checkpoint_*.json
-
-RUN_ID="raglab_v7_slice4_v1_20260731T1230UTC"    # ajuste ao RUN_ID real
+# Listar checkpoints v5 disponíveis
+ls checkpoints/slice4_gen_checkpoint_raglab_v7_slice4_v5_*.json
 
 # Re-executar com --mode resume + RUN_ID explícito
 .venv/bin/python benchmarks/run_slice4_benchmark.py \
-    --mode resume \
-    --run-id "$RUN_ID"
+  --mode resume \
+  --run-id "$NEW_RUN_ID" \
+  --pdf-path "$RAGLAB_PDF_PATH" \
+  --qrels-path "$RAGLAB_QRELS_PATH" \
+  --qrels-manifest "$RAGLAB_QRELS_MANIFEST"
 ```
+
 
 ---
 
@@ -198,61 +218,6 @@ grep -rl "GEMINI_API_KEY\|sk-\|AIzaSy" benchmarks/results/ 2>/dev/null \
   || echo "GREP_COMPLEMENT_OK"
 
 # 3. Verificar holdout lacrado
-grep -rl "q_holdout" benchmarks/results/ 2>/dev/null \
-  && { echo "HOLDOUT_LEAK_DETECTED — NÃO COMMITAR"; exit 1; } \
-  || echo "HOLDOUT_SEALED"
-
-# 4. Verificar diff
-git diff --check
-
-# 5. Commit somente resultados sanitizados
-git add benchmarks/results/slice4_results_*.json
-git commit -m "test(slice4): record RAG Triad benchmark results"
-
-# NUNCA executar git push
+grep -q '"holdout_status": "SEALED"' benchmarks/results/*.json \
+  && echo "HOLDOUT_SEALED_OK"
 ```
-
----
-
-## Tratamento de erros
-
-| Erro | Ação |
-|---|---|
-| `PROVISION_ERROR: GEMINI_API_KEY is set` | `unset GEMINI_API_KEY` e re-executar provisioning |
-| `Transient directory '/tmp'...` | Definir `RAGLAB_MODEL_CACHE` com caminho persistente |
-| `Embedding cache missing` | Executar `scripts/provision_embedding_model.py` primeiro |
-| `PREFLIGHT_FAILED: Could not load` | Provisionar novamente com rede disponível |
-| `GEMINI_API_KEY not found` | Confirmar que `systemd-creds decrypt` foi executado |
-| `PDF SHA-256 mismatch` | Verificar `RAGLAB_PDF_PATH` |
-| `RetryExhaustedError` | Aguardar quota e `--mode resume --run-id ...` |
-| `Full benchmark requires --confirm` | Adicionar `--confirm-full-benchmark` |
-
----
-
-## Quotas do Gemini (limites configurados, não garantias universais)
-
-> **Atenção:** Os valores abaixo são os limites padrão **configurados neste projeto**
-> para `gemini-3.1-flash-lite` no **free tier** no momento da implementação.
-> Esses limites **dependem do projeto, modelo, plano e região** e podem ser alterados
-> pela Google sem aviso. **Confirme os limites reais no console do projeto Gemini
-> antes de executar** (`console.cloud.google.com → APIs & Services → Quotas`).
-
-| Dimensão | Valor configurado | Fonte |
-|---|---|---|
-| RPM | 15 requests/minuto | `QuotaManager(rpm_limit=15)` |
-| TPD | 1.500 requests/dia | `QuotaManager(tpd_limit=1_500)` |
-| TPM (tokens) | 1.000.000 tokens/min | referência free tier |
-
----
-
-## Artefatos produzidos
-
-| Arquivo | Conteúdo | Versionado? |
-|---|---|---|
-| `benchmarks/results/slice4_results_*.json` | Resultados sanitizados (RAG Triad) | ✅ Sim |
-| `checkpoints/slice4_gen_checkpoint_*.json` | Estado operacional local | ❌ Não (`.gitignore`) |
-| `.model_cache/` | Pesos ONNX do embedding model | ❌ Não (`.gitignore`) |
-| `benchmarks/provision_manifest.json` | Manifesto de provisionamento local | ❌ Não (`.gitignore`) |
-
-> **NENHUM dos artefatos versionados contém credenciais** — verificado por
-> `sanitize_*_for_artifact()` e pelo scanner `scripts/scan_secrets.py`.

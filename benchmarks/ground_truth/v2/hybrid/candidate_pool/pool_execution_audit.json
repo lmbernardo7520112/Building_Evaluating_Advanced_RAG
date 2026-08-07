@@ -1,0 +1,530 @@
+{
+  "schema_version": "3.0.0",
+  "protocol_version": "raglab_v7_slice4_v3",
+  "independent_family_count": 7,
+  "multisystem_provenance_verified": true,
+  "active_families": [
+    "auto_merging",
+    "auto_merging_rerank",
+    "fixed_chunk",
+    "hierarchical_leaf",
+    "sentence_anchor",
+    "sentence_window",
+    "sentence_window_rerank"
+  ],
+  "strategies_present": [
+    "F0_baseline",
+    "H0_hierarchical_leaf",
+    "H1_auto_merging",
+    "H2_auto_merging_rerank",
+    "S0_sentence_anchor",
+    "W0_sentence_window",
+    "W1_sentence_window_rerank"
+  ],
+  "per_question_source_audit": [
+    {
+      "question_id": "q_dev_01",
+      "source_id": "F0_baseline",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_01",
+      "source_id": "H0_hierarchical_leaf",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_01",
+      "source_id": "H1_auto_merging",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_01",
+      "source_id": "H2_auto_merging_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_01",
+      "source_id": "S0_sentence_anchor",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_01",
+      "source_id": "W0_sentence_window",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_01",
+      "source_id": "W1_sentence_window_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_02",
+      "source_id": "F0_baseline",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_02",
+      "source_id": "H0_hierarchical_leaf",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_02",
+      "source_id": "H1_auto_merging",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_02",
+      "source_id": "H2_auto_merging_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_02",
+      "source_id": "S0_sentence_anchor",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_02",
+      "source_id": "W0_sentence_window",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_02",
+      "source_id": "W1_sentence_window_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_03",
+      "source_id": "F0_baseline",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_03",
+      "source_id": "H0_hierarchical_leaf",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_03",
+      "source_id": "H1_auto_merging",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_03",
+      "source_id": "H2_auto_merging_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_03",
+      "source_id": "S0_sentence_anchor",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_03",
+      "source_id": "W0_sentence_window",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_03",
+      "source_id": "W1_sentence_window_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_04",
+      "source_id": "F0_baseline",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_04",
+      "source_id": "H0_hierarchical_leaf",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_04",
+      "source_id": "H1_auto_merging",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_04",
+      "source_id": "H2_auto_merging_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_04",
+      "source_id": "S0_sentence_anchor",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_04",
+      "source_id": "W0_sentence_window",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_dev_04",
+      "source_id": "W1_sentence_window_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_01",
+      "source_id": "F0_baseline",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_01",
+      "source_id": "H0_hierarchical_leaf",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_01",
+      "source_id": "H1_auto_merging",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_01",
+      "source_id": "H2_auto_merging_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 9,
+      "final_candidates": 3,
+      "dropped_candidates": 6,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_01",
+      "source_id": "S0_sentence_anchor",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_01",
+      "source_id": "W0_sentence_window",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_01",
+      "source_id": "W1_sentence_window_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_02",
+      "source_id": "F0_baseline",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_02",
+      "source_id": "H0_hierarchical_leaf",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_02",
+      "source_id": "H1_auto_merging",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_02",
+      "source_id": "H2_auto_merging_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_02",
+      "source_id": "S0_sentence_anchor",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_02",
+      "source_id": "W0_sentence_window",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_02",
+      "source_id": "W1_sentence_window_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_03",
+      "source_id": "F0_baseline",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_03",
+      "source_id": "H0_hierarchical_leaf",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_03",
+      "source_id": "H1_auto_merging",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_03",
+      "source_id": "H2_auto_merging_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_03",
+      "source_id": "S0_sentence_anchor",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_03",
+      "source_id": "W0_sentence_window",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_03",
+      "source_id": "W1_sentence_window_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_04",
+      "source_id": "F0_baseline",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_04",
+      "source_id": "H0_hierarchical_leaf",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_04",
+      "source_id": "H1_auto_merging",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_04",
+      "source_id": "H2_auto_merging_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_04",
+      "source_id": "S0_sentence_anchor",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_04",
+      "source_id": "W0_sentence_window",
+      "availability": "AVAILABLE",
+      "total_records": 3,
+      "final_candidates": 3,
+      "dropped_candidates": 0,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    },
+    {
+      "question_id": "q_test_04",
+      "source_id": "W1_sentence_window_rerank",
+      "availability": "AVAILABLE",
+      "total_records": 10,
+      "final_candidates": 3,
+      "dropped_candidates": 7,
+      "execution_mode": "MATERIALIZED_EVIDENCE_V2"
+    }
+  ]
+}

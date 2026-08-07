@@ -1,0 +1,6 @@
+{
+  "status": "CALIBRATION_NOT_EXECUTED",
+  "reason": "No completed human labels found in file.",
+  "sample_size": 0,
+  "human_silver_agreement": "NOT_COMPUTABLE"
+}

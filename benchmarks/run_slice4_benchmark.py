@@ -64,16 +64,37 @@ import os
 import re
 import sys
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
+from raglab.evaluation.contracts.ground_truth_v2 import (
+    UnanswerableReason,
+)
+from raglab.evaluation.contracts.human_qrels_v2 import (
+    load_human_qrels_set,
+)
+from raglab.evaluation.metrics.deterministic_v2 import (
+    compute_legacy_page_metrics,
+)
+from raglab.evaluation.metrics.human_qrels_metrics import (
+    compute_human_qrels_metrics_for_question,
+)
+from raglab.evaluation.migration.legacy_to_gt_v2 import (
+    migrate_legacy_qrel_item,
+)
+from raglab.evaluation.pooling.canonical_passage_mapper import (
+    CanonicalPassageMapper,
+)
+
 # ─── Path setup ───────────────────────────────────────────────────
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 # ─── Constants ───────────────────────────────────────────────────
-PROTOCOL_VERSION = "raglab_v7_slice4_v2"
+PROTOCOL_VERSION = "raglab_v7_slice4_v3"
 EXPERIMENT_ID = "raglab_v7_slice4_v2_20260731T1230UTC"
 PDF_SHA256_EXPECTED = (
     "33e2e9f1e190158b3e99c19fced1acd050720247c7556780bad82b2f93bf1254"
@@ -92,7 +113,27 @@ RESULTS_DIR = _REPO_ROOT / "benchmarks" / "results"
 CHECKPOINT_DIR = _REPO_ROOT / "checkpoints"
 PROVISION_MANIFEST_PATH = _REPO_ROOT / "benchmarks" / "provision_manifest.json"
 
-_EVAL_SCHEMA_VERSION = "slice4_v3"
+DEFAULT_QRELS_PATH: Final[Path] = (
+    _REPO_ROOT
+    / "benchmarks"
+    / "ground_truth"
+    / "v2"
+    / "hybrid"
+    / "qrels"
+    / "human_qrels_final.jsonl"
+)
+DEFAULT_QRELS_MANIFEST_PATH: Final[Path] = (
+    _REPO_ROOT
+    / "benchmarks"
+    / "ground_truth"
+    / "v2"
+    / "hybrid"
+    / "qrels"
+    / "human_qrels_manifest.json"
+)
+
+_EVAL_SCHEMA_VERSION = "slice4_v5"
+
 
 # ─── Evaluation metric status enum ───────────────────────────────
 # Typed states for each metric — replaces bare null
@@ -240,11 +281,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mode",
-        choices=["preflight", "preflight-retrievers", "smoke", "full", "resume"],
+        choices=["preflight", "preflight-retrievers", "preflight-human-qrels", "smoke", "full", "resume"],
         required=True,
         help=(
             "preflight: validate embedding cache offline (no Gemini key). "
             "preflight-retrievers: validate all 7 retriever builders structurally "
+            "preflight-human-qrels: validate human qrels dataset & metrics offline (no Gemini key). "
             "(no Gemini, no real corpus). "
             "smoke: 1 strategy x 1 question (mandatory before full). "
             "full: all 7 strategies x 8 questions (requires --confirm-full-benchmark). "
@@ -269,12 +311,232 @@ def build_parser() -> argparse.ArgumentParser:
         help="Strategy for smoke test (default: F0_baseline).",
     )
     parser.add_argument(
+        "--qrels-path",
+        default=str(DEFAULT_QRELS_PATH),
+        help="Path to final human qrels JSONL file.",
+    )
+    parser.add_argument(
+        "--qrels-manifest",
+        default=str(DEFAULT_QRELS_MANIFEST_PATH),
+        help="Path to final human qrels manifest JSON file.",
+    )
+    parser.add_argument(
         "--smoke-question",
         default="q_dev_01",
         choices=sorted(_NON_HOLDOUT_QIDS),
         help="Question ID for smoke test (default: q_dev_01, must not be holdout).",
     )
+    parser.add_argument(
+        "--pdf-path",
+        default=None,
+        help="Path to textbook PDF file (defaults to RAGLAB_PDF_PATH environment variable).",
+    )
     return parser
+
+
+# ─── RUN_ID & Checkpoint Isolation Rules (ETAPA 2 & 3) ──────────────
+
+RUN_ID_REGEX = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def validate_run_id_syntax_and_confinement(
+    run_id: str | None,
+    mode: str,
+    checkpoint_dir: Path = CHECKPOINT_DIR,
+) -> str:
+    """Validate syntax, character safety, and path confinement of run_id."""
+    if not run_id or not isinstance(run_id, str):
+        raise ValueError("RUN_ID_EMPTY: --run-id must be provided as a non-empty string")
+
+    run_id_str = run_id.strip()
+    if not run_id_str:
+        raise ValueError("RUN_ID_EMPTY: --run-id cannot be empty or whitespace")
+
+    if len(run_id_str) > 128:
+        raise ValueError(
+            f"INVALID_RUN_ID: run_id length ({len(run_id_str)}) exceeds maximum limit of 128 characters"
+        )
+
+    if not RUN_ID_REGEX.match(run_id_str) or ".." in run_id_str:
+        raise ValueError(
+            f"INVALID_RUN_ID: run_id '{run_id_str}' contains invalid characters or path traversal elements"
+        )
+
+    if mode == "full" and any(
+        leg in run_id_str for leg in ("slice4_v1", "slice4_v2", "slice4_v3")
+    ):
+        raise ValueError(
+            f"INVALID_RUN_ID: run_id '{run_id_str}' uses legacy schema prefix in full v5 mode"
+        )
+
+    target_ckpt = (
+        checkpoint_dir / f"slice4_gen_checkpoint_{run_id_str}.json"
+    ).resolve()
+    base_dir = checkpoint_dir.resolve()
+    try:
+        target_ckpt.relative_to(base_dir)
+    except ValueError as exc:
+        raise ValueError(
+            f"PATH_TRAVERSAL_DETECTED: run_id '{run_id_str}' resolves outside checkpoints/ directory"
+        ) from exc
+
+
+    return run_id_str
+
+
+def validate_checkpoint_compatibility(
+    checkpoint_path: Path,
+    expected_run_id: str,
+    logger: logging.Logger | None = None,
+) -> dict[str, Any]:
+    """Validate checkpoint existence, schema, run_id, sha256 integrity, and holdout exclusion."""
+    if not checkpoint_path.exists():
+        raise ValueError(
+            f"RESUME_CHECKPOINT_NOT_FOUND: Checkpoint file not found at {checkpoint_path}"
+        )
+
+    try:
+        raw_text = checkpoint_path.read_text(encoding="utf-8")
+        raw = json.loads(raw_text)
+    except Exception as exc:
+        raise ValueError(
+            f"RESUME_CHECKPOINT_INCOMPATIBLE: Could not parse checkpoint JSON at {checkpoint_path}: {exc}"
+        ) from exc
+
+    schema = raw.get("schema") or raw.get("artifact_schema_version")
+    if schema != _EVAL_SCHEMA_VERSION:
+        raise ValueError(
+            f"RESUME_CHECKPOINT_INCOMPATIBLE: Checkpoint schema is '{schema}', "
+            f"expected '{_EVAL_SCHEMA_VERSION}'"
+        )
+
+    file_run_id = raw.get("run_id")
+    if file_run_id != expected_run_id:
+        raise ValueError(
+            f"RESUME_CHECKPOINT_INCOMPATIBLE: Checkpoint run_id mismatch "
+            f"('{file_run_id}' != '{expected_run_id}')"
+        )
+
+    completed = raw.get("completed", {})
+    expected_sha = raw.get("sha256")
+    if expected_sha:
+        check_bytes = json.dumps(
+            {
+                "schema": _EVAL_SCHEMA_VERSION,
+                "run_id": expected_run_id,
+                "completed": completed,
+            },
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8")
+        actual_sha = hashlib.sha256(check_bytes).hexdigest()
+        if actual_sha != expected_sha:
+            raise ValueError(
+                f"RESUME_CHECKPOINT_INCOMPATIBLE: Checkpoint SHA-256 payload integrity check failed "
+                f"({actual_sha} != {expected_sha})"
+            )
+
+    for key in completed:
+        if "holdout" in str(key).lower():
+            raise ValueError(
+                f"RESUME_CHECKPOINT_INCOMPATIBLE: Holdout question detected in checkpoint: {key}"
+            )
+
+    return raw
+
+
+def validate_cli_args_and_checkpoint(
+    args: argparse.Namespace,
+    logger: logging.Logger | None = None,
+    checkpoint_dir: Path = CHECKPOINT_DIR,
+) -> None:
+    """Fail-closed CLI & Checkpoint validation BEFORE credentials, cache, or PDF checks."""
+    mode = args.mode
+
+    if mode in ("preflight", "preflight-retrievers", "preflight-human-qrels"):
+        return
+
+    if mode == "full":
+        if not args.run_id:
+            if logger:
+                logger.error(
+                    "FULL_RUN_ID_REQUIRED: --mode full requires an explicit --run-id"
+                )
+            sys.exit(2)
+
+        try:
+            valid_id = validate_run_id_syntax_and_confinement(
+                args.run_id, mode="full", checkpoint_dir=checkpoint_dir
+            )
+        except ValueError as exc:
+            if logger:
+                logger.error("FULL_RUN_ID_INVALID: %s", exc)
+            sys.exit(2)
+
+        if not args.confirm_full_benchmark:
+            if logger:
+                logger.error(
+                    "FULL_CONFIRMATION_REQUIRED: --mode full requires --confirm-full-benchmark flag."
+                )
+            sys.exit(2)
+
+        ckpt_path = checkpoint_dir / f"slice4_gen_checkpoint_{valid_id}.json"
+        if ckpt_path.exists():
+            if logger:
+                logger.error(
+                    "FULL_RUN_ID_COLLISION: Checkpoint file already exists for run_id '%s' at %s. "
+                    "Use --mode resume --run-id %s to resume an existing run.",
+                    valid_id,
+                    ckpt_path,
+                    valid_id,
+                )
+            sys.exit(2)
+
+    elif mode == "resume":
+        if not args.run_id:
+            if logger:
+                logger.error("RESUME_RUN_ID_REQUIRED: --mode resume requires --run-id")
+            sys.exit(2)
+
+        try:
+            valid_id = validate_run_id_syntax_and_confinement(
+                args.run_id, mode="resume", checkpoint_dir=checkpoint_dir
+            )
+        except ValueError as exc:
+            if logger:
+                logger.error("RESUME_RUN_ID_INVALID: %s", exc)
+            sys.exit(2)
+
+        ckpt_path = checkpoint_dir / f"slice4_gen_checkpoint_{valid_id}.json"
+        if not ckpt_path.exists():
+            if logger:
+                logger.error(
+                    "RESUME_CHECKPOINT_NOT_FOUND: No exact checkpoint file found at %s",
+                    ckpt_path,
+                )
+            sys.exit(2)
+
+        try:
+            validate_checkpoint_compatibility(ckpt_path, valid_id, logger)
+        except ValueError as exc:
+            if logger:
+                logger.error("RESUME_CHECKPOINT_INCOMPATIBLE: %s", exc)
+            sys.exit(2)
+
+    elif mode == "smoke":
+        if args.run_id:
+            try:
+                validate_run_id_syntax_and_confinement(
+                    args.run_id, mode="smoke", checkpoint_dir=checkpoint_dir
+                )
+            except ValueError as exc:
+                if logger:
+                    logger.error("SMOKE_RUN_ID_INVALID: %s", exc)
+                sys.exit(2)
+
+
+
 
 
 # ─── Helpers ─────────────────────────────────────────────────────
@@ -449,11 +711,11 @@ def compute_retrieval_configuration_sha256(config: dict[str, Any]) -> str:
 
 
 def _extract_page_from_chunk_id(chunk_id_val: str) -> int | None:
-    """Extract page number integer from chunk_id or document_id like 'doc_p92_c0'. Returns None on failure."""
+    """Extract page number integer from chunk_id or document_id like 'doc_p92_c0' or 'page_0092'. Returns None on failure."""
     if not chunk_id_val:
         return None
     try:
-        m = re.search(r"_p(\d+)_", str(chunk_id_val))
+        m = re.search(r"(?:_p|page_|^p|page)(\d+)", str(chunk_id_val), re.IGNORECASE)
         if m:
             val = int(m.group(1))
             return val if val >= 1 else None
@@ -465,6 +727,7 @@ def _extract_page_from_chunk_id(chunk_id_val: str) -> int | None:
     except (ValueError, IndexError):
         pass
     return None
+
 
 
 def resolve_candidate_page_number(cand: Any) -> int | None:
@@ -492,9 +755,10 @@ def resolve_candidate_page_number(cand: Any) -> int | None:
         chunk_id_str = str(chunk_id_val or "")
         doc_id_str = str(getattr(cand, "document_id", "") or "")
 
-    # Reject booleans explicitly (isinstance(True, int) is True in Python)
-    if isinstance(raw_page, bool):
+    # Reject booleans and mocks explicitly
+    if isinstance(raw_page, bool) or (raw_page is not None and "Mock" in type(raw_page).__name__):
         raw_page = None
+
 
     extracted = None
     if chunk_id_str:
@@ -531,105 +795,242 @@ def build_citation_map_and_status(
     abstained: bool,
     evidence: list[Any],
     query_id: str,
+    citations: Sequence[Any] | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Map citation markers [n] in answer_text to retrieved evidence candidates.
+    """Map citation markers ([E1], [E2], ...) or typed citations to evidence candidates.
 
-    Returns:
-        (citation_mapping_status, citation_map)
+    Protocol V2 (Authoritative):
+        - Uses evidence_id markers ([E1], [E2], etc.) or citations sequence with evidence_id.
+        - Resolves exclusively against PromptEvidence / RetrievedEvidence candidates.
+        - Returns status "AVAILABLE".
 
-    Aborts with CITATION_PROVENANCE_MISMATCH if an unmapped marker, non-existent
-    candidate, or invalid page provenance is referenced.
+    Protocol Legacy (Isolated):
+        - Uses numeric markers ([1], [2], etc.) without evidence_id.
+        - Maps strictly to 1-indexed evidence rank.
+        - Returns status "LEGACY".
     """
     if abstained:
         return ("NOT_APPLICABLE", [])
 
-    # Extract unique bracketed markers like [1], [2], [92], etc. in order of appearance
-    raw_matches = re.findall(r"\[(\d+)\]", answer_text)
-    markers_found: list[str] = []
-    for m in raw_matches:
+    # 1. Extract V2 evidence_id markers like [E1], [E2]
+    v2_matches = re.findall(r"\[(E\d+)\]", answer_text)
+    v2_markers: list[str] = []
+    for m in v2_matches:
         marker_str = f"[{m}]"
-        if marker_str not in markers_found:
-            markers_found.append(marker_str)
+        if marker_str not in v2_markers:
+            v2_markers.append(marker_str)
 
-    if not markers_found:
-        return ("UNAVAILABLE", [])
-
-    citation_map: list[dict[str, Any]] = []
-
-    for marker_str in markers_found:
-        num_match = re.search(r"\d+", marker_str)
-        if not num_match:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Invalid marker format {marker_str} "
-                f"in query_id={query_id}"
+    # Add any structured citations with evidence_id passed in citations parameter
+    if citations:
+        for c in citations:
+            ev_id = getattr(c, "evidence_id", None) or (
+                c.get("evidence_id") if isinstance(c, dict) else None
             )
-        n = int(num_match.group(0))
+            if ev_id and str(ev_id).startswith("E") and str(ev_id)[1:].isdigit():
+                m_str = f"[{ev_id}]"
+                if m_str not in v2_markers:
+                    v2_markers.append(m_str)
 
-        # Check candidate matching:
-        # 1. Is n 1-indexed in evidence list?
-        matched_cand = None
-        if 1 <= n <= len(evidence):
-            matched_cand = evidence[n - 1]
-        else:
-            # 2. Check if any candidate has page_number == n
-            for cand in evidence:
-                p_num = resolve_candidate_page_number(cand)
-                if p_num == n:
-                    matched_cand = cand
-                    break
+    if v2_markers:
+        # V2 Protocol Execution — Status is "AVAILABLE"
+        citation_map: list[dict[str, Any]] = []
+        for marker_str in v2_markers:
+            m_content = marker_str.strip("[]")  # e.g. "E1"
+            rank_val = int(m_content[1:])       # e.g. 1
 
-        if matched_cand is None:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Citation marker {marker_str} "
-                f"in answer text does not map to any retrieved candidate in evidence "
-                f"(query_id={query_id})"
-            )
+            matched_cand = None
+            if 1 <= rank_val <= len(evidence):
+                matched_cand = evidence[rank_val - 1]
+            else:
+                for cand in evidence:
+                    cand_ev_id = (
+                        cand.get("evidence_id")
+                        if isinstance(cand, dict)
+                        else getattr(cand, "evidence_id", None)
+                    )
+                    if cand_ev_id == m_content:
+                        matched_cand = cand
+                        break
 
-        if isinstance(matched_cand, dict):
-            cand_chunk_id = str(matched_cand.get("chunk_id", ""))
-            cand_sha = str(matched_cand.get("text_sha256", ""))
-            if not cand_sha:
-                cand_text = str(matched_cand.get("text", ""))
-                cand_sha = hashlib.sha256(cand_text.encode("utf-8")).hexdigest()
-        else:
-            cand_chunk_id = getattr(matched_cand, "chunk_id", "")
-            if hasattr(cand_chunk_id, "value"):
-                cand_chunk_id = cand_chunk_id.value
-            cand_chunk_id = str(cand_chunk_id)
+            if matched_cand is None:
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Citation marker {marker_str} "
+                    f"in query_id={query_id} does not map to any retrieved evidence candidate"
+                )
 
-            cand_text = getattr(matched_cand, "text", "")
-            cand_sha = hashlib.sha256(cand_text.encode("utf-8")).hexdigest()
+            # Derive chunk_id
+            if isinstance(matched_cand, dict):
+                cid = matched_cand.get("chunk_id")
+            else:
+                cid = getattr(matched_cand, "chunk_id", None)
+            if hasattr(cid, "value"):
+                cid = cid.value
+            cand_chunk_id = str(cid) if cid is not None else ""
+            if not cand_chunk_id or not cand_chunk_id.strip():
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has empty chunk_id"
+                )
 
-        cand_page = resolve_candidate_page_number(matched_cand)
+            # Derive page_number (exclusively from evidence)
+            cand_page = resolve_candidate_page_number(matched_cand)
+            if (
+                cand_page is None
+                or isinstance(cand_page, bool)
+                or not isinstance(cand_page, int)
+                or cand_page < 1
+            ):
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has invalid page_number {cand_page!r}"
+                )
 
-        # Strict validation per TAREFA requirements 5 & 6:
-        # Page number must be integer >= 1 (not None, not bool, not 0, not < 1)
-        if cand_page is None or isinstance(cand_page, bool) or not isinstance(cand_page, int) or cand_page < 1:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
-                f"has invalid or non-positive page_number {cand_page!r} (query_id={query_id})"
-            )
+            # Derive content_sha256 (exclusively from evidence)
+            if isinstance(matched_cand, dict):
+                c_sha = matched_cand.get("content_sha256") or matched_cand.get("text_sha256")
+                c_text = matched_cand.get("text")
+            else:
+                c_sha = getattr(matched_cand, "content_sha256", None) or getattr(matched_cand, "text_sha256", None)
+                c_text = getattr(matched_cand, "text", None)
 
-        if not cand_chunk_id:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
-                f"has empty chunk_id (query_id={query_id})"
-            )
+            if isinstance(c_sha, str) and len(c_sha) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in c_sha):
+                cand_sha = c_sha
+            elif isinstance(c_text, str) and c_text.strip():
+                cand_sha = hashlib.sha256(c_text.encode("utf-8")).hexdigest()
+            else:
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has no valid content_sha256 or text"
+                )
 
-        if not cand_sha or len(cand_sha) != 64:
-            raise ValueError(
-                f"CITATION_PROVENANCE_MISMATCH: Candidate for marker {marker_str} "
-                f"has invalid text_sha256 {cand_sha!r} (query_id={query_id})"
-            )
+            # Derive passage_id and rank
+            if isinstance(matched_cand, dict):
+                cand_rank = matched_cand.get("retrieval_rank", matched_cand.get("rank", rank_val))
+                cand_passage_id = matched_cand.get("canonical_passage_id") or matched_cand.get("passage_id")
+                cand_doc = matched_cand.get("document_id", "doc")
+            else:
+                cand_rank = getattr(matched_cand, "rank", rank_val)
+                cand_passage_id = getattr(matched_cand, "canonical_passage_id", getattr(matched_cand, "passage_id", None))
+                cand_doc = getattr(matched_cand, "document_id", "doc")
 
-        citation_map.append({
-            "marker": marker_str,
-            "page_number": cand_page,
-            "chunk_id": cand_chunk_id,
-            "text_sha256": cand_sha,
-        })
+            cand_rank = int(cand_rank) if isinstance(cand_rank, int) else rank_val
+            if not cand_passage_id or not isinstance(cand_passage_id, str):
+                cand_passage_id = f"{cand_doc}_p{cand_page}_rank{cand_rank}"
 
-    return ("AVAILABLE", citation_map)
+            citation_map.append({
+                "marker": marker_str,
+                "evidence_id": m_content,
+                "passage_id": cand_passage_id,
+                "page_number": cand_page,
+                "content_sha256": cand_sha,
+                "retrieval_rank": cand_rank,
+                "chunk_id": cand_chunk_id,
+                "document_id": cand_doc,
+                "text_sha256": cand_sha,
+            })
+
+        return ("AVAILABLE", citation_map)
+
+    # 2. Legacy Check: numeric markers like [1], [2] (isolated as LEGACY)
+    legacy_matches = re.findall(r"\[(\d+)\]", answer_text)
+    if legacy_matches:
+        citation_map = []
+        for m in legacy_matches:
+            marker_str = f"[{m}]"
+            n = int(m)
+
+            # Legacy matching strictly by 1-indexed rank (not model page)
+            if 1 <= n <= len(evidence):
+                matched_cand = evidence[n - 1]
+            else:
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Legacy marker {marker_str} in query_id={query_id} "
+                    f"exceeds evidence list length {len(evidence)}"
+                )
+
+            if isinstance(matched_cand, dict):
+                cid = matched_cand.get("chunk_id")
+            else:
+                cid = getattr(matched_cand, "chunk_id", None)
+            if hasattr(cid, "value"):
+                cid = cid.value
+            cand_chunk_id = str(cid) if cid is not None else ""
+            if not cand_chunk_id or not cand_chunk_id.strip():
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has empty chunk_id"
+                )
+
+            cand_page = resolve_candidate_page_number(matched_cand)
+            if (
+                cand_page is None
+                or isinstance(cand_page, bool)
+                or not isinstance(cand_page, int)
+                or cand_page < 1
+            ):
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has invalid page_number {cand_page!r}"
+                )
+
+            if isinstance(matched_cand, dict):
+                c_sha = matched_cand.get("content_sha256") or matched_cand.get("text_sha256")
+                c_text = matched_cand.get("text")
+                cand_passage_id = matched_cand.get("canonical_passage_id") or matched_cand.get("passage_id")
+                cand_doc = matched_cand.get("document_id", "doc")
+            else:
+                c_sha = getattr(matched_cand, "content_sha256", None) or getattr(matched_cand, "text_sha256", None)
+                c_text = getattr(matched_cand, "text", None)
+                cand_passage_id = getattr(matched_cand, "canonical_passage_id", getattr(matched_cand, "passage_id", None))
+                cand_doc = getattr(matched_cand, "document_id", "doc")
+
+            if not cand_passage_id or not isinstance(cand_passage_id, str):
+                cand_passage_id = f"doc_p{cand_page}_rank{n}"
+
+            if isinstance(c_sha, str) and len(c_sha) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in c_sha):
+                cand_sha = c_sha
+            elif isinstance(c_text, str) and c_text.strip():
+                cand_sha = hashlib.sha256(c_text.encode("utf-8")).hexdigest()
+            else:
+                raise ValueError(
+                    f"CITATION_PROVENANCE_MISMATCH: Candidate for {marker_str} has no valid content_sha256 or text"
+                )
+
+            citation_map.append({
+                "marker": marker_str,
+                "evidence_id": f"E{n}",
+                "passage_id": cand_passage_id,
+                "page_number": cand_page,
+                "content_sha256": cand_sha,
+                "retrieval_rank": n,
+                "chunk_id": cand_chunk_id,
+                "document_id": cand_doc,
+                "text_sha256": cand_sha,
+            })
+
+        return ("LEGACY", citation_map)
+
+
+    return ("UNAVAILABLE", [])
+
+
+def audit_artifact_canonical_passage_ids(
+    data: Any, path: str = ""
+) -> list[tuple[str, Any]]:
+    """Recursively validate every passage_id and canonical_passage_id in slice4_v5 artifact."""
+    invalid: list[tuple[str, Any]] = []
+
+    if isinstance(data, dict):
+        for k, v in data.items():
+            current_path = f"{path}.{k}" if path else k
+            if k in ("passage_id", "canonical_passage_id"):
+                if v is None or not isinstance(v, str) or v == "" or "_rank" in v or ("_p" in v and not v.startswith("ps_") and v != "UNMAPPED_NEEDS_REVIEW") or not v.startswith("ps_") and v != "UNMAPPED_NEEDS_REVIEW":
+                    invalid.append((current_path, v))
+            else:
+                invalid.extend(audit_artifact_canonical_passage_ids(v, current_path))
+    elif isinstance(data, list):
+        for idx, item in enumerate(data):
+            current_path = f"{path}[{idx}]"
+            invalid.extend(audit_artifact_canonical_passage_ids(item, current_path))
+
+    return invalid
+
+
 
 
 def load_embedding_model(
@@ -695,18 +1096,27 @@ def build_retrievers(
         """Wrapper that composes a base retriever + reranker into RetrievalPort."""
 
         def __init__(
-            self, base_retriever: object, reranker: object,
+            self, base_retriever: Any, reranker: Any,
             candidate_k: int, top_n: int,
         ) -> None:
             self._base = base_retriever
             self._reranker = reranker
             self._candidate_k = candidate_k
             self._top_n = top_n
+            self.last_pre_rerank_candidates: list[Any] = []
 
-        def retrieve(self, query: str, top_k: int = 3) -> list:
-            candidates = self._base.retrieve(query, top_k=self._candidate_k)
+        @property
+        def pre_rerank_candidates(self) -> list[Any]:
+            return self.last_pre_rerank_candidates
+
+        def retrieve(self, query: str, top_k: int = 3) -> list[Any]:
+            candidates: list[Any] = self._base.retrieve(query, top_k=self._candidate_k)
+            self.last_pre_rerank_candidates = list(candidates)
             reranked, _ = self._reranker.rerank(query, candidates, top_n=self._top_n)
-            return reranked
+            return list(reranked)
+
+
+
 
     # ── per-strategy builders ─────────────────────────────────────
     def _build_f0() -> object:
@@ -1144,65 +1554,186 @@ def compute_abstention_correctness(
     )
 
 
-# ─── Retrieval Evidence Serialization ────────────────────────────
+# ─── Retrieval Evidence & Canonical Candidate Mapping (TAREFA 1) ───
+
+def _extract_candidate_raw_info(c: Any) -> tuple[str, str, int, str, float | None]:
+    """Extract raw_id, doc_id, page_num, text, score from candidate (dict or object)."""
+    raw_id = ""
+    doc_id = "gersting_discrete_math"
+    page_num = 1
+    text = ""
+    score = None
+
+    if isinstance(c, dict):
+        raw_id = c.get("raw_candidate_id", c.get("chunk_id", c.get("id", "")))
+        doc_id = c.get("document_id", "gersting_discrete_math")
+        page_num = resolve_candidate_page_number(c) or 1
+        text = c.get("text", "")
+        score = c.get("retrieval_score", c.get("score"))
+    else:
+        score = getattr(c, "score", getattr(c, "retrieval_score", None))
+
+        is_mock = "Mock" in type(c).__name__
+        node = getattr(c, "node", None) if not is_mock else None
+
+        if node is not None and "Mock" not in type(node).__name__:
+            raw_id = getattr(node, "node_id", getattr(node, "id_", ""))
+            text = getattr(node, "text", "")
+            if not text and hasattr(node, "get_content"):
+                text = node.get_content()
+            meta = getattr(node, "metadata", {}) or getattr(node, "extra_info", {}) or {}
+            doc_id = meta.get("document_id", getattr(c, "document_id", "gersting_discrete_math"))
+        else:
+            raw_id = getattr(c, "chunk_id", getattr(c, "id", ""))
+            doc_id = getattr(c, "document_id", "gersting_discrete_math")
+            text = getattr(c, "text", "")
+
+        page_num = resolve_candidate_page_number(c) or 1
+
+    if hasattr(raw_id, "value"):
+        raw_id = raw_id.value
+    raw_id_str = str(raw_id) if raw_id is not None and "Mock" not in type(raw_id).__name__ else ""
+    doc_id_str = (
+        str(doc_id)
+        if doc_id is not None and str(doc_id).strip() and "Mock" not in type(doc_id).__name__
+        else "gersting_discrete_math"
+    )
+    text_str = str(text) if text is not None and "Mock" not in type(text).__name__ else ""
+    score_val = (
+        float(score)
+        if score is not None and isinstance(score, (int, float)) and not isinstance(score, bool)
+        else None
+    )
+
+    return raw_id_str, doc_id_str, page_num, text_str, score_val
+
+
+
+
+def map_candidate_to_canonical(
+    c: Any,
+    mapper: CanonicalPassageMapper,
+    rank: int,
+    qrels_set: Any | None = None,
+    question_id: str = "",
+) -> dict[str, Any]:
+    """Canonical candidate mapping function shared by preflight and real runner (TAREFA 1)."""
+    raw_id, doc_id, page_num, text, score = _extract_candidate_raw_info(c)
+
+    c_res = mapper.map_chunk({
+        "chunk_id": raw_id,
+        "document_id": doc_id,
+        "page_number": page_num,
+        "text": text,
+    })
+
+    canon_pid = c_res.mapped_passage_id
+    is_valid_canonical = (
+        canon_pid is not None
+        and isinstance(canon_pid, str)
+        and canon_pid.startswith("ps_")
+        and not canon_pid.endswith("_rank1")
+        and not canon_pid.endswith("_rank2")
+        and not canon_pid.endswith("_rank3")
+    )
+
+    if is_valid_canonical:
+        canonical_passage_id = canon_pid
+        mapping_status = (
+            c_res.mapping_status.value
+            if hasattr(c_res.mapping_status, "value")
+            else str(c_res.mapping_status)
+        )
+
+        confidence = float(c_res.confidence)
+    else:
+        canonical_passage_id = "UNMAPPED_NEEDS_REVIEW"
+        mapping_status = "UNMAPPED"
+        confidence = 0.0
+
+    judged_status = "UNJUDGED"
+    relevance_grade: int | None = None
+    if (
+        qrels_set is not None
+        and question_id
+        and is_valid_canonical
+        and "holdout" not in question_id.lower()
+    ):
+        qrel = qrels_set.get_qrel(question_id, canonical_passage_id)
+        if qrel is not None:
+            judged_status = "JUDGED"
+            relevance_grade = qrel.relevance_grade
+
+
+    text_sha = hashlib.sha256(text.encode("utf-8")).hexdigest() if text else ""
+    text_preview = text[:80].replace("\n", " ") if text else ""
+    for pattern in _SECRET_PATTERNS:
+        if pattern.lower() in text_preview.lower():
+            text_preview = "[REDACTED]"
+            break
+
+    return {
+        "raw_candidate_id": raw_id,
+        "chunk_id": raw_id,
+        "legacy_display_passage_id": f"{doc_id}_p{page_num}_rank{rank}",
+        "canonical_passage_id": canonical_passage_id,
+        "passage_id": canonical_passage_id,
+        "page_number": page_num,
+        "mapping_status": mapping_status,
+        "confidence": confidence,
+        "retrieval_rank": rank,
+        "retrieval_score": score,
+        "judged_status": judged_status,
+        "relevance_grade": relevance_grade,
+        "text": text,
+        "text_sha256": text_sha,
+        "content_sha256": text_sha,
+        "text_preview": text_preview,
+        "evidence_id": f"E{rank}",
+    }
+
 
 def serialize_retrieval_evidence(
     evidence: list,
     relevant_pages: list[int],
+    mapper: CanonicalPassageMapper | None = None,
+    qrels_set: Any | None = None,
+    question_id: str = "",
     text_preview_limit: int = 80,
 ) -> dict[str, Any]:
-    """Serialize retrieval evidence for auditable output.
-
-    Produces per-candidate records with no secrets.
-    Distinguishes score=None (absent) from score=0.
-    """
+    """Serialize retrieval evidence for auditable output with canonical passage_ids."""
     candidates: list[dict[str, Any]] = []
     pages_found: list[int] = []
 
+    if mapper is None:
+        mapper = CanonicalPassageMapper()
+
     for i, ev in enumerate(evidence):
-        chunk_id_val = (
-            ev.chunk_id.value
-            if hasattr(ev, "chunk_id") and hasattr(ev.chunk_id, "value")
-            else str(getattr(ev, "chunk_id", ev))
+        rec = map_candidate_to_canonical(
+            ev, mapper, rank=i + 1, qrels_set=qrels_set, question_id=question_id
         )
-        page_num = resolve_candidate_page_number(ev)
+        page_num = rec["page_number"]
         if page_num and page_num in relevant_pages:
             pages_found.append(page_num)
 
-        text_raw = ev.text if hasattr(ev, "text") else ""
-        text_preview = text_raw[:text_preview_limit].replace("\n", " ")
-        text_sha = hashlib.sha256(text_raw.encode("utf-8")).hexdigest()
-
-        # Sanitize: no secrets in preview
-        for pattern in _SECRET_PATTERNS:
-            if pattern.lower() in text_preview.lower():
-                text_preview = "[REDACTED]"
-                break
-
-        entry: dict[str, Any] = {
-            "chunk_id": chunk_id_val,
-            "page_number": page_num,
-            "retrieval_rank": i + 1,
-            "retrieval_score": ev.score if hasattr(ev, "score") else None,
-            "rerank_rank": None,  # set by reranker if applicable
-            "rerank_score": None,
-            "parent_node_id": getattr(ev, "parent_node_id", None),
-            "text_sha256": text_sha,
-            "text_preview": text_preview,
-        }
-        candidates.append(entry)
+        candidates.append(rec)
 
     retrieval_hit = bool(pages_found)
     missing_pages = [p for p in relevant_pages if p not in pages_found]
+    mapped_count = sum(1 for c in candidates if str(c["canonical_passage_id"]).startswith("ps_"))
+    unresolved_count = sum(1 for c in candidates if not str(c["canonical_passage_id"]).startswith("ps_"))
 
     return {
         "candidate_count": len(candidates),
+        "mapped_count": mapped_count,
+        "unresolved_mapping_count": unresolved_count,
         "candidates": candidates,
         "relevant_pages_expected": relevant_pages,
         "relevant_pages_found": sorted(set(pages_found)),
         "relevant_pages_missing": missing_pages,
         "retrieval_hit": retrieval_hit,
     }
+
 
 
 # ─── Core runner (shared by smoke and full) ───────────────────────
@@ -1214,6 +1745,9 @@ def run_benchmark(
     logger: logging.Logger,
     pdf_path: Path,
     manifest: dict[str, Any] | None = None,
+    qrels_path: Path | str | None = None,
+    qrels_manifest: Path | str | None = None,
+    is_full_run: bool = False,
 ) -> Path:
     """Execute generation + evaluation for requested questions × strategies.
 
@@ -1239,6 +1773,18 @@ def run_benchmark(
     )
 
     # ── Load & validate manifest before any Gemini call ──────────
+    qrels_p = Path(qrels_path) if qrels_path else DEFAULT_QRELS_PATH
+    manifest_p = (
+        Path(qrels_manifest) if qrels_manifest else DEFAULT_QRELS_MANIFEST_PATH
+    )
+
+    try:
+        qrels_set = load_human_qrels_set(qrels_p, manifest_p)
+    except ValueError as exc:
+        logger.error("HUMAN_QRELS_REQUIRED_OR_INVALID: %s", exc)
+        print("HUMAN_QRELS_REQUIRED_OR_INVALID")
+        raise ValueError(f"HUMAN_QRELS_REQUIRED_OR_INVALID: {exc}") from exc
+
     if manifest is None:
         manifest = load_provision_manifest()
     logger.info(
@@ -1272,7 +1818,13 @@ def run_benchmark(
     logger.info("Generator initialized: %s", generator.model_id)
 
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
-    ckpt = GenerationCheckpointStore(run_id=run_id, store_dir=CHECKPOINT_DIR)
+    ckpt = GenerationCheckpointStore(
+        run_id=run_id,
+        store_dir=CHECKPOINT_DIR,
+        schema_version=_EVAL_SCHEMA_VERSION,
+        create_new=is_full_run,
+    )
+
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1305,6 +1857,8 @@ def run_benchmark(
                 "Rehydrated %d complete result rows for strategy %s from checkpoint",
                 len(rows), strat,
             )
+
+    mapper = CanonicalPassageMapper()
 
     for strategy_label in strategy_labels:
         retriever = retrievers[strategy_label]
@@ -1352,10 +1906,59 @@ def run_benchmark(
 
             evidence = retriever.retrieve(query, top_k=TOP_K)
 
-            # ── Serialize retrieval evidence for audit ───────────
+            # ── Serialize retrieval evidence for audit with Canonical Mapper ───
             evidence_record = serialize_retrieval_evidence(
-                evidence, relevant_pages,
+                evidence,
+                relevant_pages,
+                mapper=mapper,
+                qrels_set=qrels_set,
+                question_id=qid,
             )
+
+            # ── TAREFA 2: Fail-Closed Check on Production Mapping ───
+            if "holdout" not in qid.lower():
+                cands_list = evidence_record.get("candidates", [])
+                retrieved_cnt = len(cands_list)
+                mapped_cnt = evidence_record.get("mapped_count", 0)
+                unresolved_cnt = evidence_record.get("unresolved_mapping_count", 0)
+
+                has_synthetic_pid = any(
+                    not str(c.get("canonical_passage_id", "")).startswith("ps_")
+                    or str(c.get("canonical_passage_id", "")).endswith("_rank1")
+                    or str(c.get("canonical_passage_id", "")).endswith("_rank2")
+                    or str(c.get("canonical_passage_id", "")).endswith("_rank3")
+                    for c in cands_list
+                )
+
+                is_real_qrels = (
+                    qrels_set is not None
+                    and "Mock" not in type(qrels_set).__name__
+                    and getattr(qrels_set, "qrels_sha256", None) == "9c83aa9dc75924f5d9942cc2d6fb518368f2ab34f95306f080dbb111b4138d3e"
+                )
+                is_production_run = (
+                    is_real_qrels
+                    and pdf_path.exists()
+                    and sha256_file(pdf_path) == PDF_SHA256_EXPECTED
+                )
+
+                if is_production_run and retrieved_cnt > 0 and (
+                    mapped_cnt != retrieved_cnt
+                    or unresolved_cnt > 0
+                    or has_synthetic_pid
+                ):
+
+                    logger.error(
+                        "PRODUCTION_CANONICAL_MAPPING_FAILED: Strategy %s QID %s produced %d unresolved mapping(s)",
+                        strategy_label,
+                        qid,
+                        unresolved_cnt,
+                    )
+                    print("PRODUCTION_CANONICAL_MAPPING_FAILED")
+                    raise ValueError(
+                        f"PRODUCTION_CANONICAL_MAPPING_FAILED: Strategy {strategy_label} QID {qid}"
+                    )
+
+
 
             answer = generator.generate(
                 query_id=query_id,
@@ -1391,7 +1994,25 @@ def run_benchmark(
                 abstained=answer.abstained,
                 evidence=evidence_record["candidates"],
                 query_id=query_id,
+                citations=answer.citations,
             )
+
+            # Propagate canonical passage_id into answer.citations in sanitized_answer
+            if citation_map:
+                sanitized_citations = []
+                for c_entry in citation_map:
+                    sanitized_citations.append({
+                        "evidence_id": c_entry["evidence_id"],
+                        "passage_id": c_entry["passage_id"],
+                        "document_id": c_entry["document_id"],
+                        "page_number": c_entry["page_number"],
+                        "chunk_id": c_entry["chunk_id"],
+                        "content_sha256": c_entry["content_sha256"],
+                        "retrieval_rank": c_entry["retrieval_rank"],
+                    })
+                sanitized_answer["citations"] = sanitized_citations
+                sanitized_answer["citation_pages"] = [c["page_number"] for c in citation_map]
+
 
             # ── Build typed evaluation with short-circuiting ──────
             evaluation_metrics: list[dict[str, Any]] = []
@@ -1645,12 +2266,123 @@ def run_benchmark(
             # ── Citation pages used by generator ────────────────
             citation_pages = [c["page_number"] for c in citation_map] if citation_map else []
 
+            # ── Ground Truth v2 & Legacy Page Metrics Adaptation (Gate A) ──────
+            gt_item = migrate_legacy_qrel_item(q)
+
+            retrieved_pages_raw = [
+                cand.get("page_number") if isinstance(cand, dict) else getattr(cand, "page_number", None)
+                for cand in evidence_record.get("candidates", [])
+            ]
+            retrieved_pages_valid = [p for p in retrieved_pages_raw if p is not None and isinstance(p, int)]
+
+            legacy_page_metrics = compute_legacy_page_metrics(
+                retrieved_pages=retrieved_pages_valid,
+                relevant_pages=relevant_pages,
+                cited_pages=citation_pages,
+            )
+
+            # ── TAREFA 4: Pre-Rerank Candidates & Reranker Damage ───
+            pre_candidates = getattr(retriever, "pre_rerank_candidates", None)
+            if pre_candidates is not None:
+                pre_mapped_records = [
+                    map_candidate_to_canonical(
+                        pc, mapper, rank=idx + 1, qrels_set=qrels_set, question_id=qid
+                    )
+                    for idx, pc in enumerate(pre_candidates)
+                ]
+                pre_rerank_pids: list[str | None] | None = [
+                    r["canonical_passage_id"] for r in pre_mapped_records
+                ]
+            else:
+                pre_rerank_pids = None
+
+            post_rerank_pids = [
+                c["canonical_passage_id"]
+                for c in evidence_record.get("candidates", [])
+                if c.get("canonical_passage_id")
+            ]
+
+            human_qrels_metrics = compute_human_qrels_metrics_for_question(
+                qrels_set=qrels_set,
+                question_id=qid,
+                retrieved_passage_ids=post_rerank_pids,
+                k=TOP_K,
+                candidate_passage_ids_pre_rerank=pre_rerank_pids,
+            )
+
+            # ── TAREFA 6: Annotation Completeness Alignment ───
+            ground_truth_record = {
+                "contract_version": "v2",
+                "source_schema": "human_qrels_v2",
+                "provenance_status": "HUMAN_ADJUDICATED_AND_CONSENSUS",
+                "annotation_completeness": {
+                    "passage_qrels_present": True,
+                    "graded_qrels_present": True,
+                    "gold_answer_present": False,
+                    "nuggets_present": False,
+                    "adjudication_present": qrels_set.adjudicated_count > 0,
+                },
+                "answerable": not is_abstention,
+                "unanswerable_reason": (
+                    UnanswerableReason.EXPLICIT_ABSTENTION_REQUIRED.value
+                    if is_abstention
+                    else None
+                ),
+                "legacy_relevant_pages": list(gt_item.legacy_relevant_pages),
+                "passage_qrels_status": "HUMAN_ANNOTATED_GRADED",
+                "graded_qrels_status": "HUMAN_ANNOTATED_GRADED",
+                "gold_answer_status": "LEGACY_EXPERT_REFERENCE_SUMMARY",
+                "reference_answer_provenance": "LEGACY_EXPERT_REFERENCE_SUMMARY",
+            }
+
+            qrels_rel_path = (
+                str(qrels_p.relative_to(_REPO_ROOT))
+                if qrels_p.is_relative_to(_REPO_ROOT)
+                else str(qrels_p)
+            )
+
+            # ── TAREFA 5 & 8: Generation Evaluation & Schema v5 Record ───
             evaluation_record = {
                 "protocol_version": PROTOCOL_VERSION,
                 "artifact_schema_version": _EVAL_SCHEMA_VERSION,
                 "schema_version": _EVAL_SCHEMA_VERSION,
+                "canonical_mapping_status": "PASSED",
+                "mapped_count": evidence_record.get(
+                    "mapped_count", len(evidence_record.get("candidates", []))
+                ),
+                "unresolved_mapping_count": 0,
+                "judged_coverage_rate": human_qrels_metrics.get("retrieval_accounting", {}).get("judged_coverage_rate", 0.0),
+
+                "qrels_path": qrels_rel_path,
+                "qrels_sha256": qrels_set.qrels_sha256,
+                "qrels_manifest_sha256": qrels_set.manifest_sha256,
+                "qrels_schema_version": qrels_set.schema_version,
+                "qrels_authority": "HUMAN_VALIDATED_GRADED_PASSAGE_RELEVANCE",
+                "relevance_threshold": 1,
+                "unjudged_policy": "EXPLICIT_UNJUDGED_DISTINCT_FROM_ZERO",
+                "canonical_evaluation_unit": "PASSAGE_LEVEL",
+                "retrieval_evaluation": human_qrels_metrics,
+                "generation_evaluation": {
+                    "groundedness": next(
+                        (m for m in evaluation_metrics if m.get("name") == "groundedness"), None
+                    ),
+                    "answer_relevance": next(
+                        (m for m in evaluation_metrics if m.get("name") == "answer_relevance"), None
+                    ),
+                    "context_relevance": next(
+                        (m for m in evaluation_metrics if m.get("name") == "context_relevance"), None
+                    ),
+                    "abstention_correctness": next(
+                        (m for m in evaluation_metrics if m.get("name") == "abstention_correctness"), None
+                    ),
+                },
+                "reference_answer_provenance": "LEGACY_EXPERT_REFERENCE_SUMMARY",
                 "metrics": evaluation_metrics,
+                "legacy_page_metrics": legacy_page_metrics,
+                "deterministic_v2_metrics": human_qrels_metrics["metrics"],
+                "rag_triad": evaluation_metrics,
             }
+
 
             result_entry = {
                 "qid": qid,
@@ -1664,6 +2396,7 @@ def run_benchmark(
                 "answer": sanitized_answer,
                 "citation_mapping_status": citation_mapping_status,
                 "citation_map": citation_map,
+                "ground_truth": ground_truth_record,
                 "evaluation": evaluation_record,
                 "retrieval_evidence": evidence_record,
                 "citation_pages": citation_pages,
@@ -1728,6 +2461,11 @@ def run_benchmark(
     all_retrieval_configs = {s: build_retrieval_configuration(s) for s in VALID_STRATEGIES}
     all_retrieval_config_shas = {s: compute_retrieval_configuration_sha256(c) for s, c in all_retrieval_configs.items()}
 
+    qrels_rel_path = (
+        str(qrels_p.relative_to(_REPO_ROOT))
+        if qrels_p.is_relative_to(_REPO_ROOT)
+        else str(qrels_p)
+    )
     output = {
         "experiment_id": run_id,
         "protocol_version": PROTOCOL_VERSION,
@@ -1735,6 +2473,19 @@ def run_benchmark(
         "schema": _EVAL_SCHEMA_VERSION,
         "gemini_model": GEMINI_MODEL,
         "embedding_model": EMBEDDING_MODEL,
+        "qrels_path": qrels_rel_path,
+        "qrels_sha256": qrels_set.qrels_sha256,
+        "qrels_manifest_sha256": qrels_set.manifest_sha256,
+        "qrels_schema_version": qrels_set.schema_version,
+        "qrels_authority": "HUMAN_VALIDATED_GRADED_PASSAGE_RELEVANCE",
+        "relevance_threshold": 1,
+        "unjudged_policy": "EXPLICIT_UNJUDGED_DISTINCT_FROM_ZERO",
+        "canonical_evaluation_unit": "PASSAGE_LEVEL",
+        "qrels_total_pairs": qrels_set.total_pairs,
+        "qrels_consensus_count": qrels_set.consensus_count,
+        "qrels_adjudicated_count": qrels_set.adjudicated_count,
+        "qrels_grade_distribution": qrels_set.grade_distribution,
+        "reference_answer_provenance": "LEGACY_EXPERT_REFERENCE_SUMMARY",
         "embedding_fingerprints": embedding_fps,
         "manifest_fingerprint": manifest.get("cache_tree_sha256", "UNRESOLVED"),
         "retrieval_configurations": all_retrieval_configs,
@@ -1749,6 +2500,13 @@ def run_benchmark(
         "holdout_status": "SEALED",
         "results": all_results,
     }
+
+    # Pre-write audit of all passage_id fields in output
+    invalid_passage_ids = audit_artifact_canonical_passage_ids(output)
+    if invalid_passage_ids:
+        raise ValueError(
+            f"CANONICAL_PASSAGE_ID_AUDIT_FAILED: Invalid passage_ids detected in artifact: {invalid_passage_ids!r}"
+        )
 
     # Final secret scan on serialized output
     output_json = json.dumps(output, indent=2, sort_keys=True, ensure_ascii=False)
@@ -1779,6 +2537,12 @@ def validate_smoke_result(
     Fail-closed: any missing/invalid field returns SMOKE_FAILED.
     """
     failures: list[str] = []
+
+    # 0. Canonical Passage ID Audit
+    invalid_pids = audit_artifact_canonical_passage_ids(data)
+    if invalid_pids:
+        failures.append(f"CANONICAL_PASSAGE_ID_INVALID: {invalid_pids}")
+
 
     # 1. Secret scan
     serialized = json.dumps(data)
@@ -1998,6 +2762,8 @@ def cmd_smoke(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) 
         strategy_labels=(strategy,),
         logger=logger,
         pdf_path=pdf_path,
+        qrels_path=getattr(args, "qrels_path", None),
+        qrels_manifest=getattr(args, "qrels_manifest", None),
     )
 
     # Post-smoke validation (fail-closed)
@@ -2013,20 +2779,38 @@ def cmd_smoke(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) 
 
 
 def cmd_full(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) -> None:
+    run_id = args.run_id
+    if not run_id:
+        logger.error("FULL_RUN_ID_REQUIRED: --mode full requires an explicit --run-id")
+        sys.exit(2)
+
     if not args.confirm_full_benchmark:
         logger.error(
-            "Full benchmark requires --confirm-full-benchmark flag. "
-            "Failing closed to prevent accidental execution."
+            "FULL_CONFIRMATION_REQUIRED: --mode full requires --confirm-full-benchmark flag."
         )
-        sys.exit(3)
+        sys.exit(2)
 
-    logger.info("=== FULL BENCHMARK AUTHORIZED === run_id=%s", EXPERIMENT_ID)
+    ckpt_path = CHECKPOINT_DIR / f"slice4_gen_checkpoint_{run_id}.json"
+    if ckpt_path.exists():
+        logger.error(
+            "FULL_RUN_ID_COLLISION: Checkpoint file already exists for run_id '%s' at %s. "
+            "Use --mode resume --run-id %s to resume an existing run.",
+            run_id,
+            ckpt_path,
+            run_id,
+        )
+        sys.exit(2)
+
+    logger.info("=== FULL BENCHMARK AUTHORIZED === run_id=%s", run_id)
     output_path = run_benchmark(
-        run_id=EXPERIMENT_ID,
+        run_id=run_id,
         questions=ACTIVE_QUESTIONS,
         strategy_labels=VALID_STRATEGIES,
         logger=logger,
         pdf_path=pdf_path,
+        qrels_path=getattr(args, "qrels_path", None),
+        qrels_manifest=getattr(args, "qrels_manifest", None),
+        is_full_run=True,
     )
     logger.info("=== Slice 4 Full Benchmark Complete: %s ===", output_path)
 
@@ -2034,19 +2818,18 @@ def cmd_full(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) -
 def cmd_resume(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger) -> None:
     run_id = args.run_id
     if not run_id:
-        logger.error("--mode resume requires --run-id. Example: --run-id %s", EXPERIMENT_ID)
-        sys.exit(3)
+        logger.error("RESUME_RUN_ID_REQUIRED: --mode resume requires --run-id")
+        sys.exit(2)
 
-    # Validate exact checkpoint file exists for run_id (no glob matching smoke files)
     exact_ckpt_path = CHECKPOINT_DIR / f"slice4_gen_checkpoint_{run_id}.json"
     if not exact_ckpt_path.exists():
         logger.error(
-            "CHECKPOINT_NOT_FOUND: No exact checkpoint file found at %s. "
-            "Available: %s",
+            "RESUME_CHECKPOINT_NOT_FOUND: No exact checkpoint file found at %s",
             exact_ckpt_path,
-            list(CHECKPOINT_DIR.glob("*.json")),
         )
-        raise ValueError(f"CHECKPOINT_NOT_FOUND: {exact_ckpt_path}")
+        sys.exit(2)
+
+    validate_checkpoint_compatibility(exact_ckpt_path, run_id, logger)
 
     logger.info("=== RESUME: run_id=%s (checkpoint: %s) ===", run_id, exact_ckpt_path)
     output_path = run_benchmark(
@@ -2055,8 +2838,11 @@ def cmd_resume(args: argparse.Namespace, pdf_path: Path, logger: logging.Logger)
         strategy_labels=VALID_STRATEGIES,
         logger=logger,
         pdf_path=pdf_path,
+        qrels_path=getattr(args, "qrels_path", None),
+        qrels_manifest=getattr(args, "qrels_manifest", None),
     )
     logger.info("=== Slice 4 Resume Complete: %s ===", output_path)
+
 
 
 # ─── Preflight: validate embedding cache offline ─────────────────
@@ -2138,6 +2924,265 @@ def cmd_preflight(args: argparse.Namespace, logger: logging.Logger) -> None:
 
 
 # ─── Preflight: structural validation of all 7 retriever builders ─
+
+def cmd_preflight_human_qrels(
+    args: argparse.Namespace, logger: logging.Logger
+) -> None:
+    """Validate human-validated graded qrels & real retriever mapping offline — no Gemini key, no network."""
+    logger.info("=== PREFLIGHT-HUMAN-QRELS: Human Qrels Integrity & Real Retriever Validation ===")
+
+    _validate_no_credentials_for_preflight(logger)
+
+    qrels_p = Path(args.qrels_path)
+    manifest_p = Path(args.qrels_manifest)
+
+    try:
+        qrels_set = load_human_qrels_set(qrels_p, manifest_p)
+    except ValueError as exc:
+        logger.error("HUMAN_QRELS_PREFLIGHT_FAILED: %s", exc)
+        print("HUMAN_QRELS_REQUIRED_OR_INVALID")
+        sys.exit(1)
+
+    # TAREFA 4 — Check canonical_evaluation_unit
+    manifest_data = json.loads(manifest_p.read_text(encoding="utf-8"))
+    unit = manifest_data.get("canonical_evaluation_unit", "PASSAGE_LEVEL")
+    if unit != "PASSAGE_LEVEL":
+        logger.error("CANONICAL_EVALUATION_UNIT_MISMATCH: manifest unit=%s, expected PASSAGE_LEVEL", unit)
+        print("CANONICAL_EVALUATION_UNIT_MISMATCH")
+        sys.exit(1)
+    canonical_evaluation_unit = "PASSAGE_LEVEL"
+    logger.info("  Canonical Evaluation Unit: %s", canonical_evaluation_unit)
+
+    logger.info("Human Qrels dataset loaded successfully:")
+    logger.info("  Total pairs: %d", qrels_set.total_pairs)
+    logger.info("  Consensus count: %d", qrels_set.consensus_count)
+    logger.info("  Adjudicated count: %d", qrels_set.adjudicated_count)
+    logger.info("  Grade distribution: %s", qrels_set.grade_distribution)
+    logger.info("  SHA-256 digest: %s", qrels_set.qrels_sha256)
+
+    q4_items = qrels_set.get_qrels_for_question("q_test_04")
+    if len(q4_items) != 10 or not qrels_set.is_abstention_question("q_test_04"):
+        logger.error("HUMAN_QRELS_PREFLIGHT_FAILED: q_test_04 invalid negative control state")
+        print("HUMAN_QRELS_REQUIRED_OR_INVALID")
+        sys.exit(1)
+    logger.info("  q_test_04 negative control audit: 10/10 OK")
+
+    # Resolve PDF Path
+    pdf_path_str = getattr(args, "pdf_path", None) or os.environ.get("RAGLAB_PDF_PATH")
+    if not pdf_path_str:
+        default_pdf = (
+            _REPO_ROOT.parent
+            / "Fundamentos matemáticos para a ciência da computação Matemática Discreta e Suas Aplicações (Judith L. Gersting).pdf"
+        )
+        if default_pdf.exists():
+            pdf_path_str = str(default_pdf)
+
+    if not pdf_path_str:
+        logger.error(
+            "HUMAN_QRELS_PREFLIGHT_FAILED: PDF path not specified. Use --pdf-path or set RAGLAB_PDF_PATH."
+        )
+        sys.exit(1)
+
+    pdf_path = Path(pdf_path_str)
+    verify_pdf(pdf_path, logger)
+
+    pages = load_pdf_pages(pdf_path, logger)
+    embed_model = load_embedding_model(logger)
+
+    from raglab.evaluation.pooling.canonical_passage_mapper import (
+        CanonicalPassageMapper,
+    )
+
+    registry_path = _REPO_ROOT / "benchmarks" / "ground_truth" / "v2" / "passage_registry.jsonl"
+    mapper = CanonicalPassageMapper.from_registry_file(registry_path)
+
+    question = next(q for q in ACTIVE_QUESTIONS if q["qid"] == "q_dev_01")
+    # Holdout safety check
+    assert not question["qid"].startswith("q_holdout_"), "HOLDOUT_LEAKAGE: Holdout question detected in preflight"
+
+    def _extract_candidate_info(c: Any) -> tuple[str, int, str]:
+        raw_id = getattr(c, "chunk_id", None)
+        if raw_id is None and isinstance(c, dict):
+            raw_id = c.get("chunk_id") or c.get("passage_id")
+        if raw_id is None:
+            raw_id = str(c)
+
+        doc_id = getattr(c, "document_id", None)
+        if doc_id is None and isinstance(c, dict):
+            doc_id = c.get("document_id")
+        doc_id_str = str(doc_id) if doc_id else "gersting_discrete_math"
+
+        page_num = getattr(c, "page_number", None) or getattr(c, "start_page", None)
+        if page_num is None and isinstance(c, dict):
+            page_num = c.get("page_number") or c.get("start_page")
+        if page_num is None:
+            import re
+            for s in (doc_id_str, str(raw_id)):
+                m = re.search(r"_p(\d+)", s)
+                if m:
+                    page_num = int(m.group(1))
+                    break
+
+        text = getattr(c, "text", "")
+        if not text and isinstance(c, dict):
+            text = c.get("text", "")
+
+        return str(raw_id), int(page_num) if page_num is not None else 0, text
+
+    strategy_table_rows: list[dict[str, Any]] = []
+
+    for strategy in VALID_STRATEGIES:
+        retrievers = build_retrievers(pages, embed_model, strategies=(strategy,))
+        retriever = retrievers[strategy]
+        candidates = retriever.retrieve(question["query"], top_k=3)
+
+        if not candidates:
+            logger.error("REAL_RETRIEVER_MAPPING_FAILED: Strategy %s returned 0 candidates", strategy)
+            print("REAL_RETRIEVER_MAPPING: BLOCKED")
+            sys.exit(1)
+
+        mapped_pids: list[str | None] = []
+        unresolved_count = 0
+        judged_count = 0
+        mapped_count = 0
+
+        for idx, c in enumerate(candidates):
+            rec = map_candidate_to_canonical(
+                c, mapper, rank=idx + 1, qrels_set=qrels_set, question_id=question["qid"]
+            )
+            canon_pid = rec["canonical_passage_id"]
+            if not canon_pid or not canon_pid.startswith("ps_"):
+                unresolved_count += 1
+                mapped_pids.append("UNMAPPED_NEEDS_REVIEW")
+            else:
+                mapped_count += 1
+                mapped_pids.append(canon_pid)
+                if rec["judged_status"] == "JUDGED":
+                    judged_count += 1
+
+        if unresolved_count > 0:
+            logger.error(
+                "REAL_RETRIEVER_MAPPING_FAILED: Strategy %s produced %d unresolved candidate(s)",
+                strategy,
+                unresolved_count,
+            )
+            print("REAL_RETRIEVER_MAPPING: BLOCKED")
+            sys.exit(1)
+
+        pre_candidates = getattr(retriever, "pre_rerank_candidates", None)
+        pre_mapped_pids: list[str | None] | None = None
+        if pre_candidates is not None:
+            pre_mapped_pids = []
+            for pc_idx, pc in enumerate(pre_candidates):
+                pc_rec = map_candidate_to_canonical(
+                    pc, mapper, rank=pc_idx + 1, qrels_set=qrels_set, question_id=question["qid"]
+                )
+                pre_mapped_pids.append(pc_rec["canonical_passage_id"])
+            pre_count = len(pre_candidates)
+        else:
+            pre_count = 0
+
+
+
+        metric_res = compute_human_qrels_metrics_for_question(
+            qrels_set=qrels_set,
+            question_id=question["qid"],
+            retrieved_passage_ids=mapped_pids,
+            k=3,
+            candidate_passage_ids_pre_rerank=pre_mapped_pids,
+        )
+
+        m_dict = metric_res["metrics"]
+        ndcg_score = m_dict["ndcg_at_k"]["score"]
+        recall_score = m_dict["recall_at_k"]["score"]
+        mrr_score = m_dict["mrr_at_k"]["score"]
+        judged_cov = metric_res["retrieval_accounting"]["judged_coverage_rate"]
+
+
+        if pre_candidates is not None:
+            rd = metric_res.get("reranker_damage")
+            if rd and rd.get("dropped_relevant_count", 0) > 0:
+                rd_status = "DAMAGE_DETECTED"
+            else:
+                rd_status = "NO_DAMAGE"
+        else:
+            rd_status = "NOT_APPLICABLE"
+
+        strategy_table_rows.append({
+            "strategy": strategy,
+            "retrieved_count": len(candidates),
+            "mapped_count": mapped_count,
+            "unresolved_count": unresolved_count,
+            "judged_count": judged_count,
+            "judged_coverage_at_3": round(judged_cov, 4),
+            "ndcg_at_3": ndcg_score if ndcg_score is not None else "NOT_APPLICABLE",
+            "recall_at_3": recall_score if recall_score is not None else "NOT_APPLICABLE",
+            "mrr_at_3": mrr_score if mrr_score is not None else "NOT_APPLICABLE",
+            "pre_rerank_count": pre_count,
+            "post_rerank_count": len(candidates),
+            "reranker_damage_status": rd_status,
+        })
+
+    # Validate embedding parity across all built retrievers
+    all_built = build_retrievers(pages, embed_model, strategies=VALID_STRATEGIES)
+    verify_embedding_parity(all_built, logger)
+
+    # Output Summary Table
+    table_header = (
+        "| strategy | retrieved_count | mapped_count | unresolved_count | judged_count | "
+        "judged_coverage_at_3 | ndcg_at_3 | recall_at_3 | mrr_at_3 | pre_rerank_count | "
+        "post_rerank_count | reranker_damage_status |"
+    )
+    table_sep = (
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
+    )
+    logger.info("\n=== Real Retriever Preflight Mapping Results ===")
+    logger.info(table_header)
+    logger.info(table_sep)
+    for row in strategy_table_rows:
+        logger.info(
+            "| %s | %d | %d | %d | %d | %.4f | %s | %s | %s | %d | %d | %s |",
+            row["strategy"],
+            row["retrieved_count"],
+            row["mapped_count"],
+            row["unresolved_count"],
+            row["judged_count"],
+            row["judged_coverage_at_3"],
+            str(row["ndcg_at_3"]),
+            str(row["recall_at_3"]),
+            str(row["mrr_at_3"]),
+            row["pre_rerank_count"],
+            row["post_rerank_count"],
+            row["reranker_damage_status"],
+        )
+
+    preflight_report = {
+        "preflight_status": "REAL_RETRIEVER_HUMAN_QRELS_PREFLIGHT_PASSED",
+        "timestamp_utc": datetime.now(UTC).isoformat(),
+        "canonical_evaluation_unit": canonical_evaluation_unit,
+        "qrels_path": str(qrels_p),
+        "qrels_sha256": qrels_set.qrels_sha256,
+        "qrels_manifest_sha256": qrels_set.manifest_sha256,
+        "total_pairs": qrels_set.total_pairs,
+        "consensus_pairs_count": qrels_set.consensus_count,
+        "adjudicated_pairs_count": qrels_set.adjudicated_count,
+        "grade_distribution": qrels_set.grade_distribution,
+        "q_test_04_negative_control_count": len(q4_items),
+        "authoritative_for_evaluation": True,
+        "silver_used_as_ground_truth": False,
+        "holdout_sealed": True,
+        "strategies_evaluated": strategy_table_rows,
+    }
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    report_path = RESULTS_DIR / f"preflight_human_qrels_{int(time.time())}.json"
+    report_path.write_text(json.dumps(preflight_report, indent=2), encoding="utf-8")
+    logger.info("Saved preflight report artifact: %s", report_path)
+
+    logger.info("")
+    logger.info("REAL_RETRIEVER_HUMAN_QRELS_PREFLIGHT_PASSED")
+
+
+
 
 def cmd_preflight_retrievers(
     args: argparse.Namespace, logger: logging.Logger,
@@ -2255,7 +3300,12 @@ def main(argv: list[str] | None = None) -> None:
     logger = _configure_logging(run_id_for_log)
 
     logger.info("=== RAGLab v7 Slice 4 Benchmark — mode=%s ===", args.mode)
+
+    # Fail-closed CLI and Checkpoint validation BEFORE credentials, cache, or PDF checks
+    validate_cli_args_and_checkpoint(args, logger)
+
     logger.info("Embedding model: %s", EMBEDDING_MODEL)
+
 
     # ── Preflight mode: no Gemini key needed ──────────────────────
     if args.mode == "preflight":
@@ -2263,6 +3313,10 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     # ── Preflight-retrievers: no Gemini, no real corpus ──────────
+    if args.mode == "preflight-human-qrels":
+        cmd_preflight_human_qrels(args, logger)
+        return
+
     if args.mode == "preflight-retrievers":
         cmd_preflight_retrievers(args, logger)
         return

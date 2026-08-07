@@ -211,7 +211,7 @@ class TestSmokeMode:
 
         called_pairs: list[tuple[str, str]] = []
 
-        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path):
+        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path, *args, **kwargs):
             for s in strategy_labels:
                 for q in questions:
                     called_pairs.append((s, q["qid"]))
@@ -265,7 +265,7 @@ class TestSmokeMode:
 
         seen_run_ids: list[str] = []
 
-        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path):
+        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path, *args, **kwargs):
             seen_run_ids.append(run_id)
             out = tmp_path / f"slice4_results_{run_id}_fake.json"
             out.write_text(json.dumps({"experiment_id": run_id, "results": {}}))
@@ -291,25 +291,27 @@ class TestSmokeMode:
 
 class TestFullMode:
     def test_full_without_confirm_blocked(self, tmp_path, monkeypatch):
-        """Full mode without --confirm-full-benchmark must exit nonzero."""
+        """Full mode without --confirm-full-benchmark must exit 2."""
         import benchmarks.run_slice4_benchmark as runner
 
-        args = runner.build_parser().parse_args(["--mode", "full"])
+        args = runner.build_parser().parse_args(["--mode", "full", "--run-id", "test_full_run"])
         assert not args.confirm_full_benchmark
 
         import logging
         logger = logging.getLogger("test_full_no_confirm")
         with pytest.raises(SystemExit) as exc_info:
             runner.cmd_full(args, tmp_path / "fake.pdf", logger)
-        assert exc_info.value.code == 3
+        assert exc_info.value.code == 2
 
     def test_full_with_confirm_enters_flow(self, tmp_path, monkeypatch):
         """Full mode with --confirm-full-benchmark must call run_benchmark."""
         import benchmarks.run_slice4_benchmark as runner
 
+        monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
+
         called = []
 
-        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path):
+        def _fake_run_benchmark(run_id, questions, strategy_labels, logger, pdf_path, *args, **kwargs):
             called.append((run_id, len(questions), len(strategy_labels)))
             out = tmp_path / f"slice4_results_{run_id}_fake.json"
             out.write_text(json.dumps({"experiment_id": run_id, "results": {}}))
@@ -318,7 +320,7 @@ class TestFullMode:
         monkeypatch.setattr(runner, "run_benchmark", _fake_run_benchmark)
 
         args = runner.build_parser().parse_args([
-            "--mode", "full", "--confirm-full-benchmark",
+            "--mode", "full", "--run-id", "test_full_run", "--confirm-full-benchmark",
         ])
 
         import logging
@@ -336,7 +338,7 @@ class TestFullMode:
 
 class TestResumeMode:
     def test_resume_without_run_id_blocked(self, tmp_path, monkeypatch):
-        """Resume without --run-id must exit nonzero."""
+        """Resume without --run-id must exit 2."""
         import benchmarks.run_slice4_benchmark as runner
 
         args = runner.build_parser().parse_args(["--mode", "resume"])
@@ -346,10 +348,10 @@ class TestResumeMode:
         logger = logging.getLogger("test_resume_no_run_id")
         with pytest.raises(SystemExit) as exc_info:
             runner.cmd_resume(args, tmp_path / "fake.pdf", logger)
-        assert exc_info.value.code == 3
+        assert exc_info.value.code == 2
 
     def test_resume_with_invalid_run_id_blocked(self, tmp_path, monkeypatch):
-        """Resume with run-id that has no checkpoint must exit nonzero."""
+        """Resume with run-id that has no checkpoint must exit 2."""
         import benchmarks.run_slice4_benchmark as runner
 
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
@@ -359,8 +361,9 @@ class TestResumeMode:
         ])
 
         import logging
-        with pytest.raises((SystemExit, ValueError)):
+        with pytest.raises(SystemExit) as exc_info:
             runner.cmd_resume(args, tmp_path / "fake.pdf", logging.getLogger("t"))
+        assert exc_info.value.code == 2
 
     def test_resume_with_valid_checkpoint_enters_flow(self, tmp_path, monkeypatch):
         """Resume with existing checkpoint must call run_benchmark."""
@@ -368,14 +371,15 @@ class TestResumeMode:
 
         run_id = "test_resume_run_001"
         ckpt = tmp_path / f"slice4_gen_checkpoint_{run_id}.json"
-        ckpt.write_text(json.dumps({"run_id": run_id, "completed": {}}))
+        ckpt.write_text(json.dumps({"schema": "slice4_v5", "run_id": run_id, "completed": {}}))
 
         monkeypatch.setattr(runner, "CHECKPOINT_DIR", tmp_path)
+
 
         called = []
 
         def _fake_run_benchmark(
-            run_id, questions, strategy_labels, logger, pdf_path
+            run_id, questions, strategy_labels, logger, pdf_path, *args, **kwargs
         ):
             called.append(run_id)
             out = tmp_path / f"results_{run_id}_fake.json"
@@ -849,13 +853,13 @@ class TestSlice4SurgicalFixes:
         )
 
         data = json.loads(out.read_text(encoding="utf-8"))
-        assert data["protocol_version"] == "raglab_v7_slice4_v2"
-        assert data["artifact_schema_version"] == "slice4_v3"
-        assert data["schema"] == "slice4_v3"
+        assert data["protocol_version"] == runner.PROTOCOL_VERSION
+        assert data["artifact_schema_version"] == runner._EVAL_SCHEMA_VERSION
+        assert data["schema"] == runner._EVAL_SCHEMA_VERSION
         eval_rec = data["results"]["F0_baseline"][0]["evaluation"]
-        assert eval_rec["protocol_version"] == "raglab_v7_slice4_v2"
-        assert eval_rec["artifact_schema_version"] == "slice4_v3"
-        assert eval_rec["schema_version"] == "slice4_v3"
+        assert eval_rec["protocol_version"] == runner.PROTOCOL_VERSION
+        assert eval_rec["artifact_schema_version"] == runner._EVAL_SCHEMA_VERSION
+        assert eval_rec["schema_version"] == runner._EVAL_SCHEMA_VERSION
 
     def test_runbook_contains_separated_commands(self):
         """13: Runbook contains independent export and unset commands."""
@@ -1052,7 +1056,7 @@ class TestSlice4V3ContractFixes:
             evidence=[cand1, cand2],
             query_id="q1",
         )
-        assert status == "AVAILABLE"
+        assert status == "LEGACY"
         assert len(cmap) == 2
         assert cmap[0]["marker"] == "[1]"
         assert cmap[0]["page_number"] == 92
@@ -1088,14 +1092,15 @@ class TestSlice4V3ContractFixes:
             )
 
     def test_schema_v2_incompatible_with_v3(self, tmp_path):
-        """16. GenerationCheckpointStore rejects schema v2 as incompatible with v3."""
+        """16. GenerationCheckpointStore rejects schema v2 as incompatible with v5."""
         from raglab.infrastructure.persistence.generation_checkpoint_store import (
             GenerationCheckpointStore,
         )
         ckpt_file = tmp_path / "slice4_gen_checkpoint_test_v2.json"
         ckpt_file.write_text(json.dumps({"schema": "slice4_v2", "run_id": "test_v2", "completed": {}}), encoding="utf-8")
-        with pytest.raises(ValueError, match="INCOMPATIBLE_CHECKPOINT_SCHEMA"):
+        with pytest.raises(ValueError, match="RESUME_CHECKPOINT_INCOMPATIBLE"):
             GenerationCheckpointStore(run_id="test_v2", store_dir=tmp_path)
+
 
     def test_no_secrets_in_full_text(self):
         """17. Secret scanner confirms full untruncated text contains no credentials."""
@@ -1178,7 +1183,7 @@ class TestSlice4CitationPageProvenanceFixes:
             evidence=[cand1],
             query_id="q_dev_01",
         )
-        assert status == "AVAILABLE"
+        assert status == "LEGACY"
         assert len(cmap) == 1
         assert cmap[0]["marker"] == "[1]"
         assert cmap[0]["page_number"] == 92
@@ -1197,7 +1202,7 @@ class TestSlice4CitationPageProvenanceFixes:
             evidence=[cand1, cand2, cand3],
             query_id="q_dev_01",
         )
-        assert status == "AVAILABLE"
+        assert status == "LEGACY"
         assert len(cmap) == 3
         assert [c["marker"] for c in cmap] == ["[1]", "[2]", "[3]"]
         assert [c["page_number"] for c in cmap] == [92, 96, 101]
@@ -1561,6 +1566,7 @@ class TestSlice4RetryAccountingFixes:
         ckpt = GenerationCheckpointStore(
             run_id="raglab_v7_slice4_v2_20260731T1230UTC",
             store_dir=repo_root / "checkpoints",
+            schema_version="slice4_v3",
         )
 
         # Checkpoint has 56 completed entries (24 complete result rows + 32 markers)
@@ -1732,8 +1738,9 @@ class TestSlice4ResumeAndMaterializationFixes:
         raw["sha256"] = "0" * 64
         ckpt_file.write_text(json.dumps(raw), encoding="utf-8")
 
-        with pytest.raises(ValueError, match="CHECKPOINT_CORRUPTED"):
+        with pytest.raises(ValueError, match="RESUME_CHECKPOINT_INCOMPATIBLE"):
             GenerationCheckpointStore(run_id="test_corrupt", store_dir=tmp_path)
+
 
     def test_resume_complete_only_with_56_of_56(self):
         """l. Resume Complete printed only when 56/56 complete result rows exist."""
@@ -2034,6 +2041,7 @@ class TestSlice4GenericRetryAccountingFixes:
         ckpt = GenerationCheckpointStore(
             run_id="raglab_v7_slice4_v2_20260731T1230UTC",
             store_dir=repo_root / "checkpoints",
+            schema_version="slice4_v3",
         )
         assert ckpt.completed_count() == 56
         assert ckpt.complete_rows_count() in (48, 56)
@@ -2054,6 +2062,7 @@ class TestSlice4GenericRetryAccountingFixes:
         ckpt = GenerationCheckpointStore(
             run_id="raglab_v7_slice4_v2_20260731T1230UTC",
             store_dir=repo_root / "checkpoints",
+            schema_version="slice4_v3",
         )
         assert ckpt.is_completed("q_dev_01", "W1_sentence_window_rerank") is True
 
@@ -2073,6 +2082,7 @@ class TestSlice4GenericRetryAccountingFixes:
         ckpt = GenerationCheckpointStore(
             run_id="raglab_v7_slice4_v2_20260731T1230UTC",
             store_dir=repo_root / "checkpoints",
+            schema_version="slice4_v3",
         )
 
         questions = ["q_dev_01", "q_dev_02", "q_dev_03", "q_dev_04", "q_test_01", "q_test_02", "q_test_03", "q_test_04"]

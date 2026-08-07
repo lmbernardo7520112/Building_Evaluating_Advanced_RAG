@@ -1,0 +1,233 @@
+[
+  {
+    "question_id": "q_dev_01",
+    "passage_id": "ps_145f1419009e8265",
+    "page_number": 101,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_01",
+    "passage_id": "ps_c4d57e6f9d754554",
+    "page_number": 102,
+    "annotator_a_grade": 3,
+    "annotator_b_grade": 2,
+    "annotator_a_role": "PRIMARY",
+    "annotator_b_role": "SUPPORTING",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_02",
+    "passage_id": "ps_145f1419009e8265",
+    "page_number": 101,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_02",
+    "passage_id": "ps_279ee1b2580ebe69",
+    "page_number": 96,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_02",
+    "passage_id": "ps_e393b0fbb5261d13",
+    "page_number": 105,
+    "annotator_a_grade": 3,
+    "annotator_b_grade": 2,
+    "annotator_a_role": "PRIMARY",
+    "annotator_b_role": "SUPPORTING",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_03",
+    "passage_id": "ps_145f1419009e8265",
+    "page_number": 101,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_03",
+    "passage_id": "ps_749024a8adeea46b",
+    "page_number": 112,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_03",
+    "passage_id": "ps_e393b0fbb5261d13",
+    "page_number": 105,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 3,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "PRIMARY",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_03",
+    "passage_id": "ps_f15b4e7465988c72",
+    "page_number": 103,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 3,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "PRIMARY",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_dev_04",
+    "passage_id": "ps_946846d2ba5e3175",
+    "page_number": 107,
+    "annotator_a_grade": 1,
+    "annotator_b_grade": 3,
+    "annotator_a_role": "CONTEXTUAL",
+    "annotator_b_role": "PRIMARY",
+    "grade_difference_abs": 2,
+    "disagreement_severity": "SEVERE"
+  },
+  {
+    "question_id": "q_dev_04",
+    "passage_id": "ps_f15b4e7465988c72",
+    "page_number": 103,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 3,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "PRIMARY",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_01",
+    "passage_id": "ps_946846d2ba5e3175",
+    "page_number": 107,
+    "annotator_a_grade": 1,
+    "annotator_b_grade": 2,
+    "annotator_a_role": "CONTEXTUAL",
+    "annotator_b_role": "SUPPORTING",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_01",
+    "passage_id": "ps_c4d57e6f9d754554",
+    "page_number": 102,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 3,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "PRIMARY",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_01",
+    "passage_id": "ps_e393b0fbb5261d13",
+    "page_number": 105,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_02",
+    "passage_id": "ps_1af4600bd2b680f7",
+    "page_number": 100,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_02",
+    "passage_id": "ps_946846d2ba5e3175",
+    "page_number": 107,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_02",
+    "passage_id": "ps_e393b0fbb5261d13",
+    "page_number": 105,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 3,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "PRIMARY",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_03",
+    "passage_id": "ps_145f1419009e8265",
+    "page_number": 101,
+    "annotator_a_grade": 3,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "PRIMARY",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 2,
+    "disagreement_severity": "SEVERE"
+  },
+  {
+    "question_id": "q_test_04",
+    "passage_id": "ps_1e8ae016ba7f2e40",
+    "page_number": 92,
+    "annotator_a_grade": 1,
+    "annotator_b_grade": 2,
+    "annotator_a_role": "CONTEXTUAL",
+    "annotator_b_role": "SUPPORTING",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_04",
+    "passage_id": "ps_55f15187d5485909",
+    "page_number": 93,
+    "annotator_a_grade": 2,
+    "annotator_b_grade": 1,
+    "annotator_a_role": "SUPPORTING",
+    "annotator_b_role": "CONTEXTUAL",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  },
+  {
+    "question_id": "q_test_04",
+    "passage_id": "ps_999b917f94ca673a",
+    "page_number": 115,
+    "annotator_a_grade": 1,
+    "annotator_b_grade": 2,
+    "annotator_a_role": "CONTEXTUAL",
+    "annotator_b_role": "SUPPORTING",
+    "grade_difference_abs": 1,
+    "disagreement_severity": "ADJACENT"
+  }
+]

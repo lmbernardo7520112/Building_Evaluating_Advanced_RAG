@@ -18,10 +18,24 @@ from raglab.infrastructure.retrieval.sentence_anchor_adapter import (
 from raglab.infrastructure.retrieval.sentence_window_adapter import (
     SentenceWindowAdapter,
 )
+from tests.unit.infrastructure.deterministic_embedding_double import (
+    DeterministicTestEmbeddingAdapter,
+)
 
 
 class TestSentenceAnchorAdapter:
     """Unit tests for S0 adapter."""
+
+    def _make_anchor_adapter(self) -> SentenceAnchorAdapter:
+        return SentenceAnchorAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter()
+        )
+
+    def _make_window_adapter(self, window_size: int = 2) -> SentenceWindowAdapter:
+        return SentenceWindowAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter(),
+            window_size=window_size,
+        )
 
     def _make_pages(self) -> list[DocumentPage]:
         return [
@@ -45,13 +59,13 @@ class TestSentenceAnchorAdapter:
         ]
 
     def test_index_pages_returns_sentence_count(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         pages = self._make_pages()
         count = adapter.index_pages(pages)
         assert count > 0, "Should index at least one sentence"
 
     def test_retrieve_returns_nonempty_for_known_query(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         results = adapter.retrieve("demonstração por exaustão", top_k=3)
         assert len(results) > 0
@@ -60,11 +74,11 @@ class TestSentenceAnchorAdapter:
         """Critical S0 invariant: text must be anchor sentence, not window."""
         pages = self._make_pages()
 
-        s0 = SentenceAnchorAdapter()
+        s0 = self._make_anchor_adapter()
         s0.index_pages(pages)
         s0_results = s0.retrieve("demonstração por exaustão", top_k=1)
 
-        w0 = SentenceWindowAdapter(window_size=2)
+        w0 = self._make_window_adapter(window_size=2)
         w0.index_pages(pages)
         w0_results = w0.retrieve("demonstração por exaustão", top_k=1)
 
@@ -77,7 +91,7 @@ class TestSentenceAnchorAdapter:
 
     def test_chunk_id_contains_anchor_suffix(self):
         """S0 chunk IDs must include '_anchor' to distinguish from W0."""
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         results = adapter.retrieve("demonstração", top_k=3)
         for ev in results:
@@ -86,7 +100,7 @@ class TestSentenceAnchorAdapter:
             )
 
     def test_page_provenance_preserved(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         results = adapter.retrieve("demonstração", top_k=5)
         for ev in results:
@@ -95,14 +109,14 @@ class TestSentenceAnchorAdapter:
             )
 
     def test_no_duplicate_chunk_ids(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         results = adapter.retrieve("demonstração", top_k=10)
         ids = [ev.chunk_id.value for ev in results]
         assert len(ids) == len(set(ids)), "Duplicate chunk IDs in results"
 
     def test_rank_sequence_starts_at_one(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         results = adapter.retrieve("demonstração", top_k=3)
         if results:
@@ -111,38 +125,38 @@ class TestSentenceAnchorAdapter:
                 assert ev.rank == i + 1
 
     def test_top_k_respected(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         results = adapter.retrieve("demonstração", top_k=2)
         assert len(results) <= 2
 
     def test_empty_query_returns_empty(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         assert adapter.retrieve("", top_k=3) == []
         assert adapter.retrieve("   ", top_k=3) == []
 
     def test_top_k_zero_returns_empty(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         assert adapter.retrieve("demonstração", top_k=0) == []
 
     def test_scores_in_valid_range(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         results = adapter.retrieve("demonstração", top_k=5)
         for ev in results:
             assert 0.0 <= ev.score <= 1.0, f"Score out of range: {ev.score}"
 
     def test_clear_empties_index(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         adapter.clear()
         results = adapter.retrieve("demonstração", top_k=3)
         assert results == []
 
     def test_reindex_replaces_previous(self):
-        adapter = SentenceAnchorAdapter()
+        adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())
         count1 = len(adapter._sentence_nodes)
         # Reindex with different pages
@@ -179,11 +193,16 @@ class TestS0VsW0CausalIsolation:
         """S0 and W0 should score the same anchor sentences the same way."""
         pages = self._pages()
 
-        s0 = SentenceAnchorAdapter()
+        s0 = SentenceAnchorAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter()
+        )
         s0.index_pages(pages)
         s0_results = s0.retrieve("contraposição demonstração", top_k=1)
 
-        w0 = SentenceWindowAdapter(window_size=1)
+        w0 = SentenceWindowAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter(),
+            window_size=1,
+        )
         w0.index_pages(pages)
         w0_results = w0.retrieve("contraposição demonstração", top_k=1)
 
@@ -200,11 +219,16 @@ class TestS0VsW0CausalIsolation:
         """S0 returns anchor only; W0 returns window (> anchor when neighbours exist)."""
         pages = self._pages()
 
-        s0 = SentenceAnchorAdapter()
+        s0 = SentenceAnchorAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter()
+        )
         s0.index_pages(pages)
         s0_results = s0.retrieve("contraposição", top_k=1)
 
-        w0 = SentenceWindowAdapter(window_size=2)
+        w0 = SentenceWindowAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter(),
+            window_size=2,
+        )
         w0.index_pages(pages)
         w0_results = w0.retrieve("contraposição", top_k=1)
 

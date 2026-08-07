@@ -19,17 +19,20 @@ Temp:      0.0 (deterministic)
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 from collections.abc import Sequence
 from typing import Final
 
 from raglab.domain.entities import GeneratedAnswer, RetrievedEvidence
+from raglab.domain.errors import CitationProvenanceMismatchError
 from raglab.domain.quota import QuotaManager
 from raglab.domain.retry import NonRetryableError, RetryExhaustedError, RetryPolicy
 from raglab.domain.value_objects import Citation
 from raglab.infrastructure.gemini.prompts import (
     GENERATION_SYSTEM,
+    PromptEvidence,
     build_generation_prompt,
 )
 
@@ -119,39 +122,137 @@ class GeminiGeneratorAdapter:
             logger.info("query_id=%s: no evidence — abstaining", query_id)
             return GeneratedAnswer(
                 query_id=query_id,
-                text=_ABSTAIN_SIGNAL,
+                text="",
                 abstained=True,
                 citations=(),
             )
 
-        context_passages = [ev.text for ev in evidence]
-        prompt = build_generation_prompt(query, context_passages)
+        prompt_evidences = PromptEvidence.from_retrieved_sequence(evidence)
+        prompt = build_generation_prompt(query, prompt_evidences)
 
-        raw_text = self._call_with_retry(query_id, prompt)
+        raw_text = self._call_with_retry(query_id, prompt).strip()
 
-        abstained = raw_text.strip().upper() == _ABSTAIN_SIGNAL
-        if abstained:
+        # Handle legacy raw "ABSTAIN"
+        if raw_text.upper() == _ABSTAIN_SIGNAL:
             return GeneratedAnswer(
                 query_id=query_id,
-                text=_ABSTAIN_SIGNAL,
+                text="",
                 abstained=True,
                 citations=(),
             )
 
-        citations = tuple(
-            Citation(
-                document_id=ev.document_id,
-                page_number=_extract_page_from_doc_id(ev.document_id),
-                chunk_id=ev.chunk_id,
-                text_span=ev.text[:40],
+        # Parse JSON output
+        try:
+            # Strip markdown fences if present
+            clean_json = raw_text
+            if clean_json.startswith("```"):
+                clean_json = clean_json.strip("`")
+                if clean_json.startswith("json"):
+                    clean_json = clean_json[4:].strip()
+
+            payload = json.loads(clean_json)
+        except Exception as err:
+            logger.warning(
+                "query_id=%s: invalid JSON output from generator — "
+                "fail closed abstaining: %s",
+                query_id,
+                err,
             )
-            for ev in evidence[:3]
-        )
+            return GeneratedAnswer(
+                query_id=query_id,
+                text="",
+                abstained=True,
+                citations=(),
+            )
+
+        if not isinstance(payload, dict):
+            return GeneratedAnswer(
+                query_id=query_id, text="", abstained=True, citations=()
+            )
+
+        status = str(payload.get("status", "")).upper()
+        if status == "ABSTAIN":
+            return GeneratedAnswer(
+                query_id=query_id,
+                text="",
+                abstained=True,
+                citations=(),
+            )
+
+        if status != "ANSWER":
+            logger.warning(
+                "query_id=%s: unexpected status '%s' — fail closed abstaining",
+                query_id,
+                status,
+            )
+            return GeneratedAnswer(
+                query_id=query_id, text="", abstained=True, citations=()
+            )
+
+        answer_text = str(payload.get("answer", "")).strip()
+        raw_citations = payload.get("citations", [])
+
+        if not answer_text or not raw_citations:
+            logger.warning(
+                "query_id=%s: ANSWER status missing text or citations — "
+                "fail closed abstaining",
+                query_id,
+            )
+            return GeneratedAnswer(
+                query_id=query_id, text="", abstained=True, citations=()
+            )
+
+        # Map cited evidence IDs (E1, E2, ...) to persistent evidence items
+        evidence_by_id = {
+            pe.evidence_id: pe.retrieved_evidence for pe in prompt_evidences
+        }
+        citations_list = []
+
+        for cite_id in raw_citations:
+            cite_str = str(cite_id).strip()
+            if cite_str not in evidence_by_id:
+                raise CitationProvenanceMismatchError(cite_str)
+
+            ev = evidence_by_id[cite_str]
+            page_num = getattr(ev, "start_page", getattr(ev, "page", None))
+            if page_num is None:
+                page_num = _extract_page_from_doc_id(ev.document_id)
+
+            ev_passage_id = (
+                getattr(ev, "canonical_passage_id", None)
+                or getattr(ev, "passage_id", None)
+                or (ev.get("canonical_passage_id") if isinstance(ev, dict) else None)
+                or (ev.get("passage_id") if isinstance(ev, dict) else None)
+            )
+            if ev_passage_id and not (
+                isinstance(ev_passage_id, str)
+                and ev_passage_id.startswith("ps_")
+                and "_rank" not in ev_passage_id
+            ):
+                ev_passage_id = None
+
+            ev_sha = getattr(ev, "content_sha256", None) or hashlib.sha256(
+                ev.text.encode("utf-8")
+            ).hexdigest()
+
+            citations_list.append(
+                Citation(
+                    document_id=ev.document_id,
+                    page_number=int(page_num),
+                    chunk_id=ev.chunk_id,
+                    text_span=ev.text[:40],
+                    evidence_id=cite_str,
+                    passage_id=ev_passage_id,
+                    content_sha256=ev_sha,
+                    retrieval_rank=ev.rank,
+                )
+            )
+
         return GeneratedAnswer(
             query_id=query_id,
-            text=raw_text.strip(),
+            text=answer_text,
             abstained=False,
-            citations=citations,
+            citations=tuple(citations_list),
         )
 
     def _call_with_retry(self, query_id: str, prompt: str) -> str:
@@ -254,4 +355,27 @@ def sanitize_answer_for_artifact(answer: GeneratedAnswer) -> dict[str, object]:
         "preview": text_val[:500] if len(text_val) > 500 else text_val,
         "abstained": answer.abstained,
         "citation_pages": [c.page_number for c in answer.citations],
+        "citations": [
+            {
+                "evidence_id": getattr(c, "evidence_id", None),
+                "passage_id": (
+                    getattr(c, "passage_id", None)
+                    if getattr(c, "passage_id", None)
+                    and str(getattr(c, "passage_id", None)).startswith("ps_")
+                    and "_rank" not in str(getattr(c, "passage_id", None))
+                    else None
+                ),
+
+                "document_id": c.document_id,
+                "page_number": c.page_number,
+                "chunk_id": (
+                    c.chunk_id.value
+                    if hasattr(c.chunk_id, "value")
+                    else str(c.chunk_id)
+                ),
+                "content_sha256": getattr(c, "content_sha256", None),
+                "retrieval_rank": getattr(c, "retrieval_rank", None),
+            }
+            for c in answer.citations
+        ],
     }

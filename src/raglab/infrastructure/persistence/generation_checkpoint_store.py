@@ -9,7 +9,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = "slice4_v3"
+_SCHEMA_VERSION = "slice4_v5"
 
 
 class GenerationCheckpointStore:
@@ -18,16 +18,18 @@ class GenerationCheckpointStore:
 
     File format (one per run):
     {
-      "schema": "slice4_v3",
+      "schema": "slice4_v5",
       "run_id": "...",
       "sha256": "...",
+      "created_at_utc": "...",
+      "updated_at_utc": "...",
       "completed": {
         "q_dev_01::F0_baseline": {
           "query_id": "q_dev_01",
           "strategy": "F0_baseline",
           "abstained": false,
           "citation_count": 2,
-          "timestamp_utc": "2026-07-31T...",
+          "timestamp_utc": "2026-08-06T...",
           "result_row": { ... }
         },
         ...
@@ -35,12 +37,34 @@ class GenerationCheckpointStore:
     }
     """
 
-    def __init__(self, run_id: str, store_dir: Path) -> None:
+    def __init__(
+        self,
+        run_id: str,
+        store_dir: Path,
+        *,
+        schema_version: str = "slice4_v5",
+        manifest: dict[str, Any] | None = None,
+        create_new: bool = False,
+    ) -> None:
         self._run_id = run_id
-        self._path = store_dir / f"slice4_gen_checkpoint_{run_id}.json"
         self._store_dir = store_dir
+        self._path = store_dir / f"slice4_gen_checkpoint_{run_id}.json"
+        self._schema_version = schema_version
+        self._manifest = manifest or {}
+        self._created_at_utc = (
+            manifest.get("created_at_utc") if manifest else None
+        ) or datetime.now(UTC).isoformat()
         self._data: dict[str, dict[str, Any]] = {}
-        self._load_if_exists()
+
+        if create_new:
+            if self._path.exists():
+                raise FileExistsError(
+                    f"FULL_RUN_ID_COLLISION: Checkpoint file already exists "
+                    f"for run_id '{run_id}' at {self._path}"
+                )
+            self._save()
+        else:
+            self._load_if_exists()
 
     def _load_if_exists(self) -> None:
         if not self._path.exists():
@@ -49,24 +73,23 @@ class GenerationCheckpointStore:
             raw_text = self._path.read_text(encoding="utf-8")
             raw = json.loads(raw_text)
             schema = raw.get("schema") or raw.get("artifact_schema_version")
-            if schema != _SCHEMA_VERSION:
+            if schema != self._schema_version:
                 raise ValueError(
-                    f"INCOMPATIBLE_CHECKPOINT_SCHEMA: found '{schema}', "
-                    f"expected '{_SCHEMA_VERSION}'"
+                    f"RESUME_CHECKPOINT_INCOMPATIBLE: found schema '{schema}', "
+                    f"expected '{self._schema_version}'"
                 )
             if raw.get("run_id") != self._run_id:
-                logger.warning(
-                    "Checkpoint run_id mismatch: %s != %s — ignoring",
-                    raw.get("run_id"), self._run_id,
+                raise ValueError(
+                    f"RESUME_CHECKPOINT_INCOMPATIBLE: run_id mismatch "
+                    f"('{raw.get('run_id')}' != '{self._run_id}')"
                 )
-                return
 
             completed = raw.get("completed", {})
             expected_sha = raw.get("sha256")
             if expected_sha:
                 check_bytes = json.dumps(
                     {
-                        "schema": _SCHEMA_VERSION,
+                        "schema": self._schema_version,
                         "run_id": self._run_id,
                         "completed": completed,
                     },
@@ -77,19 +100,27 @@ class GenerationCheckpointStore:
                 actual_sha = hashlib.sha256(check_bytes).hexdigest()
                 if actual_sha != expected_sha:
                     raise ValueError(
-                        f"CHECKPOINT_CORRUPTED: SHA-256 mismatch "
+                        f"RESUME_CHECKPOINT_INCOMPATIBLE: SHA-256 mismatch "
                         f"({actual_sha} != {expected_sha})"
                     )
 
             self._data = completed
+            if "created_at_utc" in raw:
+                self._created_at_utc = raw["created_at_utc"]
             logger.info(
                 "Loaded %d completed entries from %s",
-                len(self._data), self._path,
+                len(self._data),
+                self._path,
             )
         except ValueError:
             raise
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Could not load checkpoint %s: %s", self._path, exc)
+            raise ValueError(
+                f"RESUME_CHECKPOINT_INCOMPATIBLE: Could not parse checkpoint: {exc}"
+            ) from exc
+
+
 
     def is_completed(self, query_id: str, strategy: str) -> bool:
         """Return True if this (query_id, strategy) pair is in checkpoint."""
@@ -212,7 +243,7 @@ class GenerationCheckpointStore:
         self._store_dir.mkdir(parents=True, exist_ok=True)
         check_bytes = json.dumps(
             {
-                "schema": _SCHEMA_VERSION,
+                "schema": self._schema_version,
                 "run_id": self._run_id,
                 "completed": self._data,
             },
@@ -223,14 +254,19 @@ class GenerationCheckpointStore:
         digest = hashlib.sha256(check_bytes).hexdigest()
 
         payload_obj = {
-            "schema": _SCHEMA_VERSION,
+            "schema": self._schema_version,
             "run_id": self._run_id,
+            "created_at_utc": self._created_at_utc,
+            "updated_at_utc": datetime.now(UTC).isoformat(),
+            "completed_count": len(self._data),
             "sha256": digest,
+            **self._manifest,
             "completed": self._data,
         }
         final_bytes = json.dumps(
             payload_obj, indent=2, sort_keys=True, ensure_ascii=False
         ).encode("utf-8")
+
 
         fd, tmp_path = tempfile.mkstemp(
             dir=self._store_dir, prefix=".ckpt_", suffix=".tmp"

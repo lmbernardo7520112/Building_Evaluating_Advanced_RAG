@@ -66,3 +66,6 @@ coverage.xml
 
 # Provisioning manifests (local state)
 benchmarks/provision_manifest.json
+
+# Human annotations operational work directory
+benchmarks/ground_truth/v2/hybrid/human_annotations/work/

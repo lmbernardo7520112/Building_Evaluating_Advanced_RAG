@@ -117,7 +117,7 @@ def _make_smoke_result(
 
     if evaluation is None:
         evaluation = {
-            "schema_version": "slice4_v3",
+            "schema_version": runner._EVAL_SCHEMA_VERSION,
             "metrics": metrics,
         }
 

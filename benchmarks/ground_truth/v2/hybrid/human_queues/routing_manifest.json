@@ -1,0 +1,32 @@
+{
+  "schema_version": "3.0.0",
+  "protocol_version": "raglab_v7_slice4_v3",
+  "queue_status": "DEFINITIVE_HUMAN_REVIEW",
+  "annotator_a_queue_count": 69,
+  "annotator_b_queue_count": 53,
+  "adjudication_template_count": 53,
+  "total_candidate_pool_items": 69,
+  "risk_routed_count": 39,
+  "random_negative_overlap_count": 14,
+  "queue_b_total_count": 53,
+  "random_overlap_rate": 0.2029,
+  "planned_overlap_rate": 0.2029,
+  "target_overlap_range": [
+    0.15,
+    0.25
+  ],
+  "blinding_verified": true,
+  "silver_used_in_routing": true,
+  "silver_records_count": 69,
+  "silver_needs_human_review_count": 23,
+  "silver_positive_count": 24,
+  "silver_file_sha256": "406415298473cbad9e1012db68ff5bbcb28ad8e1ff1209360d27dc3583f9cdb0",
+  "silver_manifest_sha256": "cb9d5f67f339da3680ae6d3210a4245f756768363a306685732429bd4940b617",
+  "silver_checkpoint_sha256": "c5b87f7c57bee9457d4cdec35f0390e730aaba9c0f20a2d420d01f2042193548",
+  "silver_run_id": "full_run_20260805T013446Z",
+  "authoritative_for_human_qrels": false,
+  "holdout_sealed": true,
+  "file_a_sha256": "7137fc52b3a5fff086be07387425632b5434e3b8592f7217a6cadc29bc7cc0a3",
+  "file_b_sha256": "2e123d64645bc158c71e7f929229d1b332a6bd067e54fef5428f8e7b5241f314",
+  "file_adj_sha256": "73fa547fefa59b85d055f08895ad1cb6731c7a3a6900c68b27d489614bea93ee"
+}

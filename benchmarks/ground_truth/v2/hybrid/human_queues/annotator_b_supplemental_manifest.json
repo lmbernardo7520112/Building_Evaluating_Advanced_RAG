@@ -1,0 +1,14 @@
+{
+  "schema_version": "3.0.0",
+  "protocol_version": "raglab_v7_slice4_v3",
+  "created_at_utc": "2026-08-05T14:55:29.605421+00:00",
+  "queue_a_file_sha256": "7137fc52b3a5fff086be07387425632b5434e3b8592f7217a6cadc29bc7cc0a3",
+  "queue_b_file_sha256": "2e123d64645bc158c71e7f929229d1b332a6bd067e54fef5428f8e7b5241f314",
+  "total_queue_a": 69,
+  "total_queue_b_original": 53,
+  "supplemental_count": 16,
+  "blinding_verified": true,
+  "human_labels_consumed": false,
+  "holdout_sealed": true,
+  "supplemental_queue_sha256": "6df2b42894510aa50e478abee70735e187d5aac48506ecc1a3406bb27ff54b26"
+}
