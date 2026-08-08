@@ -1,0 +1,25 @@
+{
+    "schema_version": "slice5a_agentic_v1",
+    "protocol_id": "slice5a_protocol",
+    "version": "1.0.0",
+    "title": "Slice 5A — Governed Agentic Routing Foundation",
+    "scientific_question": "In which query classes, under which costs and risks, does a dynamic routing policy surpass, complement, or worsen fixed RAG strategies?",
+    "level": "L1_ONE_SHOT_ROUTING",
+    "control": "Slice 4/v5 results with human qrels (IMMUTABLE)",
+    "experimental": "Deterministic routing policy selecting per-query strategy",
+    "metrics": ["ndcg_at_3", "recall_at_3", "mrr_at_3"],
+    "primary_metric": "ndcg_at_3",
+    "constraints": {
+        "no_gemini_execution": true,
+        "no_new_dependencies": true,
+        "no_slice4_mutation": true,
+        "no_network_in_tools": true,
+        "sample_size_caveat": "n=8 does NOT permit general superiority claims"
+    },
+    "oracle_disclaimer": "Post-hoc oracle is a CEILING ONLY — not a deployable policy. It uses evaluation outcomes that are unavailable at inference time.",
+    "future_levels": {
+        "L2": "Tool calling one-shot (Slice 5B)",
+        "L3": "Multi-step reasoning loop (Slice 5C)",
+        "L4": "Single agent with tool retrieval — NOT multi-agent"
+    }
+}
