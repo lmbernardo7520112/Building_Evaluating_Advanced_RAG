@@ -511,7 +511,8 @@ def evaluate_headroom_gate(
 def _load_config(path: Path) -> dict[str, Any]:
     """Load replay configuration."""
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+    return data
 
 
 def analyze_policy_replay(

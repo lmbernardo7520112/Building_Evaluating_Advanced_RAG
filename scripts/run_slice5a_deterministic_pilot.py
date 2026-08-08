@@ -37,6 +37,7 @@ from raglab.agentic.runtime.strategy_tool_factory import (
     build_registry_with_adapters,
 )
 from raglab.domain.entities import RetrievedEvidence
+from raglab.domain.enums import PipelineStrategy
 from raglab.domain.value_objects import ChunkId
 
 # ── Stub port (no real retrieval) ────────────────────────────────
@@ -146,7 +147,9 @@ def main() -> None:
         questions = [q for q in questions if q.split == "development"]
 
     # Build ports (stub for now)
-    ports = {s: StubRetrievalPort(s.value) for s in ALL_STRATEGIES}
+    ports: dict[PipelineStrategy, object] = {
+        s: StubRetrievalPort(s.value) for s in ALL_STRATEGIES
+    }
     registry, adapters = build_registry_with_adapters(ports)
 
     # Fixed clock and ID generator for determinism
