@@ -1,0 +1,103 @@
+{
+    "schema_version": "slice5a_agentic_v1",
+    "protocol_id": "slice5a_runtime_pilot_v1",
+    "protocol_version": "1.0.0",
+    "registered_before_replay": true,
+
+    "hypothesis": "A deterministic one-shot router selecting per-QID strategies from a frozen policy can match or exceed the best fixed global strategy on at least one primary retrieval metric (nDCG@3, Recall@3, MRR@3) across the answerable subset, without degrading abstention on the unanswerable control set.",
+    "null_hypothesis": "The deterministic router does not surpass the best fixed global strategy on any primary retrieval metric across the answerable subset.",
+
+    "systems": {
+        "B0": {
+            "label": "best_fixed_global",
+            "description": "Best single fixed strategy across all QIDs (determined by policy replay)",
+            "operational": true
+        },
+        "B2": {
+            "label": "deterministic_router",
+            "description": "Deterministic router using frozen policy from Slice 5A.1",
+            "operational": true,
+            "policy_id": "deterministic_v1",
+            "policy_version": "1.0.0"
+        },
+        "A1": {
+            "label": "tool_calling_governed_oneshot",
+            "description": "Governed one-shot tool calling via OneShotRunner with real retrieval adapters",
+            "operational": true
+        },
+        "O1": {
+            "label": "POST_HOC_ORACLE",
+            "description": "Per-QID best strategy selection using evaluation outcomes",
+            "operational": false,
+            "oracle_labels": [
+                "POST_HOC_ORACLE",
+                "NON_OPERATIONAL",
+                "USES_EVALUATION_OUTCOMES",
+                "NOT_A_DEPLOYABLE_POLICY"
+            ]
+        }
+    },
+    "systems_executed_this_task": ["B0", "B2", "A1"],
+    "systems_not_executed": ["B3_llm_router"],
+
+    "experimental_unit": "QID (individual question)",
+    "n_questions": 8,
+
+    "metrics": {
+        "primary_retrieval": ["ndcg_at_3", "recall_at_3", "mrr_at_3"],
+        "router": ["selection_distribution", "fallback_rate", "policy_stability"],
+        "abstention": ["correct_abstention", "false_abstention"],
+        "operation": ["logical_calls_per_qid", "tool_failures"],
+        "generation": "NOT_EXECUTED — no LLM generation in this task"
+    },
+
+    "denominators": {
+        "answerable": "QIDs with at least one relevant passage in qrels (used for retrieval metrics)",
+        "unanswerable": "QIDs marked UNANSWERABLE_IN_SUBCORPUS (used for abstention metrics)",
+        "note": "Metrics are computed separately; never mixed"
+    },
+
+    "seed": "deterministic — no randomness in routing or retrieval ordering",
+    "budget": {
+        "max_logical_calls_per_qid": 1,
+        "max_physical_attempts_per_qid": 1,
+        "max_retries": 0
+    },
+
+    "stop_conditions": {
+        "one_shot": "Exactly one retrieval call per QID; no iterative refinement",
+        "no_second_strategy": "Router selects exactly one strategy; no fallback chain",
+        "no_reformulation": "Query text used as-is from the questions file"
+    },
+
+    "anti_leakage": {
+        "qrels_access": "FORBIDDEN during routing and retrieval; permitted only in post-execution analyzer",
+        "gold_answers": "FORBIDDEN everywhere",
+        "holdout": "FORBIDDEN",
+        "historical_results": "FORBIDDEN during routing; used only in post-hoc oracle analysis",
+        "document_filtering": "DISABLED (DOCUMENT_FILTERING_DISABLED_V1)"
+    },
+
+    "success_criteria": {
+        "headroom_required": "Oracle must exceed best fixed on >= 1 primary metric in answerable set",
+        "diversity_required": "Different strategies must win on different QIDs",
+        "no_leakage": "Zero leakage detections",
+        "canonical_ids": "100% canonical passage ID completeness",
+        "determinism": "Byte-identical outputs across two independent runs"
+    },
+
+    "interruption_criteria": [
+        "Any authoritative artifact hash mismatch",
+        "Leakage detected in routing or retrieval",
+        "Non-canonical passage ID in any observation",
+        "More than one logical call per QID",
+        "Strategy modification detected"
+    ],
+
+    "limitations": {
+        "sample_size": "n=8 is insufficient for formal statistical significance; results are exploratory",
+        "no_llm_generation": "Generation metrics are NOT_EXECUTED, not zero",
+        "deterministic_router_only": "No LLM-based routing in this task",
+        "single_document_corpus": "All questions reference the same PDF"
+    }
+}
