@@ -1,0 +1,41 @@
+{
+  "manifest_type": "pre_registration_v1",
+  "protocol_path": "benchmarks/agentic/slice5/protocols/slice5a_runtime_pilot_v1.json",
+  "protocol_sha256": "f035077a23401e0ca90838102d20d7f83ea042408b19d931cbfdff56da911266",
+  "base_commit": "094ef1f486142ed2a4c39364765ccb166b878d06",
+  "registered_before_replay": true,
+  "registration_date_utc": "2026-08-08T17:40:00Z",
+  "input_artifact_hashes": {
+    "adjudication_final": {
+      "path": "benchmarks/ground_truth/v2/hybrid/human_annotations/export/adjudication_final.jsonl",
+      "sha256": "1bb02ef7658bc3ccbb28a4dbeb19c395a37a3e772cf85b2359c1014c6f161ec7"
+    },
+    "human_qrels_final": {
+      "path": "benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_final.jsonl",
+      "sha256": "9c83aa9dc75924f5d9942cc2d6fb518368f2ab34f95306f080dbb111b4138d3e"
+    },
+    "human_qrels_manifest": {
+      "path": "benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_manifest.json",
+      "sha256": "8e596a1238ac4ef224b4c2f9d0959e540885f959b5de0294e3fba734db56c434"
+    },
+    "passage_registry": {
+      "path": "benchmarks/ground_truth/v2/passage_registry.jsonl",
+      "sha256": "c2d1b31e5eaeb98e2a31094628cf2e4291c4ff73bb7ddb1f79929204163799e1"
+    },
+    "passage_registry_manifest": {
+      "path": "benchmarks/ground_truth/v2/passage_registry_manifest.json",
+      "sha256": "db57b18b8b7da3c9918f0e5290a8d6ed43394ab3c7e88dd93ae17d64b9a9b99b"
+    },
+    "slice4_full_result": {
+      "path": "benchmarks/results/slice4_results_raglab_v7_slice4_v5_humanqrels_20260806T135108Z_20260806T143629Z.json",
+      "sha256": "b4fc4860c6c098f333cc410538fd5a41582913f12b88b4a484032d4624fdc1e8"
+    },
+    "slice4_full_checkpoint": {
+      "path": "checkpoints/slice4_gen_checkpoint_raglab_v7_slice4_v5_humanqrels_20260806T135108Z.json",
+      "sha256": "371a78e5b3e53ce3d69b0a6c9fe9d243bad7c85967e5e8a3e65fdccfc0a21f7c"
+    }
+  },
+  "hypotheses_frozen": true,
+  "metrics_frozen": true,
+  "criteria_frozen": true
+}

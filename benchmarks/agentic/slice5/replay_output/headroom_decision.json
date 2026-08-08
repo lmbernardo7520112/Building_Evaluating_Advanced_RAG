@@ -1,0 +1,92 @@
+{
+  "schema_version": "slice5a_agentic_v1",
+  "ALL": {
+    "headroom": {
+      "ndcg_at_3": {
+        "oracle": 0.7010428571428572,
+        "best_fixed": 0.5261571428571429,
+        "delta": 0.1748857142857143,
+        "best_fixed_strategy": "H0_hierarchical_leaf"
+      },
+      "recall_at_3": {
+        "oracle": 0.5857142857142856,
+        "best_fixed": 0.5023857142857143,
+        "delta": 0.08332857142857131,
+        "best_fixed_strategy": "W1_sentence_window_rerank"
+      },
+      "mrr_at_3": {
+        "oracle": 1.0,
+        "best_fixed": 1.0,
+        "delta": 0.0,
+        "best_fixed_strategy": "H0_hierarchical_leaf"
+      }
+    },
+    "gate": {
+      "checks": {
+        "oracle_exceeds_best_fixed": true,
+        "C8_gain_in_answerable": true,
+        "C9_diversity_strict": true
+      },
+      "verdict": "ROUTING_HEADROOM_PRESENT"
+    }
+  },
+  "DEV": {
+    "headroom": {
+      "ndcg_at_3": {
+        "oracle": 0.6941,
+        "best_fixed": 0.5775250000000001,
+        "delta": 0.11657499999999998,
+        "best_fixed_strategy": "H0_hierarchical_leaf"
+      },
+      "recall_at_3": {
+        "oracle": 0.5,
+        "best_fixed": 0.458325,
+        "delta": 0.04167500000000002,
+        "best_fixed_strategy": "H0_hierarchical_leaf"
+      },
+      "mrr_at_3": {
+        "oracle": 1.0,
+        "best_fixed": 1.0,
+        "delta": 0.0,
+        "best_fixed_strategy": "F0_baseline"
+      }
+    },
+    "gate": {
+      "checks": {
+        "oracle_exceeds_best_fixed": true,
+        "C8_gain_in_answerable": true,
+        "C9_diversity_strict": true
+      },
+      "verdict": "ROUTING_HEADROOM_PRESENT"
+    }
+  },
+  "TEST": {
+    "headroom": {
+      "ndcg_at_3": {
+        "oracle": 0.7103,
+        "best_fixed": 0.6622,
+        "delta": 0.04810000000000003,
+        "best_fixed_strategy": "W1_sentence_window_rerank"
+      },
+      "recall_at_3": {
+        "oracle": 0.7000000000000001,
+        "best_fixed": 0.6333333333333333,
+        "delta": 0.06666666666666676,
+        "best_fixed_strategy": "H2_auto_merging_rerank"
+      },
+      "mrr_at_3": {
+        "oracle": 1.0,
+        "best_fixed": 1.0,
+        "delta": 0.0,
+        "best_fixed_strategy": "H0_hierarchical_leaf"
+      }
+    },
+    "note": "characterization only — not used for policy adjustment"
+  },
+  "primary_metric": "ndcg_at_3",
+  "metrics": [
+    "ndcg_at_3",
+    "recall_at_3",
+    "mrr_at_3"
+  ]
+}

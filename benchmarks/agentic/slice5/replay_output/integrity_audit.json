@@ -1,0 +1,40 @@
+{
+  "C1_same_qids_per_strategy": {
+    "pass": true,
+    "total_qids": 8
+  },
+  "C2_equal_record_counts": {
+    "pass": true,
+    "counts": {
+      "F0_baseline": 8,
+      "H0_hierarchical_leaf": 8,
+      "H1_auto_merging": 8,
+      "H2_auto_merging_rerank": 8,
+      "S0_sentence_anchor": 8,
+      "W0_sentence_window": 8,
+      "W1_sentence_window_rerank": 8
+    }
+  },
+  "C3_metrics_computed_finite": {
+    "pass": true,
+    "na_count": 0,
+    "na_entries": []
+  },
+  "C4_judged_coverage_comparable": {
+    "pass": true,
+    "issues": []
+  },
+  "C5_zero_unresolved_mappings": {
+    "pass": true,
+    "issues": []
+  },
+  "C6_canonical_passage_ids": {
+    "pass": true,
+    "note": "verified at adapter level"
+  },
+  "C7_no_unmapped_sentinels": {
+    "pass": true,
+    "issues": []
+  },
+  "all_pass": true
+}
