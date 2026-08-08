@@ -1,0 +1,24 @@
+{
+    "schema_version": "slice5a_agentic_v1",
+    "config_id": "deterministic_router_v1",
+    "description": "Deterministic router configuration for governed agentic routing",
+    "router_type": "deterministic_v1",
+    "router_version": "1.0.0",
+    "query_classes": [
+        "GLOBAL_SUMMARY",
+        "LOCALIZED_FACT",
+        "COMPARISON",
+        "PROCEDURAL_EXPLANATION",
+        "POSSIBLY_UNANSWERABLE",
+        "UNCLASSIFIED"
+    ],
+    "strategy_map": {
+        "GLOBAL_SUMMARY": "auto_merging",
+        "LOCALIZED_FACT": "sentence_window_rerank",
+        "COMPARISON": "sentence_window_rerank",
+        "PROCEDURAL_EXPLANATION": "sentence_window",
+        "POSSIBLY_UNANSWERABLE": "baseline",
+        "UNCLASSIFIED": "sentence_window_rerank"
+    },
+    "fallback_strategy": "sentence_window_rerank"
+}

@@ -1,0 +1,48 @@
+{
+    "_comment": "This fixture is ENTIRELY SYNTHETIC and does NOT constitute a scientific result. It exists solely for CI/unit testing of the agentic policy replay. It contains fabricated query-strategy pairs with fake metric values.",
+    "schema_version": "slice5a_agentic_v1",
+    "fixture_purpose": "CI_ONLY",
+    "source": "synthetic_handcrafted",
+    "queries": [
+        {
+            "query_id": "synth_001",
+            "query_text": "What is the main idea of the document?",
+            "split": "test",
+            "results_per_strategy": {
+                "baseline": {"ndcg_at_3": 0.45, "recall_at_3": 0.33, "mrr_at_3": 0.50},
+                "sentence_window_rerank": {"ndcg_at_3": 0.72, "recall_at_3": 0.67, "mrr_at_3": 0.80},
+                "auto_merging": {"ndcg_at_3": 0.65, "recall_at_3": 0.50, "mrr_at_3": 0.70}
+            }
+        },
+        {
+            "query_id": "synth_002",
+            "query_text": "Compare chunking strategies for RAG.",
+            "split": "test",
+            "results_per_strategy": {
+                "baseline": {"ndcg_at_3": 0.30, "recall_at_3": 0.17, "mrr_at_3": 0.25},
+                "sentence_window_rerank": {"ndcg_at_3": 0.55, "recall_at_3": 0.50, "mrr_at_3": 0.60},
+                "auto_merging": {"ndcg_at_3": 0.60, "recall_at_3": 0.50, "mrr_at_3": 0.65}
+            }
+        },
+        {
+            "query_id": "synth_003",
+            "query_text": "How to build a retrieval pipeline?",
+            "split": "test",
+            "results_per_strategy": {
+                "baseline": {"ndcg_at_3": 0.40, "recall_at_3": 0.33, "mrr_at_3": 0.45},
+                "sentence_window_rerank": {"ndcg_at_3": 0.70, "recall_at_3": 0.67, "mrr_at_3": 0.75},
+                "auto_merging": {"ndcg_at_3": 0.50, "recall_at_3": 0.33, "mrr_at_3": 0.55}
+            }
+        },
+        {
+            "query_id": "synth_004",
+            "query_text": "This topic is not discussed in the text.",
+            "split": "test",
+            "results_per_strategy": {
+                "baseline": {"ndcg_at_3": 0.10, "recall_at_3": 0.00, "mrr_at_3": 0.10},
+                "sentence_window_rerank": {"ndcg_at_3": 0.15, "recall_at_3": 0.00, "mrr_at_3": 0.15},
+                "auto_merging": {"ndcg_at_3": 0.12, "recall_at_3": 0.00, "mrr_at_3": 0.12}
+            }
+        }
+    ]
+}

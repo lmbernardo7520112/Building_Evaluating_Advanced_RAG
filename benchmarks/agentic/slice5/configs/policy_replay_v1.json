@@ -1,0 +1,22 @@
+{
+    "schema_version": "slice5a_agentic_v1",
+    "config_id": "policy_replay_v1",
+    "description": "Configuration for offline policy replay analysis",
+    "router": {
+        "type": "deterministic_v1",
+        "version": "1.0.0"
+    },
+    "metrics": ["ndcg_at_3", "recall_at_3", "mrr_at_3"],
+    "primary_metric": "ndcg_at_3",
+    "strategies_to_compare": [
+        "baseline",
+        "sentence_window_rerank",
+        "auto_merging"
+    ],
+    "oracle_label": "POST_HOC_ORACLE — ceiling only, not a deployable policy",
+    "budget": {
+        "max_logical_calls": 10,
+        "max_physical_attempts": 20,
+        "max_retries": 5
+    }
+}
