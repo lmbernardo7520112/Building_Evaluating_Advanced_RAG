@@ -1,0 +1,41 @@
+{
+    "schema_version": "slice5a_runtime_v1",
+    "config_id": "runtime_integration_v1",
+
+    "strategies": [
+        "baseline",
+        "sentence_anchor",
+        "sentence_window",
+        "sentence_window_rerank",
+        "hierarchical_leaf",
+        "auto_merging",
+        "auto_merging_rerank"
+    ],
+
+    "routing": {
+        "policy": "deterministic_v1",
+        "calls_per_qid": 1,
+        "fallback_strategy": "baseline"
+    },
+
+    "retrieval": {
+        "top_k": 3,
+        "document_filtering": "DISABLED"
+    },
+
+    "budget": {
+        "max_logical_calls": 1,
+        "max_physical_attempts": 1,
+        "max_retries": 0
+    },
+
+    "anti_leakage": {
+        "qrels_during_routing": false,
+        "qrels_during_retrieval": false,
+        "gold_answers": false,
+        "holdout": false,
+        "network_access": false
+    },
+
+    "generation": "NOT_EXECUTED"
+}

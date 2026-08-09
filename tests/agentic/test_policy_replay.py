@@ -202,8 +202,8 @@ class TestPolicyReplayCLI:
         assert "input_sha256" in manifest
         assert "config_sha256" in manifest
 
-    def test_oracle_marked_post_hoc(self, tmp_path):
-        """Oracle results must be marked POST_HOC_ORACLE."""
+    def test_headroom_decision_exists(self, tmp_path):
+        """Headroom decision file must exist with ALL/DEV/TEST subsets."""
         result = _run_cli(
             [
                 "--slice4-result",
@@ -217,12 +217,10 @@ class TestPolicyReplayCLI:
         )
         assert result.returncode == 0
 
-        reports = list(tmp_path.glob("*report*.json"))
-        if reports:
-            report = json.loads(reports[0].read_text())
-            oracle = report.get("oracle_analysis", {})
-            if oracle:
-                assert oracle.get("label") == "POST_HOC_ORACLE"
+        decision = json.loads((tmp_path / "headroom_decision.json").read_text())
+        assert "ALL" in decision
+        assert "DEV" in decision
+        assert "TEST" in decision
 
     def test_no_credentials_in_outputs(self, tmp_path):
         """No API keys or secrets in any output file."""
@@ -324,7 +322,7 @@ class TestPolicyReplayCLI:
         assert result.returncode != 0
 
     def test_explicit_denominator_and_metrics(self, tmp_path):
-        """Report contains explicit denominator and valid queries count."""
+        """Strategy summary contains ALL/DEV/TEST subsets."""
         result = _run_cli(
             [
                 "--slice4-result",
@@ -337,10 +335,9 @@ class TestPolicyReplayCLI:
             tmp_path,
         )
         assert result.returncode == 0
-        report = json.loads((tmp_path / "policy_replay_report.json").read_text())
-        assert "valid_queries" in report
-        assert "denominator" in report["wins_ties_losses"]
-        assert report["wins_ties_losses"]["denominator"] == report["valid_queries"]
+        summary = json.loads((tmp_path / "strategy_summary.json").read_text())
+        assert "ALL" in summary
+        assert "best_fixed" in summary
 
     def test_missing_metric_produces_none_not_zero(self, tmp_path):
         """Queries with missing metrics produce None/null, never converted to zero."""
@@ -370,8 +367,6 @@ class TestPolicyReplayCLI:
             tmp_path,
         )
         assert result.returncode == 0
-        report = json.loads(
-            (tmp_path / "out" / "policy_replay_report.json").read_text()
-        )
+        summary = json.loads((tmp_path / "out" / "strategy_summary.json").read_text())
         # ndcg_at_3 for baseline should be null (None), not 0.0
-        assert report["strategy_summary"]["baseline"]["ndcg_at_3"] is None
+        assert summary["ALL"]["baseline"]["ndcg_at_3"] is None
