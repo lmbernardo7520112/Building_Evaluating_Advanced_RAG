@@ -29,6 +29,8 @@ from typing import Any
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
+from raglab.domain.enums import PipelineStrategy  # noqa: E402
+
 logger = logging.getLogger("slice5a_productive_pilot")
 
 # Constants copied from benchmark (frozen)
@@ -76,11 +78,12 @@ def load_pages(pdf_path: Path) -> list[Any]:
     )
 
     adapter = PyPdfExtractorAdapter()
-    return adapter.read_document(
+    pages: list[Any] = adapter.read_document(
         str(pdf_path),
         page_start=PAGES_START,
         page_end=PAGES_END,
     )
+    return pages
 
 
 def load_embedding_model() -> Any:
@@ -98,7 +101,7 @@ def load_embedding_model() -> Any:
 def build_productive_retrievers(
     pages: list[Any],
     embed_model: Any,
-) -> dict[str, Any]:
+) -> dict[PipelineStrategy, object]:
     """Build all 7 retrievers (frozen config).
 
     Reuses the exact same builder logic as
@@ -171,9 +174,12 @@ def build_productive_retrievers(
 
             @property
             def model_id(self) -> str:
-                return self._adapter.model_id
+                mid: str = self._adapter.model_id
+                return mid
 
-        adapter = InMemoryBaselineAdapter(embedding=_EmbeddingShim(embed_model))
+        adapter = InMemoryBaselineAdapter(
+            embedding=_EmbeddingShim(embed_model),  # type: ignore[arg-type]
+        )
         chunks = _pages_to_chunks(pages)
         adapter.index_chunks(chunks)
         return adapter
@@ -325,7 +331,7 @@ def build_productive_retrievers(
         PipelineStrategy.AUTO_MERGING_RERANK: _build_h2,
     }
 
-    result: dict[str, Any] = {}
+    result: dict[PipelineStrategy, object] = {}
     for strategy, builder in builders.items():
         logger.info("Building retriever: %s", strategy.value)
         result[strategy] = builder()
