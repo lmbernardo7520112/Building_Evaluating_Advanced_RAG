@@ -178,7 +178,7 @@ def build_productive_retrievers(
                 return mid
 
         adapter = InMemoryBaselineAdapter(
-            embedding=_EmbeddingShim(embed_model),  # type: ignore[arg-type]
+            embedding=_EmbeddingShim(embed_model),
         )
         chunks = _pages_to_chunks(pages)
         adapter.index_chunks(chunks)
