@@ -2,7 +2,7 @@
 
 Phase: RED EXCLUSIVELY
 Imports target modules inside test functions to ensure pytest collects all test cases
-individually, failing each test with an explicit ImportError at execution time.
+individually, failing each test with an explicit ImportError or AssertionError at execution time.
 """
 
 from __future__ import annotations
@@ -798,9 +798,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_56_valid_run_returns_exit_code_zero(self) -> None:
         """56. CLI verifier must return exit code 0 for a valid run."""
+        script_path = Path("scripts/verify_agentic_run_lineage.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/verify_agentic_run_lineage.py",
+            str(script_path),
             "--run-dir",
             str(self.sandbox / "valid_run"),
         ]
@@ -818,9 +822,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_58_invalid_run_returns_non_zero_exit(self) -> None:
         """58. CLI verifier must return non-zero exit code for an invalid run."""
+        script_path = Path("scripts/verify_agentic_run_lineage.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/verify_agentic_run_lineage.py",
+            str(script_path),
             "--run-dir",
             str(self.sandbox / "invalid_run"),
         ]
@@ -940,15 +948,23 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_68_cli_requires_repo_root(self) -> None:
         """68. prepare CLI must require --repo-root parameter."""
-        cmd = [sys.executable, "scripts/prepare_agentic_run.py"]
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
+        cmd = [sys.executable, str(script_path)]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
 
     def test_69_cli_requires_artifact_root(self) -> None:
         """69. prepare CLI must require --artifact-root parameter."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             ".",
         ]
@@ -957,9 +973,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_70_cli_requires_slice_id(self) -> None:
         """70. prepare CLI must require --slice-id parameter."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             ".",
             "--artifact-root",
@@ -970,9 +990,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_71_cli_requires_run_id(self) -> None:
         """71. prepare CLI must require --run-id parameter."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             ".",
             "--artifact-root",
@@ -985,9 +1009,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_72_cli_requires_protocol(self) -> None:
         """72. prepare CLI must require --protocol parameter."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             ".",
             "--artifact-root",
@@ -1002,9 +1030,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_73_cli_requires_implementation_commit(self) -> None:
         """73. prepare CLI must require --implementation-commit parameter."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             ".",
             "--artifact-root",
@@ -1021,9 +1053,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_74_cli_requires_protocol_commit(self) -> None:
         """74. prepare CLI must require --protocol-commit parameter."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             ".",
             "--artifact-root",
@@ -1042,9 +1078,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_75_cli_accepts_repeatable_input(self) -> None:
         """75. prepare CLI must accept repeatable --input NAME=PATH arguments."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             ".",
             "--artifact-root",
@@ -1065,13 +1105,17 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             "passages=passages.jsonl",
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
-        self.assertNotEqual(res.returncode, 0)
+        self.assertEqual(res.returncode, 0)
 
     def test_76_cli_returns_non_zero_on_invalid_preflight(self) -> None:
         """76. prepare CLI must return non-zero exit code when preflight fails."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             str(self.sandbox),
             "--artifact-root",
@@ -1092,10 +1136,14 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_77_cli_creates_no_output_on_failure(self) -> None:
         """77. prepare CLI must create no output directory or receipt files after preflight failure."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         target_dir = self.sandbox / "failed_cli_dir"
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--repo-root",
             str(self.sandbox),
             "--artifact-root",
@@ -1116,14 +1164,18 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_78_verifier_cli_is_read_only(self) -> None:
         """78. verifier CLI must execute in strictly read-only mode without file creation or mutation."""
+        script_path = Path("scripts/verify_agentic_run_lineage.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/verify_agentic_run_lineage.py",
+            str(script_path),
             "--run-dir",
             str(self.sandbox),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
-        self.assertNotEqual(res.returncode, 0)
+        self.assertEqual(res.returncode, 0)
 
     # =========================================================================
     # ANTI-REGRESSÃO DA IMPLEMENTAÇÃO REPROVADA (Seção 9 - Casos 79 a 90)
@@ -1266,9 +1318,13 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
     def test_90_anti_regression_reject_reduced_cli(self) -> None:
         """90. Anti-regression: CLI reduced to only --run-id/--protocol/--output-dir is rejected."""
+        script_path = Path("scripts/prepare_agentic_run.py")
+        self.assertTrue(
+            script_path.exists(), f"CLI script {script_path} must exist."
+        )
         cmd = [
             sys.executable,
-            "scripts/prepare_agentic_run.py",
+            str(script_path),
             "--run-id",
             "r1",
             "--protocol",
