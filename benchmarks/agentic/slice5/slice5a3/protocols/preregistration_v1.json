@@ -1,0 +1,67 @@
+{
+  "$schema": "https://raglab.org/schemas/agentic/slice5a3/preregistration_v1.json",
+  "protocol_id": "slice5a3_parity_gate_v1",
+  "created_at_utc": "2026-08-10T00:00:00Z",
+  "base_commit": "3a6aa2d8479e00ca3aa1efc36e4fcaeefac9ce84",
+  "slice4_result_sha256": "b4fc4860c6c098f333cc410538fd5a41582913f12b88b4a484032d4624fdc1e8",
+  "slice4_checkpoint_sha256": "c5b87f7c57bee9457d4cdec35f0390e730aaba9c0f20a2d420d01f2042193548",
+  "human_qrels_sha256": "83ba761165ad733657d2596f4eb748003586d7516caa21b189c3fb3239524f87",
+  "human_qrels_manifest_sha256": "8e596a1238ac4ef224b4c2f9d0959e540885f959b5de0294e3fba734db56c434",
+  "passage_registry_sha256": "c2d1b31e5eaeb98e2a31094628cf2e4291c4ff73bb7ddb1f79929204163799e1",
+  "passage_registry_manifest_sha256": "db57b18b8b7da3c9918f0e5290a8d6ed43394ab3c7e88dd93ae17d64b9a9b99b",
+  "question_split": "DEV_ONLY",
+  "dev_qids": [
+    "q_dev_01",
+    "q_dev_02",
+    "q_dev_03",
+    "q_dev_04"
+  ],
+  "test_split_status": "SEALED_UNEXECUTED",
+  "b0_definition": "InMemoryBaselineAdapter (F0 strategy with deterministic embedding)",
+  "a1_definition": "Frozen Slice 5A.1 / 5A.2 deterministic routing policy",
+  "same_run_oracle_definition": "Retrospective max metric across the 7 materialized arms in the current run",
+  "fixed_arms": [
+    "F0",
+    "S0",
+    "S1",
+    "W0",
+    "W1",
+    "C0",
+    "C1"
+  ],
+  "primary_metric": "ndcg_at_3",
+  "secondary_metrics": [
+    "mrr_at_3",
+    "precision_at_3",
+    "recall_at_3"
+  ],
+  "top_k": 3,
+  "min_thresholds": {
+    "canonical_id_coverage": 1.0,
+    "synthetic_fallback_count": 0,
+    "unmapped_count": 0,
+    "same_run_arm_coverage": 1.0,
+    "repeat_topk_identity": 1.0,
+    "configuration_hash_parity": 1.0,
+    "corpus_hash_parity": 1.0,
+    "test_qid_count": 0
+  },
+  "judged_coverage_rules": {
+    "unjudged_items_mode": "UNJUDGED",
+    "never_convert_unjudged_to_zero": true,
+    "metrics_not_applicable_on_coverage_failure": true
+  },
+  "outcome_categories": [
+    "SCIENTIFICALLY_EVALUABLE",
+    "NOT_EVALUABLE_CANONICAL_COVERAGE",
+    "NOT_EVALUABLE_JUDGED_COVERAGE",
+    "NOT_EVALUABLE_RETRIEVAL_NONDETERMINISM",
+    "NOT_EVALUABLE_CONFIGURATION_DIVERGENCE",
+    "OPERATIONAL_FAILURE"
+  ],
+  "seed": 42,
+  "timestamp_policy": "EXCLUDED_FROM_SCIENTIFIC_HASH",
+  "prohibition_synthetic_fallback": true,
+  "prohibition_historical_o1": true,
+  "prohibition_superiority_n4": true
+}
