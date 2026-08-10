@@ -1,12 +1,13 @@
 """Pure Cryptographic & Artifact Integrity Core — RAGLab V7 Experimental Readiness.
 
 Provides deterministic canonical JSON serialization, SHA-256 computation,
-and fail-closed artifact hashing/validation.
+validation of SHA-256 format, and fail-closed artifact hashing/validation.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 from pathlib import Path
@@ -15,6 +16,37 @@ from typing import Any
 
 class IntegrityError(Exception):
     """Raised when an integrity check fails closed."""
+
+
+def is_valid_sha256(val: str) -> bool:
+    """Validate that val is exactly 64 lowercase hex characters."""
+    if not isinstance(val, str) or len(val) != 64:
+        return False
+    return all(c in "0123456789abcdef" for c in val)
+
+
+def validate_sha256_digest(
+    val: str | None,
+    field_name: str,
+    allow_none: bool = False,
+    allow_empty: bool = False,
+) -> None:
+    """Validate SHA-256 digest format fail-closed."""
+    if val is None:
+        if allow_none:
+            return
+        raise ValueError(f"Field '{field_name}' cannot be None")
+
+    if val == "":
+        if allow_empty:
+            return
+        raise ValueError(f"Field '{field_name}' cannot be empty")
+
+    if not is_valid_sha256(val):
+        raise ValueError(
+            f"Field '{field_name}' must be a 64-char hex SHA-256 string, "
+            f"got '{val}'"
+        )
 
 
 def compute_bytes_sha256(data: bytes) -> str:
@@ -115,8 +147,10 @@ def verify_artifact_integrity(
         if not expected_hash:
             raise IntegrityError(f"No declared hash for artifact: {rel_path_str}")
 
+        validate_sha256_digest(expected_hash, f"artifact_hashes[{rel_path_str}]")
+
         actual_hash = compute_file_sha256(full_path)
-        if actual_hash.lower() != expected_hash.lower():
+        if not hmac.compare_digest(actual_hash.lower(), expected_hash.lower()):
             raise IntegrityError(
                 f"Hash mismatch for {rel_path_str}: "
                 f"expected {expected_hash}, got {actual_hash}"

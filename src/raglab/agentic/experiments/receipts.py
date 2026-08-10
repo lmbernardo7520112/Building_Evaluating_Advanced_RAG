@@ -1,16 +1,23 @@
 """Immutable Receipt Core & Chain Integrity — RAGLab V7 Experimental Readiness.
 
 Defines the RunState machine, immutable RunReceipt model, state transitions,
-and append-only hash chain validation.
+and append-only hash chain validation with fail-closed cryptographic checks.
 """
 
 from __future__ import annotations
 
+import hmac
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
+from types import MappingProxyType
 from typing import Any
 
-from raglab.agentic.experiments.integrity import compute_canonical_json_sha256
+from raglab.agentic.experiments.integrity import (
+    compute_canonical_json_sha256,
+    is_valid_sha256,
+    validate_sha256_digest,
+)
 
 
 class ReceiptStoreError(Exception):
@@ -103,19 +110,19 @@ class RunReceipt:
     implementation_commit: str
     protocol_commit: str
     protocol_sha256: str
-    input_hashes: dict[str, str]
+    input_hashes: Mapping[str, str]
     runner_version: str
     created_at_utc: str
     started_at_utc: str | None = None
     finished_at_utc: str | None = None
     exit_code: int | None = None
-    artifact_inventory: list[str] = field(default_factory=list)
-    artifact_hashes: dict[str, str] = field(default_factory=dict)
+    artifact_inventory: tuple[str, ...] = field(default_factory=tuple)
+    artifact_hashes: Mapping[str, str] = field(default_factory=dict)
     previous_receipt_sha256: str | None = None
     receipt_sha256: str = ""
 
     def __post_init__(self) -> None:
-        """Validate receipt attributes on construction."""
+        """Validate receipt attributes and convert collections to read-only proxies."""
         if self.schema_version < 1:
             raise ValueError(f"Invalid schema_version: {self.schema_version}")
         if not self.run_id:
@@ -128,6 +135,41 @@ class RunReceipt:
                 RunState(self.state)
             except ValueError:
                 raise ValueError(f"Invalid state: {self.state}") from None
+
+        # Validate protocol_sha256
+        validate_sha256_digest(self.protocol_sha256, "protocol_sha256")
+
+        # Validate and encapsulate input_hashes
+        raw_input_hashes = dict(self.input_hashes or {})
+        for k, v in raw_input_hashes.items():
+            validate_sha256_digest(v, f"input_hashes[{k}]")
+        object.__setattr__(
+            self, "input_hashes", MappingProxyType(raw_input_hashes)
+        )
+
+        # Encapsulate artifact_inventory
+        raw_inventory = tuple(str(x) for x in (self.artifact_inventory or ()))
+        object.__setattr__(self, "artifact_inventory", raw_inventory)
+
+        # Validate and encapsulate artifact_hashes
+        raw_artifact_hashes = dict(self.artifact_hashes or {})
+        for k, v in raw_artifact_hashes.items():
+            validate_sha256_digest(v, f"artifact_hashes[{k}]")
+        object.__setattr__(
+            self, "artifact_hashes", MappingProxyType(raw_artifact_hashes)
+        )
+
+        # Validate previous_receipt_sha256 if present
+        validate_sha256_digest(
+            self.previous_receipt_sha256,
+            "previous_receipt_sha256",
+            allow_none=True,
+        )
+
+        # Validate receipt_sha256 if not empty (draft allow empty)
+        validate_sha256_digest(
+            self.receipt_sha256, "receipt_sha256", allow_empty=True
+        )
 
     def compute_hash(self) -> str:
         """Compute deterministic SHA-256 hash of this receipt."""
@@ -171,6 +213,12 @@ class RunReceipt:
                     f"Missing required field in receipt dictionary: {field_name}"
                 )
 
+        receipt_sha = d.get("receipt_sha256")
+        if not receipt_sha or not isinstance(receipt_sha, str) or receipt_sha == "":
+            raise ValueError(
+                "Materialized receipt from_dict() requires non-empty receipt_sha256"
+            )
+
         cls.validate_metadata_security(d)
 
         raw_state = d["state"]
@@ -196,10 +244,10 @@ class RunReceipt:
             started_at_utc=d.get("started_at_utc"),
             finished_at_utc=d.get("finished_at_utc"),
             exit_code=d.get("exit_code"),
-            artifact_inventory=list(d.get("artifact_inventory", [])),
+            artifact_inventory=tuple(d.get("artifact_inventory", ())),
             artifact_hashes=dict(d.get("artifact_hashes", {})),
             previous_receipt_sha256=d["previous_receipt_sha256"],
-            receipt_sha256=str(d["receipt_sha256"]),
+            receipt_sha256=str(receipt_sha),
         )
 
     @staticmethod
@@ -240,8 +288,14 @@ def verify_receipt_chain(receipts: list[RunReceipt]) -> bool:
         )
 
     for i, curr in enumerate(receipts):
+        if not curr.receipt_sha256 or not is_valid_sha256(curr.receipt_sha256):
+            raise ReceiptStoreError(
+                f"Receipt at index {i} has invalid receipt_sha256: "
+                f"'{curr.receipt_sha256}'"
+            )
+
         expected_hash = curr.compute_hash()
-        if curr.receipt_sha256 and curr.receipt_sha256 != expected_hash:
+        if not hmac.compare_digest(curr.receipt_sha256, expected_hash):
             raise ReceiptStoreError(
                 f"Receipt at index {i} hash mismatch: "
                 f"recorded {curr.receipt_sha256}, expected {expected_hash}"
@@ -249,7 +303,13 @@ def verify_receipt_chain(receipts: list[RunReceipt]) -> bool:
 
         if i > 0:
             prev = receipts[i - 1]
-            if curr.previous_receipt_sha256 != prev.receipt_sha256:
+            if (
+                not curr.previous_receipt_sha256
+                or not is_valid_sha256(curr.previous_receipt_sha256)
+                or not hmac.compare_digest(
+                    curr.previous_receipt_sha256, prev.receipt_sha256
+                )
+            ):
                 raise ReceiptStoreError(
                     f"Receipt at index {i} previous_receipt_sha256 "
                     f"'{curr.previous_receipt_sha256}' does not match preceding "
