@@ -200,7 +200,11 @@ def run_parity_gate_evaluation(
 
     for q_item in dev_questions:
         qid = q_item.get("qid") or q_item.get("question_id")
-        q_text = q_item.get("question_text") or q_item.get("text", "")
+        q_text = (
+            q_item.get("question")
+            or q_item.get("question_text")
+            or q_item.get("text", "")
+        )
 
         if not qid or not q_text:
             continue
@@ -296,7 +300,11 @@ def run_parity_gate_evaluation(
     arm_runs_2: list[ArmRun] = []
     for q_item in dev_questions:
         qid = q_item.get("qid") or q_item.get("question_id")
-        q_text = q_item.get("question_text") or q_item.get("text", "")
+        q_text = (
+            q_item.get("question")
+            or q_item.get("question_text")
+            or q_item.get("text", "")
+        )
         if not qid or not q_text:
             continue
 
