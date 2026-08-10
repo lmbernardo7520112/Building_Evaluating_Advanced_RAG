@@ -1,0 +1,1284 @@
+"""Hermetic Acceptance Test Suite — RAGLab V7 / Experimental Readiness Contract V1.
+
+Phase: RED EXCLUSIVELY
+Imports target modules inside test functions to ensure pytest collects all test cases
+individually, failing each test with an explicit ImportError at execution time.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+class TestExperimentalReadinessAcceptance(unittest.TestCase):
+    """Frozen acceptance test suite defining required behavior for Experimental Readiness V1."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.sandbox = Path(self.temp_dir.name).resolve()
+
+        # Contract JSON path check
+        self.contract_json_path = (
+            Path(__file__).parent / "readiness_contract_v1.json"
+        )
+        self.assertTrue(
+            self.contract_json_path.exists(),
+            "Contract specification JSON readiness_contract_v1.json must exist.",
+        )
+        self.contract_spec = json.loads(
+            self.contract_json_path.read_text(encoding="utf-8")
+        )
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def _import_target_module(self) -> None:
+        """Helper importing target module inside tests to enable individual collection."""
+        from raglab.agentic.experiments import (  # noqa: F401
+            ExperimentalPathPolicy,
+            LineageAuditResult,
+            LineageVerifier,
+            PathPolicyError,
+            ReceiptStoreError,
+            RunController,
+            RunControllerError,
+            RunReceipt,
+            RunReceiptStore,
+            RunState,
+            compute_canonical_json_sha256,
+            compute_file_sha256,
+        )
+
+    # =========================================================================
+    # PATHS (Casos 1 a 13)
+    # =========================================================================
+
+    def test_01_empty_path_rejected(self) -> None:
+        """1. Empty path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory("")
+
+    def test_02_relative_path_rejected(self) -> None:
+        """2. Relative path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory("relative/path/to/dir")
+
+    def test_03_tmp_path_rejected(self) -> None:
+        """3. /tmp root path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory("/tmp")  # noqa: S108
+
+    def test_04_tmp_descendant_rejected(self) -> None:
+        """4. Descendant of /tmp path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory("/tmp/some_agentic_run_123")  # noqa: S108
+
+    def test_05_var_tmp_rejected(self) -> None:
+        """5. /var/tmp path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory("/var/tmp")  # noqa: S108
+
+    def test_06_var_tmp_descendant_rejected(self) -> None:
+        """6. Descendant of /var/tmp path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory("/var/tmp/some_run")  # noqa: S108
+
+    def test_07_repo_root_rejected(self) -> None:
+        """7. Repo root path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        repo_root = Path(__file__).parents[2].resolve()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory(repo_root)
+
+    def test_08_repo_descendant_rejected(self) -> None:
+        """8. Descendant of repo root path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        repo_sub = (Path(__file__).parents[2] / "src" / "output").resolve()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory(repo_sub)
+
+    def test_09_benchmarks_rejected(self) -> None:
+        """9. benchmarks/ path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        b_path = (Path(__file__).parents[2] / "benchmarks" / "run1").resolve()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory(b_path)
+
+    def test_10_checkpoints_rejected(self) -> None:
+        """10. checkpoints/ path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        c_path = (Path(__file__).parents[2] / "checkpoints" / "run1").resolve()
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory(c_path)
+
+    def test_11_symlink_to_forbidden_rejected(self) -> None:
+        """11. Symlink pointing to a forbidden path must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        symlink_path = self.sandbox / "symlink_tmp"
+        if not symlink_path.exists():
+            with contextlib.suppress(OSError):
+                os.symlink("/tmp", symlink_path)  # noqa: S108
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory(symlink_path)
+
+    def test_12_existing_run_directory_rejected(self) -> None:
+        """12. Pre-existing run directory must be rejected during prepare."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        policy = ExperimentalPathPolicy()
+        existing_dir = self.sandbox / "existing_dir"
+        existing_dir.mkdir(parents=True, exist_ok=True)
+        (existing_dir / "file.txt").write_text("content", encoding="utf-8")
+        with self.assertRaises(PathPolicyError):
+            policy.validate_target_directory(existing_dir, must_be_empty=True)
+
+    def test_13_used_run_id_rejected(self) -> None:
+        """13. Reusing a run_id with existing artifacts must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises((RunControllerError, ValueError, RuntimeError)):
+            controller.prepare_run(
+                run_id="duplicate_run_id",
+                slice_id="slice5b",
+                protocol_path="proto.json",
+                artifact_root=str(self.sandbox),
+            )
+
+    # =========================================================================
+    # GIT E PROTOCOLO (Casos 14 a 22)
+    # =========================================================================
+
+    def test_14_dirty_git_tree_rejected(self) -> None:
+        """14. Dirty tracked git tree must be rejected during prepare."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.preflight_git_check(allow_dirty=False)
+
+    def test_15_non_empty_staging_rejected(self) -> None:
+        """15. Non-empty git staging must be rejected during prepare."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.preflight_git_check(allow_staged=False)
+
+    def test_16_missing_implementation_commit_rejected(self) -> None:
+        """16. Non-existent implementation commit hash must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.validate_commits(
+                implementation_commit="0000000000000000000000000000000000000000",
+                protocol_commit="245718846707804de171e5e869847b011285b801",
+            )
+
+    def test_17_missing_protocol_commit_rejected(self) -> None:
+        """17. Non-existent protocol commit hash must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.validate_commits(
+                implementation_commit="245718846707804de171e5e869847b011285b801",
+                protocol_commit="0000000000000000000000000000000000000000",
+            )
+
+    def test_18_incorrect_commit_ancestry_rejected(self) -> None:
+        """18. Implementation commit not being an ancestor of protocol commit must fail."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.validate_commit_ancestry(
+                impl_commit="head_commit", proto_commit="older_commit"
+            )
+
+    def test_19_protocol_commit_outside_head_rejected(self) -> None:
+        """19. Protocol commit not being ancestor of HEAD must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.validate_protocol_in_head_ancestry("detached_commit")
+
+    def test_20_untracked_protocol_file_rejected(self) -> None:
+        """20. Protocol file not tracked in git must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        untracked_proto = self.sandbox / "untracked_proto.json"
+        untracked_proto.write_text("{}", encoding="utf-8")
+        with self.assertRaises(RunControllerError):
+            controller.validate_protocol_tracked(untracked_proto)
+
+    def test_21_protocol_modified_after_commit_rejected(self) -> None:
+        """21. Protocol file modified in workspace after commit must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.validate_protocol_unmodified("benchmarks/proto.json")
+
+    def test_22_protocol_sha_mismatch_rejected(self) -> None:
+        """22. Protocol SHA-256 hash mismatch must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.validate_protocol_sha(
+                protocol_path="proto.json",
+                expected_sha="0000000000000000000000000000000000000000000000000000000000000000",
+            )
+
+    # =========================================================================
+    # INPUTS (Casos 23 a 26)
+    # =========================================================================
+
+    def test_23_missing_input_file_rejected(self) -> None:
+        """23. Non-existent input file in inputs dict must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.validate_inputs(
+                {"missing_input": "/path/does/not/exist.json"}
+            )
+
+    def test_24_input_hash_divergence_rejected(self) -> None:
+        """24. Input file with hash divergence must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            LineageVerifier,
+            RunControllerError,
+        )
+
+        verifier = LineageVerifier()
+        with self.assertRaises((RunControllerError, ValueError, RuntimeError)):
+            verifier.verify_input_hashes(
+                actual_inputs={"qrels": self.sandbox / "qrels.json"},
+                expected_hashes={"qrels": "wrong_hash"},
+            )
+
+    def test_25_input_modified_after_prepare_detected(self) -> None:
+        """25. Input file modified after prepare phase must be detected by verifier."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "run_modified_input")
+        self.assertFalse(audit.is_valid)
+
+    def test_26_all_inputs_recorded_in_receipt(self) -> None:
+        """26. All passed inputs must appear in input_hashes dictionary of receipt."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunController
+
+        controller = RunController()
+        receipt = controller.prepare_run(
+            run_id="test_inputs",
+            slice_id="slice5b",
+            protocol_path=str(self.sandbox / "proto.json"),
+            inputs={"qrels": str(self.sandbox / "qrels.json")},
+        )
+        self.assertIn("qrels", receipt.input_hashes)
+
+    # =========================================================================
+    # RECEIPTS (Casos 27 a 39)
+    # =========================================================================
+
+    def test_27_all_required_receipt_fields_present(self) -> None:
+        """27. RunReceipt must contain all required contract fields."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceipt, RunState
+
+        receipt = RunReceipt(
+            schema_version=1,
+            run_id="run_fields",
+            slice_id="slice5b",
+            state=RunState.PREPARED,
+            artifact_root=str(self.sandbox),
+            run_directory=str(self.sandbox / "slice5b" / "run_fields"),
+            implementation_commit="commit1",
+            protocol_commit="commit2",
+            protocol_sha256="sha_proto",
+            input_hashes={},
+            runner_version="1.0.0",
+            created_at_utc="2026-08-10T12:00:00Z",
+            started_at_utc=None,
+            finished_at_utc=None,
+            exit_code=None,
+            artifact_inventory=[],
+            artifact_hashes={},
+            previous_receipt_sha256=None,
+            receipt_sha256="sha_receipt",
+        )
+        d = receipt.to_dict()
+        required_fields = self.contract_spec["required_receipt_fields"]
+        for f in required_fields:
+            self.assertIn(f, d)
+
+    def test_28_prepared_created_as_receipt_000(self) -> None:
+        """28. PREPARED state must be persisted in receipts/000_PREPARED.json."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunController
+
+        controller = RunController()
+        receipt = controller.prepare_run(
+            run_id="run_000",
+            slice_id="slice5b",
+            protocol_path=str(self.sandbox / "proto.json"),
+            artifact_root=str(self.sandbox),
+        )
+        rec_000 = Path(receipt.run_directory) / "receipts" / "000_PREPARED.json"
+        self.assertTrue(rec_000.exists())
+
+    def test_29_correct_hash_chain(self) -> None:
+        """29. Each new receipt in receipts/ must correctly form a cryptographic hash chain."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceiptStore
+
+        store = RunReceiptStore(self.sandbox / "run_chain")
+        self.assertTrue(store.verify_chain_integrity())
+
+    def test_30_previous_receipt_sha256_correct(self) -> None:
+        """30. previous_receipt_sha256 must match receipt_sha256 of preceding receipt."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceiptStore
+
+        store = RunReceiptStore(self.sandbox / "run_chain")
+        rec_started = store.get_receipt_by_index(1)
+        rec_prepared = store.get_receipt_by_index(0)
+        self.assertEqual(
+            rec_started.previous_receipt_sha256, rec_prepared.receipt_sha256
+        )
+
+    def test_31_receipt_sha256_recalculable(self) -> None:
+        """31. receipt_sha256 must be deterministically recalculable from content."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunReceiptStore,
+            compute_canonical_json_sha256,
+        )
+
+        receipt = RunReceiptStore.load_receipt_file(
+            self.sandbox / "run_1" / "run_receipt.json"
+        )
+        data_to_hash = receipt.to_dict()
+        data_to_hash.pop("receipt_sha256", None)
+        expected = compute_canonical_json_sha256(data_to_hash)
+        self.assertEqual(receipt.receipt_sha256, expected)
+
+    def test_32_previous_receipt_byte_intact(self) -> None:
+        """32. Previous historical receipt file must remain byte-by-byte intact upon transition."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            compute_file_sha256,
+        )
+
+        controller = RunController()
+        rec0 = self.sandbox / "receipts" / "000_PREPARED.json"
+        sha_before = compute_file_sha256(rec0)
+        controller.start_run(self.sandbox)
+        sha_after = compute_file_sha256(rec0)
+        self.assertEqual(sha_before, sha_after)
+
+    def test_33_allowed_transitions_accepted(self) -> None:
+        """33. Allowed transitions (PREPARED->STARTED->COMPLETED->AUDIT_COMPLETED) must succeed."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunController, RunState
+
+        controller = RunController()
+        r1 = controller.prepare_run(
+            run_id="run_allowed",
+            slice_id="slice5b",
+            protocol_path=str(self.sandbox / "proto.json"),
+            artifact_root=str(self.sandbox),
+        )
+        r2 = controller.start_run(r1.run_directory)
+        self.assertEqual(r2.state, RunState.RUN_STARTED)
+
+    def test_34_forbidden_transitions_rejected(self) -> None:
+        """34. Forbidden state transitions (e.g. PREPARED->AUDIT_COMPLETED) must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.transition_state(
+                run_dir=self.sandbox / "run_prep",
+                target_state="AUDIT_COMPLETED",
+            )
+
+    def test_35_audit_completed_terminal(self) -> None:
+        """35. AUDIT_COMPLETED is a terminal state and cannot transition further."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.transition_state(
+                run_dir=self.sandbox / "run_audited",
+                target_state="RUN_STARTED",
+            )
+
+    def test_36_failed_terminal(self) -> None:
+        """36. FAILED is a terminal state and cannot transition further."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.transition_state(
+                run_dir=self.sandbox / "run_failed",
+                target_state="PREPARED",
+            )
+
+    def test_37_tampered_receipt_detected(self) -> None:
+        """37. Tampered receipt in receipts/ must be detected by receipt store auditor."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ReceiptStoreError,
+            RunReceiptStore,
+        )
+
+        store = RunReceiptStore(self.sandbox / "run_tampered")
+        with self.assertRaises(ReceiptStoreError):
+            store.verify_chain_integrity()
+
+    def test_38_incomplete_chain_detected(self) -> None:
+        """38. Missing intermediate receipt in receipts/ chain must be detected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ReceiptStoreError,
+            RunReceiptStore,
+        )
+
+        store = RunReceiptStore(self.sandbox / "run_incomplete_chain")
+        with self.assertRaises(ReceiptStoreError):
+            store.verify_chain_integrity()
+
+    def test_39_duplicate_index_detected(self) -> None:
+        """39. Duplicate index prefix in receipts/ directory must be detected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ReceiptStoreError,
+            RunReceiptStore,
+        )
+
+        store = RunReceiptStore(self.sandbox / "run_dup_index")
+        with self.assertRaises(ReceiptStoreError):
+            store.verify_chain_integrity()
+
+    # =========================================================================
+    # SNAPSHOT E ARTEFATOS (Casos 40 a 48)
+    # =========================================================================
+
+    def test_40_protocol_snapshot_byte_exact(self) -> None:
+        """40. protocol.snapshot.json must be 100% byte-for-byte identical to source protocol."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            compute_file_sha256,
+        )
+
+        controller = RunController()
+        proto_src = self.sandbox / "proto_orig.json"
+        proto_src.write_text('{"id": "p1"}\n', encoding="utf-8")
+        receipt = controller.prepare_run(
+            run_id="run_snapshot",
+            slice_id="slice5b",
+            protocol_path=str(proto_src),
+            artifact_root=str(self.sandbox),
+        )
+        snapshot = Path(receipt.run_directory) / "protocol.snapshot.json"
+        self.assertEqual(
+            compute_file_sha256(proto_src), compute_file_sha256(snapshot)
+        )
+
+    def test_41_tampered_snapshot_detected(self) -> None:
+        """41. Modified protocol.snapshot.json must be detected by verifier."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "run_tampered_snapshot")
+        self.assertFalse(audit.is_valid)
+
+    def test_42_complete_inventory_accepted(self) -> None:
+        """42. Complete artifact inventory matching hashes.sha256 must be accepted."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "run_valid_inventory")
+        self.assertTrue(audit.is_valid)
+
+    def test_43_missing_artifact_detected(self) -> None:
+        """43. Missing recorded artifact must trigger audit failure."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "run_missing_artifact")
+        self.assertFalse(audit.is_valid)
+
+    def test_44_tampered_artifact_detected(self) -> None:
+        """44. Adulterated artifact content must trigger audit failure."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "run_tampered_artifact")
+        self.assertFalse(audit.is_valid)
+
+    def test_45_unexpected_file_detected(self) -> None:
+        """45. Unexpected unrecorded file in run directory must be detected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "run_unexpected_file")
+        self.assertFalse(audit.is_valid)
+
+    def test_46_hashes_sha256_consistent(self) -> None:
+        """46. hashes.sha256 file must be 100% consistent with artifact_hashes."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(
+            self.sandbox / "run_inconsistent_hashes"
+        )
+        self.assertFalse(audit.is_valid)
+
+    def test_47_run_id_coincides_with_directory(self) -> None:
+        """47. run_id in receipt must coincide with directory name."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "run_mismatched_id")
+        self.assertFalse(audit.is_valid)
+
+    def test_48_slice_id_coincides_with_directory(self) -> None:
+        """48. slice_id in receipt must coincide with parent directory name."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "run_mismatched_slice")
+        self.assertFalse(audit.is_valid)
+
+    # =========================================================================
+    # ATOMICIDADE E CONCORRÊNCIA (Casos 49 a 54)
+    # =========================================================================
+
+    def test_49_exclusive_lock_acquired(self) -> None:
+        """49. Exclusive file lock must be acquired on run directory during execution."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunController
+
+        controller = RunController()
+        lock = controller.acquire_run_lock(self.sandbox / "run_locked")
+        self.assertTrue(lock.is_acquired())
+
+    def test_50_concurrent_run_rejected(self) -> None:
+        """50. Second execution trying to acquire lock on active run must be rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        _lock1 = controller.acquire_run_lock(self.sandbox / "run_concurrent")
+        with self.assertRaises(RunControllerError):
+            controller.acquire_run_lock(self.sandbox / "run_concurrent")
+
+    def test_51_lock_released_on_exit(self) -> None:
+        """51. Exclusive lock must be released when controller context closes or finishes."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunController
+
+        controller = RunController()
+        with controller.run_context(self.sandbox / "run_context"):
+            pass
+        # Should be able to acquire lock now
+        lock = controller.acquire_run_lock(self.sandbox / "run_context")
+        self.assertTrue(lock.is_acquired())
+
+    def test_52_fsync_before_os_replace(self) -> None:
+        """52. Persistence engine must execute explicit fsync() before os.replace()."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceiptStore
+
+        store = RunReceiptStore(self.sandbox / "run_fsync")
+        self.assertTrue(store.supports_fsync_atomic_write())
+
+    def test_53_failed_write_no_partial_json(self) -> None:
+        """53. Failed write during receipt persistence must leave no partial JSON file."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceiptStore
+
+        target_file = self.sandbox / "run_receipt.json"
+        with self.assertRaises((RuntimeError, ValueError, OSError)):
+            RunReceiptStore.write_atomic_failing_simulation(target_file)
+        self.assertFalse(target_file.exists())
+
+    def test_54_collision_does_not_overwrite(self) -> None:
+        """54. Run ID collision must not overwrite existing run directory or receipts."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises(RunControllerError):
+            controller.prepare_run(
+                run_id="existing_run",
+                slice_id="slice5b",
+                protocol_path=str(self.sandbox / "proto.json"),
+                artifact_root=str(self.sandbox),
+            )
+
+    # =========================================================================
+    # VERIFICADOR (Casos 55 a 63)
+    # =========================================================================
+
+    def test_55_valid_run_returns_valid_status(self) -> None:
+        """55. LineageVerifier must return is_valid=True for a completely valid run."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "valid_run")
+        self.assertTrue(audit.is_valid)
+
+    def test_56_valid_run_returns_exit_code_zero(self) -> None:
+        """56. CLI verifier must return exit code 0 for a valid run."""
+        cmd = [
+            sys.executable,
+            "scripts/verify_agentic_run_lineage.py",
+            "--run-dir",
+            str(self.sandbox / "valid_run"),
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+
+    def test_57_invalid_run_returns_invalid_status(self) -> None:
+        """57. LineageVerifier must return is_valid=False for an invalid run."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "invalid_run")
+        self.assertFalse(audit.is_valid)
+
+    def test_58_invalid_run_returns_non_zero_exit(self) -> None:
+        """58. CLI verifier must return non-zero exit code for an invalid run."""
+        cmd = [
+            sys.executable,
+            "scripts/verify_agentic_run_lineage.py",
+            "--run-dir",
+            str(self.sandbox / "invalid_run"),
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_59_verifier_does_not_alter_bytes(self) -> None:
+        """59. LineageVerifier must not alter any file bytes in the run directory."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            LineageVerifier,
+            compute_file_sha256,
+        )
+
+        run_file = self.sandbox / "run_file.json"
+        sha_before = compute_file_sha256(run_file)
+        verifier = LineageVerifier()
+        verifier.verify_lineage(self.sandbox)
+        sha_after = compute_file_sha256(run_file)
+        self.assertEqual(sha_before, sha_after)
+
+    def test_60_verifier_creates_no_files(self) -> None:
+        """60. LineageVerifier must create zero new files in the run directory."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        run_dir = self.sandbox / "read_only_run"
+        files_before = set(run_dir.rglob("*"))
+        verifier = LineageVerifier()
+        verifier.verify_lineage(run_dir)
+        files_after = set(run_dir.rglob("*"))
+        self.assertEqual(files_before, files_after)
+
+    def test_61_verifier_does_not_change_state(self) -> None:
+        """61. LineageVerifier is read-only and must NOT promote or mutate receipt state."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            LineageVerifier,
+            RunReceiptStore,
+        )
+
+        run_dir = self.sandbox / "run_state_check"
+        receipt_before = RunReceiptStore.load_latest(run_dir)
+        verifier = LineageVerifier()
+        verifier.verify_lineage(run_dir)
+        receipt_after = RunReceiptStore.load_latest(run_dir)
+        self.assertEqual(receipt_before.state, receipt_after.state)
+
+    def test_62_verifier_does_not_repair_artifacts(self) -> None:
+        """62. LineageVerifier must fail closed and never attempt to repair corrupted files."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "corrupted_run")
+        self.assertFalse(audit.is_valid)
+
+    def test_63_verifier_reports_all_relevant_errors(self) -> None:
+        """63. LineageVerifier failure_reasons list must contain all encountered errors."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "multi_error_run")
+        self.assertGreaterEqual(len(audit.failure_reasons), 2)
+
+    # =========================================================================
+    # SEGURANÇA (Casos 64 a 67)
+    # =========================================================================
+
+    def test_64_credentials_not_persisted(self) -> None:
+        """64. API credentials or keys must never be persisted in receipts."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            RunController,
+            RunControllerError,
+        )
+
+        controller = RunController()
+        with self.assertRaises((RunControllerError, ValueError)):
+            controller.prepare_run(
+                run_id="sec_run",
+                slice_id="slice5b",
+                protocol_path="proto.json",
+                metadata={"GEMINI_API_KEY": "secret_123"},
+            )
+
+    def test_65_secret_values_not_persisted(self) -> None:
+        """65. Secret value strings must be rejected by receipt sanitizer."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceipt
+
+        for secret_name in self.contract_spec["secret_fields_forbidden"]:
+            with self.assertRaises(ValueError):
+                RunReceipt.validate_metadata_security({secret_name: "val"})
+
+    def test_66_sensitive_names_absent_from_receipts(self) -> None:
+        """66. Sensitive key names must be absent from all serialized receipt files."""
+        self._import_target_module()
+        rec_path = self.sandbox / "run_receipt.json"
+        content = rec_path.read_text(encoding="utf-8")
+        for forbidden_key in self.contract_spec["secret_fields_forbidden"]:
+            self.assertNotIn(forbidden_key, content)
+
+    def test_67_logs_contain_no_simulated_tokens(self) -> None:
+        """67. Generated logs must contain zero simulated auth tokens or passwords."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.audit_security_logs(self.sandbox / "logs")
+        self.assertTrue(audit.is_secure)
+
+    # =========================================================================
+    # CLI (Casos 68 a 78)
+    # =========================================================================
+
+    def test_68_cli_requires_repo_root(self) -> None:
+        """68. prepare CLI must require --repo-root parameter."""
+        cmd = [sys.executable, "scripts/prepare_agentic_run.py"]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_69_cli_requires_artifact_root(self) -> None:
+        """69. prepare CLI must require --artifact-root parameter."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            ".",
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_70_cli_requires_slice_id(self) -> None:
+        """70. prepare CLI must require --slice-id parameter."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            ".",
+            "--artifact-root",
+            "/tmp/art",  # noqa: S108
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_71_cli_requires_run_id(self) -> None:
+        """71. prepare CLI must require --run-id parameter."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            ".",
+            "--artifact-root",
+            "/tmp/art",  # noqa: S108
+            "--slice-id",
+            "slice5b",
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_72_cli_requires_protocol(self) -> None:
+        """72. prepare CLI must require --protocol parameter."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            ".",
+            "--artifact-root",
+            "/tmp/art",  # noqa: S108
+            "--slice-id",
+            "slice5b",
+            "--run-id",
+            "r1",
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_73_cli_requires_implementation_commit(self) -> None:
+        """73. prepare CLI must require --implementation-commit parameter."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            ".",
+            "--artifact-root",
+            "/tmp/art",  # noqa: S108
+            "--slice-id",
+            "slice5b",
+            "--run-id",
+            "r1",
+            "--protocol",
+            "proto.json",
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_74_cli_requires_protocol_commit(self) -> None:
+        """74. prepare CLI must require --protocol-commit parameter."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            ".",
+            "--artifact-root",
+            "/tmp/art",  # noqa: S108
+            "--slice-id",
+            "slice5b",
+            "--run-id",
+            "r1",
+            "--protocol",
+            "proto.json",
+            "--implementation-commit",
+            "commit1",
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_75_cli_accepts_repeatable_input(self) -> None:
+        """75. prepare CLI must accept repeatable --input NAME=PATH arguments."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            ".",
+            "--artifact-root",
+            str(self.sandbox),
+            "--slice-id",
+            "slice5b",
+            "--run-id",
+            "r1",
+            "--protocol",
+            "proto.json",
+            "--implementation-commit",
+            "commit1",
+            "--protocol-commit",
+            "commit2",
+            "--input",
+            "qrels=qrels.json",
+            "--input",
+            "passages=passages.jsonl",
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_76_cli_returns_non_zero_on_invalid_preflight(self) -> None:
+        """76. prepare CLI must return non-zero exit code when preflight fails."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            str(self.sandbox),
+            "--artifact-root",
+            "/tmp",  # noqa: S108
+            "--slice-id",
+            "slice5b",
+            "--run-id",
+            "r1",
+            "--protocol",
+            "nonexistent.json",
+            "--implementation-commit",
+            "bad_commit",
+            "--protocol-commit",
+            "bad_commit",
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    def test_77_cli_creates_no_output_on_failure(self) -> None:
+        """77. prepare CLI must create no output directory or receipt files after preflight failure."""
+        target_dir = self.sandbox / "failed_cli_dir"
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--repo-root",
+            str(self.sandbox),
+            "--artifact-root",
+            str(target_dir),
+            "--slice-id",
+            "slice5b",
+            "--run-id",
+            "r1",
+            "--protocol",
+            "nonexistent.json",
+            "--implementation-commit",
+            "bad_commit",
+            "--protocol-commit",
+            "bad_commit",
+        ]
+        subprocess.run(cmd, capture_output=True, text=True)
+        self.assertFalse(target_dir.exists())
+
+    def test_78_verifier_cli_is_read_only(self) -> None:
+        """78. verifier CLI must execute in strictly read-only mode without file creation or mutation."""
+        cmd = [
+            sys.executable,
+            "scripts/verify_agentic_run_lineage.py",
+            "--run-dir",
+            str(self.sandbox),
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+    # =========================================================================
+    # ANTI-REGRESSÃO DA IMPLEMENTAÇÃO REPROVADA (Seção 9 - Casos 79 a 90)
+    # =========================================================================
+
+    def test_79_anti_regression_reject_tmp_in_allowed_roots(self) -> None:
+        """79. Anti-regression: allowed_roots containing /tmp must be explicitly rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        with self.assertRaises(PathPolicyError):
+            ExperimentalPathPolicy(allowed_roots=["/tmp"])  # noqa: S108
+
+    def test_80_anti_regression_reject_benchmarks_in_allowed_roots(
+        self,
+    ) -> None:
+        """80. Anti-regression: allowed_roots containing benchmarks/ must be explicitly rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        with self.assertRaises(PathPolicyError):
+            ExperimentalPathPolicy(allowed_roots=["benchmarks/"])
+
+    def test_81_anti_regression_reject_checkpoints_in_allowed_roots(
+        self,
+    ) -> None:
+        """81. Anti-regression: allowed_roots containing checkpoints/ must be explicitly rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ExperimentalPathPolicy,
+            PathPolicyError,
+        )
+
+        with self.assertRaises(PathPolicyError):
+            ExperimentalPathPolicy(allowed_roots=["checkpoints/"])
+
+    def test_82_anti_regression_reject_single_mutable_receipt(self) -> None:
+        """82. Anti-regression: single mutable receipt model without receipts/ chain is rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ReceiptStoreError,
+            RunReceiptStore,
+        )
+
+        store = RunReceiptStore(self.sandbox / "legacy_single_receipt_dir")
+        with self.assertRaises(ReceiptStoreError):
+            store.load_history_chain()
+
+    def test_83_anti_regression_reject_historical_receipt_overwrite(
+        self,
+    ) -> None:
+        """83. Anti-regression: overwriting historical receipt in receipts/ must fail."""
+        self._import_target_module()
+        from raglab.agentic.experiments import (
+            ReceiptStoreError,
+            RunReceiptStore,
+        )
+
+        store = RunReceiptStore(self.sandbox / "run_hist_dir")
+        with self.assertRaises(ReceiptStoreError):
+            store.overwrite_receipt_file("000_PREPARED.json", {})
+
+    def test_84_anti_regression_reject_verifier_promoting_state(
+        self,
+    ) -> None:
+        """84. Anti-regression: verifier promoting state to AUDIT_COMPLETED is rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier(read_only=True)
+        self.assertTrue(verifier.is_read_only())
+
+    def test_85_anti_regression_reject_missing_previous_receipt_sha(
+        self,
+    ) -> None:
+        """85. Anti-regression: receipt lacking previous_receipt_sha256 is rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceipt
+
+        with self.assertRaises(ValueError):
+            RunReceipt.from_dict({
+                "schema_version": 1,
+                "run_id": "r1",
+                "slice_id": "s1",
+                "state": "RUN_STARTED",
+                "receipt_sha256": "sha1",
+                # missing previous_receipt_sha256
+            })
+
+    def test_86_anti_regression_reject_missing_receipt_sha(self) -> None:
+        """86. Anti-regression: receipt lacking receipt_sha256 is rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceipt
+
+        with self.assertRaises(ValueError):
+            RunReceipt.from_dict({
+                "schema_version": 1,
+                "run_id": "r1",
+                "slice_id": "s1",
+                "state": "PREPARED",
+                # missing receipt_sha256
+            })
+
+    def test_87_anti_regression_reject_missing_protocol_snapshot(self) -> None:
+        """87. Anti-regression: absence of protocol.snapshot.json is rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import LineageVerifier
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(self.sandbox / "no_snapshot_dir")
+        self.assertFalse(audit.is_valid)
+
+    def test_88_anti_regression_reject_missing_input_hashes(self) -> None:
+        """88. Anti-regression: absence of input_hashes in receipt is rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunReceipt
+
+        with self.assertRaises(ValueError):
+            RunReceipt.from_dict({
+                "schema_version": 1,
+                "run_id": "r1",
+                "slice_id": "s1",
+                "state": "PREPARED",
+                # missing input_hashes
+            })
+
+    def test_89_anti_regression_reject_missing_exclusive_lock(self) -> None:
+        """89. Anti-regression: absence of exclusive lock enforcement is rejected."""
+        self._import_target_module()
+        from raglab.agentic.experiments import RunController
+
+        controller = RunController(enforce_lock=True)
+        self.assertTrue(controller.requires_exclusive_lock())
+
+    def test_90_anti_regression_reject_reduced_cli(self) -> None:
+        """90. Anti-regression: CLI reduced to only --run-id/--protocol/--output-dir is rejected."""
+        cmd = [
+            sys.executable,
+            "scripts/prepare_agentic_run.py",
+            "--run-id",
+            "r1",
+            "--protocol",
+            "p.json",
+            "--output-dir",
+            "/tmp/out",  # noqa: S108
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
