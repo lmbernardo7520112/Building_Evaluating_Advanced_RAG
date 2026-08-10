@@ -16,36 +16,36 @@ from raglab.agentic.evaluation.parity_gate import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run Slice 5A.3 Canonical Coverage and Retrieval Parity Gate."
+        description="Run Slice 5A.3 Canonical Coverage and Retrieval Parity Gate V2."
     )
     parser.add_argument(
         "--protocol",
-        required=True,
-        help="Path to preregistration_v1.json protocol file.",
+        default="benchmarks/agentic/slice5/slice5a3/protocols/preregistration_v2.json",
+        help="Path to protocol file.",
     )
     parser.add_argument(
         "--qrels",
-        required=True,
-        help="Path to human_qrels.jsonl file.",
+        default="benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_final.jsonl",
+        help="Path to human_qrels_final.jsonl file.",
     )
     parser.add_argument(
         "--qrels-manifest",
-        required=True,
+        default="benchmarks/ground_truth/v2/hybrid/qrels/human_qrels_manifest.json",
         help="Path to human_qrels_manifest.json file.",
     )
     parser.add_argument(
         "--passage-registry",
-        required=True,
+        default="benchmarks/ground_truth/v2/passage_registry.jsonl",
         help="Path to passage_registry.jsonl file.",
     )
     parser.add_argument(
         "--passage-registry-manifest",
-        required=True,
+        default="benchmarks/ground_truth/v2/passage_registry_manifest.json",
         help="Path to passage_registry_manifest.json file.",
     )
     parser.add_argument(
         "--questions-file",
-        required=True,
+        default="benchmarks/questions/controlled_chapter2.json",
         help="Path to controlled_chapter2.json questions file.",
     )
     parser.add_argument(

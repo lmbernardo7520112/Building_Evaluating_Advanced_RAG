@@ -74,6 +74,8 @@ class CanonicalRetrievedItem:
     mapping_status: MappingStatus
     judgment_status: JudgmentStatus
     human_grade: float | None = None
+    technical_chunk_id: str | None = None
+    canonical_passage_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

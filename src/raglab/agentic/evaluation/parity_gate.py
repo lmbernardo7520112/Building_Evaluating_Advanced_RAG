@@ -1,4 +1,4 @@
-"""Slice 5A.3 Parity Gate execution and human coverage evaluation engine."""
+"""Slice 5A.3.1 Parity Gate V2 execution and human coverage evaluation engine."""
 
 from __future__ import annotations
 
@@ -24,6 +24,9 @@ from raglab.agentic.evaluation.parity_contracts import (
 from raglab.agentic.evaluation.reproducibility import (
     compare_arm_runs,
 )
+from raglab.evaluation.contracts.human_annotation_v2 import PassageRegistryEntry
+from raglab.evaluation.contracts.hybrid_eval_v2 import CanonicalMappingStatus
+from raglab.evaluation.pooling.canonical_passage_mapper import CanonicalPassageMapper
 from raglab.infrastructure.retrieval.auto_merging_adapter import (
     HierarchicalRetrievalAdapter,
 )
@@ -42,7 +45,7 @@ class ParityGateError(Exception):
 
 
 def load_human_qrels(qrels_path: str | Path) -> dict[tuple[str, str], float]:
-    """Load human qrels mapping (qid, passage_id) -> grade."""
+    """Load human qrels mapping (qid, passage_id) -> grade from human_qrels_final.jsonl."""
     p = Path(qrels_path)
     if not p.exists():
         raise ParityGateError(f"Human qrels file missing: {p}")
@@ -62,78 +65,92 @@ def load_human_qrels(qrels_path: str | Path) -> dict[tuple[str, str], float]:
         qid = data.get("question_id") or data.get("qid")
         pid = data.get("passage_id")
         grade = data.get("relevance_grade")
-        if grade is None:
-            grade = data.get("grade")
 
         if qid and pid and grade is not None:
             qrels[(qid, pid)] = float(grade)
     return qrels
 
 
-def execute_arm_retrieval(
-    arm_id: str,
-    query: str,
-    qid: str,
+class _RerankedRetrieverShim:
+
+    def __init__(self, base_retriever: Any, reranker: Any, candidate_k: int) -> None:
+        self._base = base_retriever
+        self._reranker = reranker
+        self._candidate_k = candidate_k
+
+    def retrieve(self, query: str, top_k: int = 3) -> list[Any]:
+        candidates = self._base.retrieve(query, top_k=self._candidate_k)
+        reranked, _ = self._reranker.rerank(query, candidates, top_n=top_k)
+        return list(reranked)
+
+
+def build_all_arm_retrievers(
     chunks: list[Any],
     pages: list[Any],
-    top_k: int = 3,
-) -> tuple[list[tuple[str, float]], float]:
-    """Execute retrieval arm in-memory. Return list of (passage_id, score)."""
-    start_t = time.perf_counter()
+    embed_model: Any | None = None,
+) -> dict[str, Any]:
+    """Build and index all 7 consolidated retrieval arms ONCE for efficient query execution."""
+    # F0
+    adapter_f0 = InMemoryBaselineAdapter()
+    adapter_f0.index_chunks(chunks)
 
-    if arm_id == "F0":
-        adapter = InMemoryBaselineAdapter()
-        adapter.index_chunks(chunks)
-        evidences = adapter.retrieve(query, top_k=top_k)
-        results = [(e.passage_id or e.chunk_id.value, e.score) for e in evidences]
+    # S0
+    adapter_s0 = SentenceAnchorAdapter(embedding_adapter=embed_model)
+    adapter_s0.index_pages(pages)
 
-    elif arm_id == "S0":
-        s_adapter = SentenceAnchorAdapter()
-        s_adapter.index_pages(pages)
-        evidences = s_adapter.retrieve(query, top_k=top_k)
-        results = [(e.passage_id or e.chunk_id.value, e.score) for e in evidences]
+    # W0
+    adapter_w0 = SentenceWindowAdapter(
+        embedding_adapter=embed_model, window_size=3
+    )
+    adapter_w0.index_pages(pages)
 
-    elif arm_id == "S1":
-        base_s = SentenceAnchorAdapter()
-        base_s.index_pages(pages)
-        candidates = base_s.retrieve(query, top_k=top_k * 3)
-        reranker = LocalRerankerAdapter()
-        reranked, _ = reranker.rerank(query, candidates, top_n=top_k)
-        results = [(e.passage_id or e.chunk_id.value, e.score) for e in reranked]
+    # W1
+    base_w1 = SentenceWindowAdapter(
+        embedding_adapter=embed_model, window_size=3
+    )
+    base_w1.index_pages(pages)
+    reranker_w1 = LocalRerankerAdapter(embedding_adapter=embed_model)
+    adapter_w1 = _RerankedRetrieverShim(base_w1, reranker_w1, candidate_k=9)
 
-    elif arm_id == "W0":
-        w_adapter = SentenceWindowAdapter(window_size=3)
-        w_adapter.index_pages(pages)
-        evidences = w_adapter.retrieve(query, top_k=top_k)
-        results = [(e.passage_id or e.chunk_id.value, e.score) for e in evidences]
+    # H0
+    adapter_h0 = HierarchicalRetrievalAdapter(auto_merge=False, top_k=3)
+    adapter_h0.index_pages(pages)
 
-    elif arm_id == "W1":
-        base_w = SentenceWindowAdapter(window_size=3)
-        base_w.index_pages(pages)
-        candidates = base_w.retrieve(query, top_k=top_k * 3)
-        reranker = LocalRerankerAdapter()
-        reranked, _ = reranker.rerank(query, candidates, top_n=top_k)
-        results = [(e.passage_id or e.chunk_id.value, e.score) for e in reranked]
+    # H1
+    adapter_h1 = HierarchicalRetrievalAdapter(auto_merge=True, top_k=3)
+    adapter_h1.index_pages(pages)
 
-    elif arm_id == "C0":
-        c_adapter = HierarchicalRetrievalAdapter()
-        c_adapter.index_pages(pages)
-        evidences = c_adapter.retrieve(query, top_k=top_k)
-        results = [(e.passage_id or e.chunk_id.value, e.score) for e in evidences]
+    # H2
+    base_h2 = HierarchicalRetrievalAdapter(auto_merge=True, top_k=9)
+    base_h2.index_pages(pages)
+    reranker_h2 = LocalRerankerAdapter(embedding_adapter=embed_model)
+    adapter_h2 = _RerankedRetrieverShim(base_h2, reranker_h2, candidate_k=9)
 
-    elif arm_id == "C1":
-        base_c = HierarchicalRetrievalAdapter()
-        base_c.index_pages(pages)
-        candidates = base_c.retrieve(query, top_k=top_k * 3)
-        reranker = LocalRerankerAdapter()
-        reranked, _ = reranker.rerank(query, candidates, top_n=top_k)
-        results = [(e.passage_id or e.chunk_id.value, e.score) for e in reranked]
-
-    else:
-        raise ParityGateError(f"Unknown arm_id: {arm_id}")
-
-    elapsed = time.perf_counter() - start_t
-    return results[:top_k], elapsed
+    return {
+        "F0": adapter_f0,
+        "F0_baseline": adapter_f0,
+        "baseline": adapter_f0,
+        "S0": adapter_s0,
+        "S0_sentence_anchor": adapter_s0,
+        "sentence_anchor": adapter_s0,
+        "W0": adapter_w0,
+        "W0_sentence_window": adapter_w0,
+        "sentence_window": adapter_w0,
+        "W1": adapter_w1,
+        "W1_sentence_window_rerank": adapter_w1,
+        "sentence_window_rerank": adapter_w1,
+        "H0": adapter_h0,
+        "H0_hierarchical_leaf": adapter_h0,
+        "hierarchical_leaf": adapter_h0,
+        "C0": adapter_h0,
+        "H1": adapter_h1,
+        "H1_auto_merging": adapter_h1,
+        "auto_merging": adapter_h1,
+        "H2": adapter_h2,
+        "H2_auto_merging_rerank": adapter_h2,
+        "auto_merging_rerank": adapter_h2,
+        "C1": adapter_h2,
+    }
 
 
 def run_parity_gate_evaluation(
@@ -144,7 +161,7 @@ def run_parity_gate_evaluation(
     questions_path: str | Path,
     top_k: int = 3,
 ) -> tuple[ParityGateResult, list[ArmRun], list[dict[str, Any]]]:
-    """Run full Parity Gate evaluation across all DEV QIDs and 7 fixed arms.
+    """Run full Parity Gate V2 evaluation across DEV QIDs and 7 fixed arms.
 
     Returns:
         Tuple of (ParityGateResult, list[ArmRun], human_review_queue).
@@ -164,6 +181,24 @@ def run_parity_gate_evaluation(
     chunks = passages_to_chunks(raw_passages)
     pages = passages_to_document_pages(raw_passages)
 
+    mapper = CanonicalPassageMapper(
+        [
+            PassageRegistryEntry(
+                passage_id=p["passage_id"],
+                document_id=p.get("document_id", "gersting_discrete_math"),
+                page_number=p["page_number"],
+                start_char=p.get("start_char", 0),
+                end_char=p.get("end_char", len(p["text"])),
+                content_sha256=p.get(
+                    "content_sha256",
+                    hashlib.sha256(p["text"].encode("utf-8")).hexdigest(),
+                ),
+                text=p["text"],
+            )
+            for p in raw_passages
+        ]
+    )
+
     # 2. Load human qrels
     qrels = load_human_qrels(human_qrels_path)
 
@@ -179,13 +214,19 @@ def run_parity_gate_evaluation(
         "dev_qids", ["q_dev_01", "q_dev_02", "q_dev_03", "q_dev_04"]
     )
     dev_questions = [
-        q for q in questions_raw
+        q
+        for q in questions_raw
         if q.get("qid") in dev_qids or q.get("question_id") in dev_qids
     ]
 
-    fixed_arms = protocol.get("fixed_arms", ["F0", "S0", "S1", "W0", "W1", "C0", "C1"])
+    fixed_arms = protocol.get(
+        "fixed_arms", ["F0", "H0", "H1", "H2", "S0", "W0", "W1"]
+    )
 
     effective_top_k = protocol.get("top_k", top_k)
+
+    # Build retrievers ONCE for execution run 1
+    retrievers_1 = build_all_arm_retrievers(chunks, pages)
 
     # First Execution Run
     arm_runs_1: list[ArmRun] = []
@@ -210,56 +251,99 @@ def run_parity_gate_evaluation(
             continue
 
         for arm_id in fixed_arms:
-            raw_results, latency = execute_arm_retrieval(
-                arm_id=arm_id,
-                query=q_text,
-                qid=qid,
-                chunks=chunks,
-                pages=pages,
-                top_k=effective_top_k,
-            )
+            retriever = retrievers_1.get(arm_id)
+            if not retriever:
+                raise ParityGateError(f"Unknown arm_id: {arm_id}")
+
+            start_t = time.perf_counter()
+            raw_evidences = retriever.retrieve(q_text, top_k=effective_top_k)
+            latency = time.perf_counter() - start_t
 
             retrieved_items: list[CanonicalRetrievedItem] = []
             res_content_hashes: list[str] = []
 
-            for rank, (pid, score) in enumerate(raw_results, start=1):
-                page_num = passage_page_map.get(pid, 0)
+            for rank, ev in enumerate(raw_evidences[:effective_top_k], start=1):
                 total_retrieved_items += 1
 
-                # Mapping check
-                if pid in canonical_set:
-                    mapping_status = MappingStatus.EXACT_SUBSTRING
+                chunk_id_str = str(
+                    getattr(ev.chunk_id, "value", ev.chunk_id)
+                    if hasattr(ev, "chunk_id")
+                    else getattr(ev, "passage_id", "unknown")
+                )
+                doc_id_raw = str(
+                    getattr(ev, "document_id", "gersting_discrete_math")
+                )
+                text_raw = str(getattr(ev, "text", "")).strip()
+                score = float(getattr(ev, "score", 0.0))
+
+                page_num = getattr(ev, "page_number", 0) or getattr(
+                    ev, "start_page", 0
+                )
+                if page_num == 0 and "_p" in doc_id_raw:
+                    suf = doc_id_raw.rsplit("_p", 1)[-1]
+                    if suf.isdigit():
+                        page_num = int(suf)
+
+                content_sha = hashlib.sha256(text_raw.encode("utf-8")).hexdigest()
+
+                chunk_dict = {
+                    "chunk_id": chunk_id_str,
+                    "document_id": "gersting_discrete_math",
+                    "text": text_raw,
+                    "content_sha256": content_sha,
+                    "page_number": page_num,
+                }
+                map_res = mapper.map_chunk(chunk_dict)
+
+                canonical_pid = map_res.mapped_passage_id
+
+                if canonical_pid is not None and canonical_pid in canonical_set:
                     canonical_mapped_items += 1
+                    if (
+                        map_res.mapping_status
+                        == CanonicalMappingStatus.EXACT_PASSAGE_ID
+                    ):
+                        mapping_status = MappingStatus.DIRECT_MATCH
+                    else:
+                        mapping_status = MappingStatus.EXACT_SUBSTRING
                 else:
                     mapping_status = MappingStatus.UNMAPPED
                     unmapped_count += 1
 
                 # Judgment check
-                grade = qrels.get((qid, pid))
-                if grade is not None:
-                    judgment_status = JudgmentStatus.JUDGED
-                    explicit_judged_items += 1
+                if canonical_pid is not None:
+                    grade = qrels.get((qid, canonical_pid))
+                    if grade is not None:
+                        judgment_status = JudgmentStatus.JUDGED
+                        explicit_judged_items += 1
+                    else:
+                        judgment_status = JudgmentStatus.UNJUDGED
+                        unjudged_count += 1
+                        key = (qid, canonical_pid)
+                        if key not in unjudged_queue_map:
+                            unjudged_queue_map[key] = {
+                                "qid": qid,
+                                "passage_id": canonical_pid,
+                                "page_number": page_num,
+                                "text": passage_text_map.get(
+                                    canonical_pid, text_raw
+                                ),
+                                "arms_recovering": [arm_id],
+                                "ranks_recovering": [rank],
+                            }
+                        else:
+                            unjudged_queue_map[key]["arms_recovering"].append(
+                                arm_id
+                            )
+                            unjudged_queue_map[key]["ranks_recovering"].append(
+                                rank
+                            )
                 else:
+                    grade = None
                     judgment_status = JudgmentStatus.UNJUDGED
                     unjudged_count += 1
 
-                    # Queue item for unjudged human review
-                    key = (qid, pid)
-                    if key not in unjudged_queue_map:
-                        unjudged_queue_map[key] = {
-                            "qid": qid,
-                            "passage_id": pid,
-                            "page_number": page_num,
-                            "text": passage_text_map.get(pid, ""),
-                            "arms_recovering": [arm_id],
-                            "ranks_recovering": [rank],
-                        }
-                    else:
-                        unjudged_queue_map[key]["arms_recovering"].append(arm_id)
-                        unjudged_queue_map[key]["ranks_recovering"].append(rank)
-
-                c_text = passage_text_map.get(pid, f"text_{pid}")
-                c_hash = hashlib.sha256(c_text.encode("utf-8")).hexdigest()
+                c_hash = content_sha
                 res_content_hashes.append(c_hash)
 
                 retrieved_items.append(
@@ -267,13 +351,16 @@ def run_parity_gate_evaluation(
                         qid=qid,
                         arm_id=arm_id,
                         rank=rank,
-                        passage_id=pid,
-                        page_number=page_num,
+                        passage_id=canonical_pid or chunk_id_str,
+                        page_number=page_num
+                        or passage_page_map.get(canonical_pid or "", 0),
                         content_sha256=c_hash,
                         score=score,
                         mapping_status=mapping_status,
                         judgment_status=judgment_status,
                         human_grade=grade,
+                        technical_chunk_id=chunk_id_str,
+                        canonical_passage_id=canonical_pid,
                     )
                 )
 
@@ -296,6 +383,9 @@ def run_parity_gate_evaluation(
                 )
             )
 
+    # Build retrievers ONCE for execution run 2
+    retrievers_2 = build_all_arm_retrievers(chunks, pages)
+
     # Second Execution Run for Repeatability Check
     arm_runs_2: list[ArmRun] = []
     for q_item in dev_questions:
@@ -309,46 +399,89 @@ def run_parity_gate_evaluation(
             continue
 
         for arm_id in fixed_arms:
-            raw_results, latency = execute_arm_retrieval(
-                arm_id=arm_id,
-                query=q_text,
-                qid=qid,
-                chunks=chunks,
-                pages=pages,
-                top_k=effective_top_k,
-            )
+            retriever = retrievers_2.get(arm_id)
+            if not retriever:
+                raise ParityGateError(f"Unknown arm_id: {arm_id}")
+
+            start_t = time.perf_counter()
+            raw_evidences = retriever.retrieve(q_text, top_k=effective_top_k)
+            latency = time.perf_counter() - start_t
+
             items_2: list[CanonicalRetrievedItem] = []
             hashes_2: list[str] = []
 
-            for rank, (pid, score) in enumerate(raw_results, start=1):
-                page_num = passage_page_map.get(pid, 0)
-                c_text = passage_text_map.get(pid, f"text_{pid}")
-                c_hash = hashlib.sha256(c_text.encode("utf-8")).hexdigest()
+            for rank, ev in enumerate(raw_evidences[:effective_top_k], start=1):
+                chunk_id_str = str(
+                    getattr(ev.chunk_id, "value", ev.chunk_id)
+                    if hasattr(ev, "chunk_id")
+                    else getattr(ev, "passage_id", "unknown")
+                )
+                doc_id_raw = str(
+                    getattr(ev, "document_id", "gersting_discrete_math")
+                )
+                text_raw = str(getattr(ev, "text", "")).strip()
+                score = float(getattr(ev, "score", 0.0))
+
+                page_num = getattr(ev, "page_number", 0) or getattr(
+                    ev, "start_page", 0
+                )
+                if page_num == 0 and "_p" in doc_id_raw:
+                    suf = doc_id_raw.rsplit("_p", 1)[-1]
+                    if suf.isdigit():
+                        page_num = int(suf)
+
+                c_hash = hashlib.sha256(text_raw.encode("utf-8")).hexdigest()
                 hashes_2.append(c_hash)
-                grade = qrels.get((qid, pid))
-                is_mapped = pid in canonical_set
+
+                chunk_dict = {
+                    "chunk_id": chunk_id_str,
+                    "document_id": "gersting_discrete_math",
+                    "text": text_raw,
+                    "content_sha256": c_hash,
+                    "page_number": page_num,
+                }
+                map_res = mapper.map_chunk(chunk_dict)
+                canonical_pid = map_res.mapped_passage_id
+
+                is_mapped = canonical_pid is not None and canonical_pid in canonical_set
                 m_status = (
-                    MappingStatus.EXACT_SUBSTRING
+                    MappingStatus.DIRECT_MATCH
+                    if (
+                        is_mapped
+                        and map_res.mapping_status
+                        == CanonicalMappingStatus.EXACT_PASSAGE_ID
+                    )
+                    else MappingStatus.EXACT_SUBSTRING
                     if is_mapped
                     else MappingStatus.UNMAPPED
+                )
+
+                grade = (
+                    qrels.get((qid, canonical_pid))
+                    if canonical_pid is not None
+                    else None
                 )
                 j_status = (
                     JudgmentStatus.JUDGED
                     if grade is not None
                     else JudgmentStatus.UNJUDGED
                 )
+
                 items_2.append(
                     CanonicalRetrievedItem(
                         qid=qid,
                         arm_id=arm_id,
                         rank=rank,
-                        passage_id=pid,
-                        page_number=page_num,
+                        passage_id=canonical_pid or chunk_id_str,
+                        page_number=page_num
+                        or passage_page_map.get(canonical_pid or "", 0),
                         content_sha256=c_hash,
                         score=score,
                         mapping_status=m_status,
                         judgment_status=j_status,
                         human_grade=grade,
+                        technical_chunk_id=chunk_id_str,
+                        canonical_passage_id=canonical_pid,
                     )
                 )
 
@@ -384,7 +517,7 @@ def run_parity_gate_evaluation(
 
     # Same-run arm completeness
     expected_run_count = len(dev_questions) * len(fixed_arms)
-    same_run_arm_completeness = (len(arm_runs_1) == expected_run_count)
+    same_run_arm_completeness = len(arm_runs_1) == expected_run_count
 
     failure_reasons: list[str] = []
     if canonical_coverage < 1.0 or unmapped_count > 0:

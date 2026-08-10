@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ParityGateResultV2",
+  "type": "object",
+  "required": [
+    "protocol_hash",
+    "input_hashes",
+    "canonical_coverage",
+    "judged_coverage",
+    "unmapped_count",
+    "unjudged_count",
+    "synthetic_fallback_count",
+    "repeatability",
+    "same_run_arm_completeness",
+    "status",
+    "failure_reasons",
+    "metrics_status"
+  ],
+  "properties": {
+    "protocol_hash": {
+      "type": "string"
+    },
+    "input_hashes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "canonical_coverage": {
+      "type": "number"
+    },
+    "judged_coverage": {
+      "type": "number"
+    },
+    "unmapped_count": {
+      "type": "integer"
+    },
+    "unjudged_count": {
+      "type": "integer"
+    },
+    "synthetic_fallback_count": {
+      "type": "integer"
+    },
+    "repeatability": {
+      "type": "object",
+      "required": [
+        "topk_identity",
+        "rank_match"
+      ],
+      "properties": {
+        "topk_identity": {
+          "type": "number"
+        },
+        "rank_match": {
+          "type": "boolean"
+        }
+      }
+    },
+    "same_run_arm_completeness": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "SCIENTIFICALLY_EVALUABLE",
+        "NOT_EVALUABLE_CANONICAL_COVERAGE",
+        "NOT_EVALUABLE_JUDGED_COVERAGE",
+        "NOT_EVALUABLE_RETRIEVAL_NONDETERMINISM",
+        "NOT_EVALUABLE_CONFIGURATION_DIVERGENCE",
+        "OPERATIONAL_FAILURE"
+      ]
+    },
+    "failure_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metrics_status": {
+      "type": "string",
+      "enum": [
+        "APPLICABLE",
+        "NOT_APPLICABLE"
+      ]
+    }
+  }
+}
