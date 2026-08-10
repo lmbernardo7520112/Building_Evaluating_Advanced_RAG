@@ -7,8 +7,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from raglab.agentic.evaluation.parity_contracts import ParityOutcomeCategory
+from raglab.agentic.evaluation.parity_contracts import (
+    CanonicalRetrievedItem,
+    JudgmentStatus,
+    MappingStatus,
+    ParityOutcomeCategory,
+)
 from raglab.agentic.evaluation.parity_gate import (
+    ParityGateError,
+    load_human_qrels,
     run_parity_gate_evaluation,
 )
 
@@ -60,8 +67,7 @@ class TestParityGateExecution(unittest.TestCase):
 
     def test_01_unjudged_item_fails_closed_to_not_evaluable_judged(self) -> None:
         """Items without explicit human qrels remain UNJUDGED and trigger NOT_EVALUABLE_JUDGED_COVERAGE."""
-        # Empty human qrels (no ratings for retrieved passages)
-        qrels_path = self.dir_path / "human_qrels.jsonl"
+        qrels_path = self.dir_path / "human_qrels_final.jsonl"
         qrels_path.write_text("", encoding="utf-8")
 
         protocol = {
@@ -71,7 +77,7 @@ class TestParityGateExecution(unittest.TestCase):
             "top_k": 1,
         }
 
-        result, arm_runs, unjudged_queue = run_parity_gate_evaluation(
+        result, arm_runs, unjudged_queue, exec_metadata = run_parity_gate_evaluation(
             protocol=protocol,
             passage_registry_path=self.reg_path,
             passage_registry_manifest_path=self.man_path,
@@ -85,7 +91,6 @@ class TestParityGateExecution(unittest.TestCase):
         self.assertGreater(result.unjudged_count, 0)
         self.assertGreater(len(unjudged_queue), 0)
 
-        # Confirm queue item does NOT contain suggested grade or gold/silver labels
         item = unjudged_queue[0]
         self.assertNotIn("suggested_grade", item)
         self.assertNotIn("gold", item)
@@ -95,7 +100,7 @@ class TestParityGateExecution(unittest.TestCase):
 
     def test_02_full_coverage_passes_evaluable(self) -> None:
         """When all retrieved items have human qrels, status is SCIENTIFICALLY_EVALUABLE."""
-        qrels_path = self.dir_path / "human_qrels.jsonl"
+        qrels_path = self.dir_path / "human_qrels_final.jsonl"
         qrels_lines = [
             json.dumps({"question_id": "q_dev_01", "passage_id": "ps_001", "relevance_grade": 2.0}),
             json.dumps({"question_id": "q_dev_01", "passage_id": "ps_002", "relevance_grade": 1.0}),
@@ -110,7 +115,7 @@ class TestParityGateExecution(unittest.TestCase):
             "top_k": 1,
         }
 
-        result, arm_runs, unjudged_queue = run_parity_gate_evaluation(
+        result, arm_runs, unjudged_queue, exec_metadata = run_parity_gate_evaluation(
             protocol=protocol,
             passage_registry_path=self.reg_path,
             passage_registry_manifest_path=self.man_path,
@@ -123,6 +128,55 @@ class TestParityGateExecution(unittest.TestCase):
         self.assertEqual(result.metrics_status, "APPLICABLE")
         self.assertEqual(result.unjudged_count, 0)
         self.assertEqual(len(unjudged_queue), 0)
+
+    def test_03_technical_id_never_occupies_canonical_passage_id(self) -> None:
+        """Prohibit technical chunk ID in canonical passage_id field when unmapped."""
+        unmapped_item = CanonicalRetrievedItem(
+            qid="q_dev_01",
+            arm_id="S0",
+            rank=1,
+            technical_chunk_id="doc_p99_s0",
+            technical_node_id="node_123",
+            anchor_passage_id=None,
+            supporting_passage_ids=[],
+            source_offsets=None,
+            projection_method="UNMAPPED",
+            page_number=99,
+            content_sha256="abc",
+            score=0.9,
+            mapping_status=MappingStatus.UNMAPPED,
+            judgment_status=JudgmentStatus.UNMAPPED,
+            human_grade=None,
+        )
+        self.assertEqual(unmapped_item.passage_id, "")
+        self.assertIsNone(unmapped_item.canonical_passage_id)
+        self.assertNotEqual(unmapped_item.passage_id, "doc_p99_s0")
+
+    def test_04_strict_qrels_parser_rejects_missing_relevance_grade(self) -> None:
+        """Strict Qrels Parser must reject lines lacking relevance_grade."""
+        qrels_path = self.dir_path / "bad_qrels.jsonl"
+        qrels_path.write_text(json.dumps({"question_id": "q1", "passage_id": "ps_001", "legacy_grade": 2}), encoding="utf-8")
+        with self.assertRaises(ParityGateError):
+            load_human_qrels(qrels_path)
+
+    def test_05_unknown_arm_id_rejected(self) -> None:
+        """Unknown arm ID must raise ParityGateError."""
+        qrels_path = self.dir_path / "human_qrels_final.jsonl"
+        qrels_path.write_text("", encoding="utf-8")
+        protocol = {
+            "protocol_id": "test_proto",
+            "dev_qids": ["q_dev_01"],
+            "fixed_arms": ["INVALID_ARM"],
+            "top_k": 1,
+        }
+        with self.assertRaises(ParityGateError):
+            run_parity_gate_evaluation(
+                protocol=protocol,
+                passage_registry_path=self.reg_path,
+                passage_registry_manifest_path=self.man_path,
+                human_qrels_path=qrels_path,
+                questions_path=self.q_path,
+            )
 
 
 if __name__ == "__main__":

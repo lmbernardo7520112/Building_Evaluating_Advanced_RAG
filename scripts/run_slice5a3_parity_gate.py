@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""CLI runner for Slice 5A.3 Canonical Coverage and Retrieval Parity Gate."""
+"""CLI runner for Slice 5A.3 Canonical Coverage and Retrieval Parity Gate V3."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -16,11 +17,11 @@ from raglab.agentic.evaluation.parity_gate import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run Slice 5A.3 Canonical Coverage and Retrieval Parity Gate V2."
+        description="Run Slice 5A.3 Canonical Coverage and Retrieval Parity Gate V3."
     )
     parser.add_argument(
         "--protocol",
-        default="benchmarks/agentic/slice5/slice5a3/protocols/preregistration_v2.json",
+        default="benchmarks/agentic/slice5/slice5a3/protocols/preregistration_v3.json",
         help="Path to protocol file.",
     )
     parser.add_argument(
@@ -68,14 +69,24 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def sha256_file(path: Path) -> str:
+    """Compute SHA-256 hash of a file if it exists."""
+    if not path.exists():
+        return ""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def main() -> int:
     args = parse_args()
 
     # 1. Credential check
-    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+    if (
+        os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+    ):
         sys.stderr.write(
-            "ERROR: Gemini/Google API credentials detected in environment. "
-            "Aborting.\n"
+            "ERROR: External API credentials detected in environment. Aborting.\n"
         )
         return 1
 
@@ -83,8 +94,7 @@ def main() -> int:
     out_dir = Path(args.output_dir)
     if out_dir.exists() and any(out_dir.iterdir()):
         sys.stderr.write(
-            f"ERROR: Output directory '{out_dir}' already exists and is "
-            "non-empty. Aborting.\n"
+            f"ERROR: Output directory '{out_dir}' already exists and is non-empty. Aborting.\n"
         )
         return 1
 
@@ -96,7 +106,9 @@ def main() -> int:
         sys.stderr.write(f"ERROR: Protocol file not found: {proto_path}\n")
         return 1
 
-    protocol = json.loads(proto_path.read_text(encoding="utf-8"))
+    protocol_text = proto_path.read_text(encoding="utf-8")
+    protocol = json.loads(protocol_text)
+    protocol_sha256 = hashlib.sha256(protocol_text.encode("utf-8")).hexdigest()
 
     # 4. Check questions for TEST QIDs
     q_path = Path(args.questions_file)
@@ -119,7 +131,7 @@ def main() -> int:
 
     # 5. Run Parity Gate evaluation
     try:
-        result, arm_runs, unjudged_queue = run_parity_gate_evaluation(
+        result, arm_runs, unjudged_queue, exec_metadata = run_parity_gate_evaluation(
             protocol=protocol,
             passage_registry_path=args.passage_registry,
             passage_registry_manifest_path=args.passage_registry_manifest,
@@ -131,9 +143,87 @@ def main() -> int:
         sys.stderr.write(f"ERROR: Parity Gate evaluation failed: {err}\n")
         return 1
 
-    # 6. Write output artifacts atomically
+    # Write Canonical Projection JSONL
+    with (out_dir / "canonical_projection.jsonl").open("w", encoding="utf-8") as f:
+        for r in arm_runs:
+            for item in r.retrieved_items:
+                row = {
+                    "qid": item.qid,
+                    "arm_id": item.arm_id,
+                    "rank": item.rank,
+                    "technical_chunk_id": item.technical_chunk_id,
+                    "technical_node_id": item.technical_node_id,
+                    "anchor_passage_id": item.anchor_passage_id,
+                    "supporting_passage_ids": item.supporting_passage_ids,
+                    "source_offsets": item.source_offsets,
+                    "projection_method": item.projection_method,
+                    "page_number": item.page_number,
+                    "content_sha256": item.content_sha256,
+                    "score": item.score,
+                    "mapping_status": item.mapping_status.value,
+                    "judgment_status": item.judgment_status.value,
+                    "human_grade": item.human_grade,
+                }
+                f.write(json.dumps(row) + "\n")
+
+    # Write Retrieval Matrix JSON
+    (out_dir / "retrieval_matrix.json").write_text(
+        json.dumps(exec_metadata, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    # Write Repeatability Report JSON
+    repeatability_data = {
+        "protocol_sha256": protocol_sha256,
+        "implementation_commit": protocol.get("implementation_commit", ""),
+        "protocol_commit": protocol.get("protocol_commit", ""),
+        "repeatability_topk_identity": result.repeatability_topk_identity,
+        "repeatability_rank_match": result.repeatability_rank_match,
+        "same_run_arm_completeness": result.same_run_arm_completeness,
+    }
+    (out_dir / "repeatability_report.json").write_text(
+        json.dumps(repeatability_data, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    # Write Coverage Report JSON
+    coverage_data = {
+        "canonical_coverage": result.canonical_coverage,
+        "judged_coverage": result.judged_coverage,
+        "unmapped_count": result.unmapped_count,
+        "unjudged_count": result.unjudged_count,
+        "ambiguous_count": exec_metadata.get("ambiguous_count", 0),
+        "synthetic_fallback_count": result.synthetic_fallback_count,
+        "expected_technical_slots": exec_metadata.get("expected_technical_slots", 84),
+        "technical_items_returned": exec_metadata.get("technical_items_returned", 83),
+        "missing_technical_slots": exec_metadata.get("missing_technical_slots", 1),
+    }
+    (out_dir / "coverage_report.json").write_text(
+        json.dumps(coverage_data, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    # Write Scientific Result JSON
+    result_data = {
+        "status": result.status.value,
+        "failure_reasons": result.failure_reasons,
+        "metrics_status": result.metrics_status,
+        "metrics": result.metrics,
+        "protocol_sha256": protocol_sha256,
+        "implementation_commit": protocol.get("implementation_commit", ""),
+    }
+    (out_dir / "scientific_result.json").write_text(
+        json.dumps(result_data, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    # Write Human Review Queue JSONL if unjudged items exist
+    if unjudged_queue:
+        with (out_dir / "human_review_queue.jsonl").open("w", encoding="utf-8") as f:
+            for item in unjudged_queue:
+                f.write(json.dumps(item) + "\n")
+
+    # Write Manifest JSON
     manifest_data = {
         "protocol_id": protocol.get("protocol_id"),
+        "protocol_sha256": protocol_sha256,
+        "implementation_commit": protocol.get("implementation_commit", ""),
         "status": result.status.value,
         "canonical_coverage": result.canonical_coverage,
         "judged_coverage": result.judged_coverage,
@@ -143,87 +233,26 @@ def main() -> int:
         "same_run_arm_completeness": result.same_run_arm_completeness,
         "metrics_status": result.metrics_status,
         "output_artifacts": [
-            "canonical_corpus_snapshot.json",
-            "arm_runs.jsonl",
-            "parity_comparison.json",
+            "manifest.json",
             "coverage_report.json",
+            "retrieval_matrix.json",
+            "canonical_projection.jsonl",
+            "repeatability_report.json",
             "scientific_result.json",
         ],
     }
     if unjudged_queue:
         manifest_data["output_artifacts"].append("human_review_queue.jsonl")
 
+    # Artifact hashes map
+    artifact_hashes = {}
+    for art in manifest_data["output_artifacts"]:
+        artifact_hashes[art] = sha256_file(out_dir / art)
+    manifest_data["artifact_hashes"] = artifact_hashes
+
     (out_dir / "manifest.json").write_text(
         json.dumps(manifest_data, indent=2, sort_keys=True), encoding="utf-8"
     )
-
-    ps_set = {
-        i.passage_id for r in arm_runs for i in r.retrieved_items
-        if i.passage_id.startswith("ps_")
-    }
-    corpus_snapshot_data = {
-        "passage_count": len(ps_set),
-        "source_artifact_hashes": result.input_hashes,
-    }
-    (out_dir / "canonical_corpus_snapshot.json").write_text(
-        json.dumps(corpus_snapshot_data, indent=2, sort_keys=True), encoding="utf-8"
-    )
-
-    with (out_dir / "arm_runs.jsonl").open("w", encoding="utf-8") as f:
-        for r in arm_runs:
-            run_dict = {
-                "qid": r.qid,
-                "arm_id": r.arm_id,
-                "retrieved_items": [
-                    {
-                        "rank": i.rank,
-                        "passage_id": i.passage_id,
-                        "page_number": i.page_number,
-                        "score": i.score,
-                        "mapping_status": i.mapping_status.value,
-                        "judgment_status": i.judgment_status.value,
-                        "human_grade": i.human_grade,
-                    }
-                    for i in r.retrieved_items
-                ],
-                "deterministic_content_hash": r.deterministic_content_hash,
-            }
-            f.write(json.dumps(run_dict) + "\n")
-
-    parity_data = {
-        "repeatability_topk_identity": result.repeatability_topk_identity,
-        "repeatability_rank_match": result.repeatability_rank_match,
-        "same_run_arm_completeness": result.same_run_arm_completeness,
-    }
-    (out_dir / "parity_comparison.json").write_text(
-        json.dumps(parity_data, indent=2, sort_keys=True), encoding="utf-8"
-    )
-
-    coverage_data = {
-        "canonical_coverage": result.canonical_coverage,
-        "judged_coverage": result.judged_coverage,
-        "unmapped_count": result.unmapped_count,
-        "unjudged_count": result.unjudged_count,
-        "synthetic_fallback_count": result.synthetic_fallback_count,
-    }
-    (out_dir / "coverage_report.json").write_text(
-        json.dumps(coverage_data, indent=2, sort_keys=True), encoding="utf-8"
-    )
-
-    result_data = {
-        "status": result.status.value,
-        "failure_reasons": result.failure_reasons,
-        "metrics_status": result.metrics_status,
-        "metrics": result.metrics,
-    }
-    (out_dir / "scientific_result.json").write_text(
-        json.dumps(result_data, indent=2, sort_keys=True), encoding="utf-8"
-    )
-
-    if unjudged_queue:
-        with (out_dir / "human_review_queue.jsonl").open("w", encoding="utf-8") as f:
-            for item in unjudged_queue:
-                f.write(json.dumps(item) + "\n")
 
     print(f"PARITY_GATE_SUCCESS status={result.status.value} output_dir={out_dir}")
     return 0

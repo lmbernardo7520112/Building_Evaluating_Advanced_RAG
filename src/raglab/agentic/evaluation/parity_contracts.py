@@ -12,9 +12,13 @@ class ParityOutcomeCategory(StrEnum):
 
     SCIENTIFICALLY_EVALUABLE = "SCIENTIFICALLY_EVALUABLE"
     NOT_EVALUABLE_CANONICAL_COVERAGE = "NOT_EVALUABLE_CANONICAL_COVERAGE"
+    NOT_EVALUABLE_AMBIGUOUS_PROJECTION = "NOT_EVALUABLE_AMBIGUOUS_PROJECTION"
     NOT_EVALUABLE_JUDGED_COVERAGE = "NOT_EVALUABLE_JUDGED_COVERAGE"
+    NOT_EVALUABLE_REPEATABILITY = "NOT_EVALUABLE_REPEATABILITY"
     NOT_EVALUABLE_RETRIEVAL_NONDETERMINISM = "NOT_EVALUABLE_RETRIEVAL_NONDETERMINISM"
     NOT_EVALUABLE_CONFIGURATION_DIVERGENCE = "NOT_EVALUABLE_CONFIGURATION_DIVERGENCE"
+    INVALID_INPUT = "INVALID_INPUT"
+    EXECUTION_ERROR = "EXECUTION_ERROR"
     OPERATIONAL_FAILURE = "OPERATIONAL_FAILURE"
 
 
@@ -23,13 +27,18 @@ class JudgmentStatus(StrEnum):
 
     JUDGED = "JUDGED"
     UNJUDGED = "UNJUDGED"
+    UNMAPPED = "UNMAPPED"
 
 
 class MappingStatus(StrEnum):
     """Mapping status of a retrieved item against the canonical corpus."""
 
-    DIRECT_MATCH = "DIRECT_MATCH"
+    EXACT_PASSAGE_ID = "EXACT_PASSAGE_ID"
+    EXACT_CONTENT_SHA256 = "EXACT_CONTENT_SHA256"
+    EXACT_OFFSETS = "EXACT_OFFSETS"
     EXACT_SUBSTRING = "EXACT_SUBSTRING"
+    DIRECT_MATCH = "DIRECT_MATCH"
+    AMBIGUOUS = "AMBIGUOUS"
     UNMAPPED = "UNMAPPED"
 
 
@@ -62,20 +71,43 @@ class ArmConfiguration:
 
 @dataclass(frozen=True, slots=True)
 class CanonicalRetrievedItem:
-    """Retrieved evidence item linked to canonical passage ID and human qrel."""
+    """Retrieved evidence item linked to canonical passage ID and human qrel.
+
+    Strict separation:
+    - technical_chunk_id: raw retriever occurrence ID (e.g. doc_p91_s0)
+    - anchor_passage_id: authoritative ps_* passage ID from registry if mapped, else None
+    """
 
     qid: str
     arm_id: str
     rank: int
-    passage_id: str
-    page_number: int
-    content_sha256: str
-    score: float
-    mapping_status: MappingStatus
-    judgment_status: JudgmentStatus
+    technical_chunk_id: str = ""
+    technical_node_id: str | None = None
+    anchor_passage_id: str | None = None
+    supporting_passage_ids: list[str] = field(default_factory=list)
+    source_offsets: tuple[int, int] | None = None
+    projection_method: str = "EXACT_SUBSTRING"
+    page_number: int = 0
+    content_sha256: str = ""
+    score: float = 0.0
+    mapping_status: MappingStatus = MappingStatus.DIRECT_MATCH
+    judgment_status: JudgmentStatus = JudgmentStatus.JUDGED
     human_grade: float | None = None
-    technical_chunk_id: str | None = None
-    canonical_passage_id: str | None = None
+    passage_id: str | None = None
+
+    def __post_init__(self) -> None:
+        """Ensure anchor_passage_id and passage_id backwards compatibility."""
+        if self.passage_id and not self.anchor_passage_id:
+            object.__setattr__(self, "anchor_passage_id", self.passage_id)
+        if self.anchor_passage_id:
+            object.__setattr__(self, "passage_id", self.anchor_passage_id)
+        elif self.passage_id is None:
+            object.__setattr__(self, "passage_id", "")
+
+    @property
+    def canonical_passage_id(self) -> str | None:
+        """Alias for anchor_passage_id."""
+        return self.anchor_passage_id
 
 
 @dataclass(frozen=True, slots=True)

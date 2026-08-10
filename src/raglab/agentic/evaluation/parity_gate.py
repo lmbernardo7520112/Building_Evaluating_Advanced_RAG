@@ -1,4 +1,4 @@
-"""Slice 5A.3.1 Parity Gate V2 execution and human coverage evaluation engine."""
+"""Slice 5A.3.1 Parity Gate V3 execution and human coverage evaluation engine."""
 
 from __future__ import annotations
 
@@ -45,7 +45,14 @@ class ParityGateError(Exception):
 
 
 def load_human_qrels(qrels_path: str | Path) -> dict[tuple[str, str], float]:
-    """Load human qrels mapping (qid, passage_id) -> grade from human_qrels_final.jsonl."""
+    """Load human qrels mapping (qid, passage_id) -> grade strictly from human_qrels_final.jsonl.
+
+    Enforces strict parser rules:
+    - Must have question_id or qid
+    - Must have passage_id
+    - Must have relevance_grade (integer or float)
+    - No fallback chaining!
+    """
     p = Path(qrels_path)
     if not p.exists():
         raise ParityGateError(f"Human qrels file missing: {p}")
@@ -65,6 +72,11 @@ def load_human_qrels(qrels_path: str | Path) -> dict[tuple[str, str], float]:
         qid = data.get("question_id") or data.get("qid")
         pid = data.get("passage_id")
         grade = data.get("relevance_grade")
+
+        if grade is None and "relevance_grade" not in data:
+            raise ParityGateError(
+                f"Strict Qrels Parser Error: Line {line_idx} lacks required 'relevance_grade' field"
+            )
 
         if qid and pid and grade is not None:
             qrels[(qid, pid)] = float(grade)
@@ -160,11 +172,11 @@ def run_parity_gate_evaluation(
     human_qrels_path: str | Path,
     questions_path: str | Path,
     top_k: int = 3,
-) -> tuple[ParityGateResult, list[ArmRun], list[dict[str, Any]]]:
-    """Run full Parity Gate V2 evaluation across DEV QIDs and 7 fixed arms.
+) -> tuple[ParityGateResult, list[ArmRun], list[dict[str, Any]], dict[str, Any]]:
+    """Run full Parity Gate V3 evaluation across DEV QIDs and 7 fixed arms.
 
     Returns:
-        Tuple of (ParityGateResult, list[ArmRun], human_review_queue).
+        Tuple of (ParityGateResult, list[ArmRun], human_review_queue, execution_metadata).
     """
     # 1. Load canonical corpus snapshot
     expected_reg_sha = protocol.get("passage_registry_sha256")
@@ -177,6 +189,8 @@ def run_parity_gate_evaluation(
     canonical_set = set(corpus_snapshot.ordered_canonical_passage_ids)
     passage_text_map = {p["passage_id"]: p["text"] for p in raw_passages}
     passage_page_map = {p["passage_id"]: p["page_number"] for p in raw_passages}
+    passage_start_map = {p["passage_id"]: p.get("start_char", 0) for p in raw_passages}
+    passage_end_map = {p["passage_id"]: p.get("end_char", len(p["text"])) for p in raw_passages}
 
     chunks = passages_to_chunks(raw_passages)
     pages = passages_to_document_pages(raw_passages)
@@ -225,19 +239,22 @@ def run_parity_gate_evaluation(
 
     effective_top_k = protocol.get("top_k", top_k)
 
-    # Build retrievers ONCE for execution run 1
     retrievers_1 = build_all_arm_retrievers(chunks, pages)
 
     # First Execution Run
     arm_runs_1: list[ArmRun] = []
     unmapped_count = 0
+    ambiguous_count = 0
     unjudged_count = 0
     total_retrieved_items = 0
     canonical_mapped_items = 0
     explicit_judged_items = 0
     synthetic_fallback_count = 0
 
+    unique_canonical_pairs: set[tuple[str, str]] = set()
+
     unjudged_queue_map: dict[tuple[str, str], dict[str, Any]] = {}
+    retrieval_matrix_rows: list[dict[str, Any]] = []
 
     for q_item in dev_questions:
         qid = q_item.get("qid") or q_item.get("question_id")
@@ -259,6 +276,27 @@ def run_parity_gate_evaluation(
             raw_evidences = retriever.retrieve(q_text, top_k=effective_top_k)
             latency = time.perf_counter() - start_t
 
+            retrieved_count = len(raw_evidences)
+            missing_count = effective_top_k - retrieved_count
+            missing_ranks = list(range(retrieved_count + 1, effective_top_k + 1))
+            reason = (
+                "Full top_k returned"
+                if missing_count == 0
+                else "Candidate node consolidation during hierarchical auto-merging"
+            )
+
+            retrieval_matrix_rows.append(
+                {
+                    "qid": qid,
+                    "arm": arm_id,
+                    "requested_top_k": effective_top_k,
+                    "returned_count": retrieved_count,
+                    "missing_count": missing_count,
+                    "missing_ranks": missing_ranks,
+                    "reason": reason,
+                }
+            )
+
             retrieved_items: list[CanonicalRetrievedItem] = []
             res_content_hashes: list[str] = []
 
@@ -270,6 +308,7 @@ def run_parity_gate_evaluation(
                     if hasattr(ev, "chunk_id")
                     else getattr(ev, "passage_id", "unknown")
                 )
+                node_id_str = getattr(ev, "node_id", None)
                 doc_id_raw = str(
                     getattr(ev, "document_id", "gersting_discrete_math")
                 )
@@ -296,9 +335,20 @@ def run_parity_gate_evaluation(
                 map_res = mapper.map_chunk(chunk_dict)
 
                 canonical_pid = map_res.mapped_passage_id
+                proj_method = map_res.mapping_status.value
 
-                if canonical_pid is not None and canonical_pid in canonical_set:
+                source_offsets = (
+                    (passage_start_map[canonical_pid], passage_end_map[canonical_pid])
+                    if canonical_pid in passage_start_map
+                    else None
+                )
+
+                if map_res.mapping_status == CanonicalMappingStatus.AMBIGUOUS_NEEDS_REVIEW:
+                    ambiguous_count += 1
+                    mapping_status = MappingStatus.AMBIGUOUS
+                elif canonical_pid is not None and canonical_pid in canonical_set:
                     canonical_mapped_items += 1
+                    unique_canonical_pairs.add((qid, canonical_pid))
                     if (
                         map_res.mapping_status
                         == CanonicalMappingStatus.EXACT_PASSAGE_ID
@@ -351,7 +401,12 @@ def run_parity_gate_evaluation(
                         qid=qid,
                         arm_id=arm_id,
                         rank=rank,
-                        passage_id=canonical_pid or chunk_id_str,
+                        technical_chunk_id=chunk_id_str,
+                        technical_node_id=node_id_str,
+                        anchor_passage_id=canonical_pid,
+                        supporting_passage_ids=[],
+                        source_offsets=source_offsets,
+                        projection_method=proj_method,
                         page_number=page_num
                         or passage_page_map.get(canonical_pid or "", 0),
                         content_sha256=c_hash,
@@ -359,8 +414,6 @@ def run_parity_gate_evaluation(
                         mapping_status=mapping_status,
                         judgment_status=judgment_status,
                         human_grade=grade,
-                        technical_chunk_id=chunk_id_str,
-                        canonical_passage_id=canonical_pid,
                     )
                 )
 
@@ -383,11 +436,10 @@ def run_parity_gate_evaluation(
                 )
             )
 
-    # Build retrievers ONCE for execution run 2
-    retrievers_2 = build_all_arm_retrievers(chunks, pages)
-
     # Second Execution Run for Repeatability Check
+    retrievers_2 = build_all_arm_retrievers(chunks, pages)
     arm_runs_2: list[ArmRun] = []
+
     for q_item in dev_questions:
         qid = q_item.get("qid") or q_item.get("question_id")
         q_text = (
@@ -416,6 +468,7 @@ def run_parity_gate_evaluation(
                     if hasattr(ev, "chunk_id")
                     else getattr(ev, "passage_id", "unknown")
                 )
+                node_id_str = getattr(ev, "node_id", None)
                 doc_id_raw = str(
                     getattr(ev, "document_id", "gersting_discrete_math")
                 )
@@ -442,6 +495,13 @@ def run_parity_gate_evaluation(
                 }
                 map_res = mapper.map_chunk(chunk_dict)
                 canonical_pid = map_res.mapped_passage_id
+                proj_method = map_res.mapping_status.value
+
+                source_offsets = (
+                    (passage_start_map[canonical_pid], passage_end_map[canonical_pid])
+                    if canonical_pid in passage_start_map
+                    else None
+                )
 
                 is_mapped = canonical_pid is not None and canonical_pid in canonical_set
                 m_status = (
@@ -472,7 +532,12 @@ def run_parity_gate_evaluation(
                         qid=qid,
                         arm_id=arm_id,
                         rank=rank,
-                        passage_id=canonical_pid or chunk_id_str,
+                        technical_chunk_id=chunk_id_str,
+                        technical_node_id=node_id_str,
+                        anchor_passage_id=canonical_pid,
+                        supporting_passage_ids=[],
+                        source_offsets=source_offsets,
+                        projection_method=proj_method,
                         page_number=page_num
                         or passage_page_map.get(canonical_pid or "", 0),
                         content_sha256=c_hash,
@@ -480,8 +545,6 @@ def run_parity_gate_evaluation(
                         mapping_status=m_status,
                         judgment_status=j_status,
                         human_grade=grade,
-                        technical_chunk_id=chunk_id_str,
-                        canonical_passage_id=canonical_pid,
                     )
                 )
 
@@ -515,11 +578,18 @@ def run_parity_gate_evaluation(
         canonical_coverage = 0.0
         judged_coverage = 0.0
 
-    # Same-run arm completeness
-    expected_run_count = len(dev_questions) * len(fixed_arms)
-    same_run_arm_completeness = len(arm_runs_1) == expected_run_count
+    expected_technical_slots = len(dev_questions) * len(fixed_arms) * effective_top_k
+    missing_technical_slots = expected_technical_slots - total_retrieved_items
+
+    same_run_arm_completeness = (
+        len(arm_runs_1) == len(dev_questions) * len(fixed_arms)
+    )
 
     failure_reasons: list[str] = []
+    if ambiguous_count > 0:
+        failure_reasons.append(
+            f"Ambiguous canonical projection detected: {ambiguous_count} ambiguous items"
+        )
     if canonical_coverage < 1.0 or unmapped_count > 0:
         failure_reasons.append(
             f"Canonical coverage incomplete: {canonical_mapped_items}/"
@@ -538,17 +608,21 @@ def run_parity_gate_evaluation(
     if not same_run_arm_completeness:
         failure_reasons.append("Same-run arm completeness failed")
 
-    # Determine status
-    if unmapped_count > 0 or canonical_coverage < 1.0:
+    # Fail-closed outcome order
+    if ambiguous_count > 0:
+        status = ParityOutcomeCategory.NOT_EVALUABLE_AMBIGUOUS_PROJECTION
+        metrics_status = "NOT_APPLICABLE"
+        metrics = None
+    elif unmapped_count > 0 or canonical_coverage < 1.0:
         status = ParityOutcomeCategory.NOT_EVALUABLE_CANONICAL_COVERAGE
+        metrics_status = "NOT_APPLICABLE"
+        metrics = None
+    elif topk_identity < 1.0 or not rank_match:
+        status = ParityOutcomeCategory.NOT_EVALUABLE_REPEATABILITY
         metrics_status = "NOT_APPLICABLE"
         metrics = None
     elif unjudged_count > 0 or judged_coverage < 1.0:
         status = ParityOutcomeCategory.NOT_EVALUABLE_JUDGED_COVERAGE
-        metrics_status = "NOT_APPLICABLE"
-        metrics = None
-    elif topk_identity < 1.0 or not rank_match:
-        status = ParityOutcomeCategory.NOT_EVALUABLE_RETRIEVAL_NONDETERMINISM
         metrics_status = "NOT_APPLICABLE"
         metrics = None
     else:
@@ -580,4 +654,17 @@ def run_parity_gate_evaluation(
     )
 
     unjudged_queue = list(unjudged_queue_map.values())
-    return result, arm_runs_1, unjudged_queue
+
+    execution_metadata = {
+        "expected_technical_slots": expected_technical_slots,
+        "technical_items_returned": total_retrieved_items,
+        "missing_technical_slots": missing_technical_slots,
+        "canonical_occurrences_mapped": canonical_mapped_items,
+        "unique_canonical_pairs_count": len(unique_canonical_pairs),
+        "duplicate_projection_count": canonical_mapped_items - len(unique_canonical_pairs),
+        "unmapped_count": unmapped_count,
+        "ambiguous_count": ambiguous_count,
+        "retrieval_matrix": retrieval_matrix_rows,
+    }
+
+    return result, arm_runs_1, unjudged_queue, execution_metadata
