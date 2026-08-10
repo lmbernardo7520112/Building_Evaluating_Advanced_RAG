@@ -8,6 +8,7 @@ individually, failing each test with an explicit ImportError or AssertionError a
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import subprocess
@@ -55,6 +56,161 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             compute_canonical_json_sha256,
             compute_file_sha256,
         )
+
+    def _create_synthetic_git_repo(self, repo_dir: Path) -> tuple[str, str]:
+        """Create synthetic git repository inside sandbox returning (impl_commit, proto_commit)."""
+        import shutil
+
+        git_bin = shutil.which("git") or "git"
+        repo_dir.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [git_bin, "init"], cwd=repo_dir, check=True, capture_output=True
+        )
+        subprocess.run(
+            [git_bin, "config", "user.name", "TestUser"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [git_bin, "config", "user.email", "test@example.com"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+        )
+
+        (repo_dir / "src_file.py").write_text("# code", encoding="utf-8")
+        subprocess.run(
+            [git_bin, "add", "src_file.py"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [git_bin, "commit", "-m", "impl commit"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+        )
+        impl_commit = (
+            subprocess.run(
+                [git_bin, "rev-parse", "HEAD"],
+                cwd=repo_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+        )
+
+        proto_file = repo_dir / "protocol.json"
+        proto_data = {"protocol_id": "proto_1", "version": "1.0"}
+        proto_file.write_text(json.dumps(proto_data), encoding="utf-8")
+        subprocess.run(
+            [git_bin, "add", "protocol.json"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [git_bin, "commit", "-m", "proto commit"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+        )
+        proto_commit = (
+            subprocess.run(
+                [git_bin, "rev-parse", "HEAD"],
+                cwd=repo_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+        )
+
+        return impl_commit, proto_commit
+
+    def _create_valid_run_directory(
+        self,
+        artifact_root: Path,
+        slice_id: str = "slice5b",
+        run_id: str = "valid_run",
+    ) -> Path:
+        """Create a synthetic valid run directory layout at <artifact_root>/<slice_id>/<run_id>/."""
+        run_dir = artifact_root / slice_id / run_id
+        receipts_dir = run_dir / "receipts"
+        raw_dir = run_dir / "raw"
+        derived_dir = run_dir / "derived"
+        logs_dir = run_dir / "logs"
+
+        receipts_dir.mkdir(parents=True, exist_ok=True)
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        derived_dir.mkdir(parents=True, exist_ok=True)
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        (run_dir / "protocol.snapshot.json").write_text(
+            json.dumps({"protocol_id": "proto_1"}), encoding="utf-8"
+        )
+
+        dummy_artifact = raw_dir / "data.json"
+        dummy_artifact.write_text(json.dumps({"result": 1.0}), encoding="utf-8")
+
+        h = hashlib.sha256(dummy_artifact.read_bytes()).hexdigest()
+        (run_dir / "hashes.sha256").write_text(
+            f"{h}  raw/data.json\n", encoding="utf-8"
+        )
+
+        receipt_data = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "slice_id": slice_id,
+            "state": "AUDIT_COMPLETED",
+            "artifact_root": str(artifact_root),
+            "run_directory": str(run_dir),
+            "implementation_commit": "commit_1",
+            "protocol_commit": "commit_2",
+            "protocol_sha256": "proto_sha",
+            "input_hashes": {},
+            "runner_version": "1.0.0",
+            "created_at_utc": "2026-08-10T12:00:00Z",
+            "started_at_utc": "2026-08-10T12:01:00Z",
+            "finished_at_utc": "2026-08-10T12:02:00Z",
+            "exit_code": 0,
+            "artifact_inventory": ["raw/data.json"],
+            "artifact_hashes": {"raw/data.json": h},
+            "previous_receipt_sha256": "sha_prev",
+            "receipt_sha256": "sha_curr",
+        }
+        (run_dir / "run_receipt.json").write_text(
+            json.dumps(receipt_data, indent=2), encoding="utf-8"
+        )
+        (receipts_dir / "000_PREPARED.json").write_text("{}", encoding="utf-8")
+        (receipts_dir / "001_RUN_STARTED.json").write_text("{}", encoding="utf-8")
+        (receipts_dir / "002_RUN_COMPLETED.json").write_text("{}", encoding="utf-8")
+        (receipts_dir / "003_AUDIT_COMPLETED.json").write_text("{}", encoding="utf-8")
+
+        return run_dir
+
+    def _get_directory_inventory(
+        self, target_dir: Path
+    ) -> tuple[dict[str, tuple[int, str]], set[str]]:
+        """Get deterministic inventory of files and relative directory paths."""
+        files_inv: dict[str, tuple[int, str]] = {}
+        dirs_inv: set[str] = set()
+
+        for p in sorted(target_dir.rglob("*")):
+            rel_path = str(p.relative_to(target_dir))
+            if p.is_dir():
+                dirs_inv.add(rel_path)
+            elif p.is_file():
+                content = p.read_bytes()
+                files_inv[rel_path] = (
+                    len(content),
+                    hashlib.sha256(content).hexdigest(),
+                )
+
+        return files_inv, dirs_inv
 
     # =========================================================================
     # PATHS (Casos 1 a 13)
@@ -802,14 +958,23 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        artifact_root = self.sandbox / "external_artifacts"
+        valid_run_dir = self._create_valid_run_directory(artifact_root)
+        files_before, dirs_before = self._get_directory_inventory(valid_run_dir)
+
         cmd = [
             sys.executable,
             str(script_path),
             "--run-dir",
-            str(self.sandbox / "valid_run"),
+            str(valid_run_dir),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
-        self.assertEqual(res.returncode, 0)
+        diagnostic = f"stdout: {res.stdout}\nstderr: {res.stderr}"
+        self.assertEqual(res.returncode, 0, diagnostic)
+
+        files_after, dirs_after = self._get_directory_inventory(valid_run_dir)
+        self.assertEqual(files_before, files_after)
+        self.assertEqual(dirs_before, dirs_after)
 
     def test_57_invalid_run_returns_invalid_status(self) -> None:
         """57. LineageVerifier must return is_valid=False for an invalid run."""
@@ -826,14 +991,38 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        artifact_root = self.sandbox / "external_artifacts"
+        invalid_run_dir = self._create_valid_run_directory(
+            artifact_root, run_id="invalid_run"
+        )
+        (invalid_run_dir / "raw" / "data.json").write_text(
+            "tampered content", encoding="utf-8"
+        )
+        files_before, dirs_before = self._get_directory_inventory(
+            invalid_run_dir
+        )
+
         cmd = [
             sys.executable,
             str(script_path),
             "--run-dir",
-            str(self.sandbox / "invalid_run"),
+            str(invalid_run_dir),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"stdout: {res.stdout}\nstderr: {res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "hash" in diagnostic
+            or "lineage" in diagnostic
+            or "corrupted" in diagnostic
+            or "invalid" in diagnostic
+        )
+
+        files_after, dirs_after = self._get_directory_inventory(
+            invalid_run_dir
+        )
+        self.assertEqual(files_before, files_after)
+        self.assertEqual(dirs_before, dirs_after)
 
     def test_59_verifier_does_not_alter_bytes(self) -> None:
         """59. LineageVerifier must not alter any file bytes in the run directory."""
@@ -952,29 +1141,28 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
         cmd = [
             sys.executable,
             str(script_path),
             "--artifact-root",
-            str(self.sandbox / "artifacts"),
+            str(self.sandbox / "external_artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
             "run1",
             "--protocol",
-            "protocol.json",
+            str(repo_dir / "protocol.json"),
             "--implementation-commit",
-            "commit1",
+            impl_commit,
             "--protocol-commit",
-            "commit2",
+            proto_commit,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
-        self.assertTrue(
-            "repo-root" in res.stderr.lower()
-            or "repo_root" in res.stderr.lower()
-            or "required" in res.stderr.lower()
-        )
+        self.assertIn("--repo-root", diagnostic)
 
     def test_69_cli_requires_artifact_root(self) -> None:
         """69. prepare CLI must require --artifact-root parameter."""
@@ -982,29 +1170,28 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--slice-id",
             "slice5b",
             "--run-id",
             "run1",
             "--protocol",
-            "protocol.json",
+            str(repo_dir / "protocol.json"),
             "--implementation-commit",
-            "commit1",
+            impl_commit,
             "--protocol-commit",
-            "commit2",
+            proto_commit,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
-        self.assertTrue(
-            "artifact-root" in res.stderr.lower()
-            or "artifact_root" in res.stderr.lower()
-            or "required" in res.stderr.lower()
-        )
+        self.assertIn("--artifact-root", diagnostic)
 
     def test_70_cli_requires_slice_id(self) -> None:
         """70. prepare CLI must require --slice-id parameter."""
@@ -1012,29 +1199,28 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--artifact-root",
-            str(self.sandbox / "artifacts"),
+            str(self.sandbox / "external_artifacts"),
             "--run-id",
             "run1",
             "--protocol",
-            "protocol.json",
+            str(repo_dir / "protocol.json"),
             "--implementation-commit",
-            "commit1",
+            impl_commit,
             "--protocol-commit",
-            "commit2",
+            proto_commit,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
-        self.assertTrue(
-            "slice-id" in res.stderr.lower()
-            or "slice_id" in res.stderr.lower()
-            or "required" in res.stderr.lower()
-        )
+        self.assertIn("--slice-id", diagnostic)
 
     def test_71_cli_requires_run_id(self) -> None:
         """71. prepare CLI must require --run-id parameter."""
@@ -1042,29 +1228,28 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--artifact-root",
-            str(self.sandbox / "artifacts"),
+            str(self.sandbox / "external_artifacts"),
             "--slice-id",
             "slice5b",
             "--protocol",
-            "protocol.json",
+            str(repo_dir / "protocol.json"),
             "--implementation-commit",
-            "commit1",
+            impl_commit,
             "--protocol-commit",
-            "commit2",
+            proto_commit,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
-        self.assertTrue(
-            "run-id" in res.stderr.lower()
-            or "run_id" in res.stderr.lower()
-            or "required" in res.stderr.lower()
-        )
+        self.assertIn("--run-id", diagnostic)
 
     def test_72_cli_requires_protocol(self) -> None:
         """72. prepare CLI must require --protocol parameter."""
@@ -1072,27 +1257,28 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--artifact-root",
-            str(self.sandbox / "artifacts"),
+            str(self.sandbox / "external_artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
             "run1",
             "--implementation-commit",
-            "commit1",
+            impl_commit,
             "--protocol-commit",
-            "commit2",
+            proto_commit,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
-        self.assertTrue(
-            "protocol" in res.stderr.lower() or "required" in res.stderr.lower()
-        )
+        self.assertIn("--protocol", diagnostic)
 
     def test_73_cli_requires_implementation_commit(self) -> None:
         """73. prepare CLI must require --implementation-commit parameter."""
@@ -1100,29 +1286,28 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--artifact-root",
-            str(self.sandbox / "artifacts"),
+            str(self.sandbox / "external_artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
             "run1",
             "--protocol",
-            "protocol.json",
+            str(repo_dir / "protocol.json"),
             "--protocol-commit",
-            "commit2",
+            proto_commit,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
-        self.assertTrue(
-            "implementation-commit" in res.stderr.lower()
-            or "implementation_commit" in res.stderr.lower()
-            or "required" in res.stderr.lower()
-        )
+        self.assertIn("--implementation-commit", diagnostic)
 
     def test_74_cli_requires_protocol_commit(self) -> None:
         """74. prepare CLI must require --protocol-commit parameter."""
@@ -1130,29 +1315,28 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--artifact-root",
-            str(self.sandbox / "artifacts"),
+            str(self.sandbox / "external_artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
             "run1",
             "--protocol",
-            "protocol.json",
+            str(repo_dir / "protocol.json"),
             "--implementation-commit",
-            "commit1",
+            impl_commit,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
-        self.assertTrue(
-            "protocol-commit" in res.stderr.lower()
-            or "protocol_commit" in res.stderr.lower()
-            or "required" in res.stderr.lower()
-        )
+        self.assertIn("--protocol-commit", diagnostic)
 
     def test_75_cli_accepts_repeatable_input(self) -> None:
         """75. prepare CLI must accept repeatable --input NAME=PATH arguments."""
@@ -1160,30 +1344,52 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
+
+        input1 = repo_dir / "qrels.json"
+        input1.write_text('{"q1": "p1"}', encoding="utf-8")
+        input2 = repo_dir / "passages.jsonl"
+        input2.write_text('{"id": "p1"}', encoding="utf-8")
+
+        artifact_root = self.sandbox / "external_artifacts"
+        slice_id = "slice5b"
+        run_id = "r1"
+
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--artifact-root",
-            str(self.sandbox / "artifacts"),
+            str(artifact_root),
             "--slice-id",
-            "slice5b",
+            slice_id,
             "--run-id",
-            "r1",
+            run_id,
             "--protocol",
-            "proto.json",
+            str(repo_dir / "protocol.json"),
             "--implementation-commit",
-            "commit1",
+            impl_commit,
             "--protocol-commit",
-            "commit2",
+            proto_commit,
             "--input",
-            "qrels=qrels.json",
+            f"qrels={input1}",
             "--input",
-            "passages=passages.jsonl",
+            f"passages={input2}",
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
-        self.assertEqual(res.returncode, 0)
+        diagnostic = f"stdout: {res.stdout}\nstderr: {res.stderr}"
+        self.assertEqual(res.returncode, 0, diagnostic)
+
+        target_run_dir = artifact_root / slice_id / run_id
+        self.assertTrue(target_run_dir.exists())
+        receipt_file = target_run_dir / "run_receipt.json"
+        self.assertTrue(receipt_file.exists())
+        rec_data = json.loads(receipt_file.read_text(encoding="utf-8"))
+        self.assertEqual(rec_data["run_id"], run_id)
+        self.assertIn("qrels", rec_data["input_hashes"])
+        self.assertIn("passages", rec_data["input_hashes"])
 
     def test_76_cli_returns_non_zero_on_invalid_preflight(self) -> None:
         """76. prepare CLI must return non-zero exit code when preflight fails."""
@@ -1191,26 +1397,37 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
+
+        # Preflight fails specifically because protocol file path does not exist
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--artifact-root",
-            "/tmp",  # noqa: S108
+            str(self.sandbox / "external_artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
             "r1",
             "--protocol",
-            "nonexistent.json",
+            str(repo_dir / "nonexistent_protocol.json"),
             "--implementation-commit",
-            "bad_commit",
+            impl_commit,
             "--protocol-commit",
-            "bad_commit",
+            proto_commit,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "protocol" in diagnostic
+            or "preflight" in diagnostic
+            or "not found" in diagnostic
+            or "exist" in diagnostic
+        )
 
     def test_77_cli_creates_no_output_on_failure(self) -> None:
         """77. prepare CLI must create no output directory or receipt files after preflight failure."""
@@ -1218,27 +1435,42 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
-        target_dir = self.sandbox / "failed_cli_dir"
+        repo_dir = self.sandbox / "repo"
+        impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
+        artifact_root = self.sandbox / "external_artifacts"
+        slice_id = "slice5b"
+        run_id = "r1"
+        target_run_dir = artifact_root / slice_id / run_id
+
+        # Non-existent protocol triggers preflight failure
         cmd = [
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox / "repo"),
+            str(repo_dir),
             "--artifact-root",
-            str(target_dir),
+            str(artifact_root),
             "--slice-id",
-            "slice5b",
+            slice_id,
             "--run-id",
-            "r1",
+            run_id,
             "--protocol",
-            "nonexistent.json",
+            str(repo_dir / "nonexistent_protocol.json"),
             "--implementation-commit",
-            "bad_commit",
+            impl_commit,
             "--protocol-commit",
-            "bad_commit",
+            proto_commit,
         ]
-        subprocess.run(cmd, capture_output=True, text=True)
-        self.assertFalse(target_dir.exists())
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
+        self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "protocol" in diagnostic
+            or "preflight" in diagnostic
+            or "not found" in diagnostic
+            or "exist" in diagnostic
+        )
+        self.assertFalse(target_run_dir.exists())
 
     def test_78_verifier_cli_is_read_only(self) -> None:
         """78. verifier CLI must execute in strictly read-only mode without file creation or mutation."""
@@ -1246,14 +1478,23 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
+        artifact_root = self.sandbox / "external_artifacts"
+        valid_run_dir = self._create_valid_run_directory(artifact_root)
+        files_before, dirs_before = self._get_directory_inventory(valid_run_dir)
+
         cmd = [
             sys.executable,
             str(script_path),
             "--run-dir",
-            str(self.sandbox / "valid_run"),
+            str(valid_run_dir),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
-        self.assertEqual(res.returncode, 0)
+        diagnostic = f"stdout: {res.stdout}\nstderr: {res.stderr}"
+        self.assertEqual(res.returncode, 0, diagnostic)
+
+        files_after, dirs_after = self._get_directory_inventory(valid_run_dir)
+        self.assertEqual(files_before, files_after)
+        self.assertEqual(dirs_before, dirs_after)
 
     # =========================================================================
     # ANTI-REGRESSÃO DA IMPLEMENTAÇÃO REPROVADA (Seção 9 - Casos 79 a 90)
@@ -1411,7 +1652,14 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             str(self.sandbox / "out"),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
+        diagnostic = f"{res.stdout}\n{res.stderr}".lower()
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "unrecognized" in diagnostic
+            or "unknown" in diagnostic
+            or "--output-dir" in diagnostic
+            or "--repo-root" in diagnostic
+        )
 
 
 if __name__ == "__main__":
