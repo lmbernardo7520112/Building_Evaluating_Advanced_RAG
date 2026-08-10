@@ -952,9 +952,29 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self.assertTrue(
             script_path.exists(), f"CLI script {script_path} must exist."
         )
-        cmd = [sys.executable, str(script_path)]
+        cmd = [
+            sys.executable,
+            str(script_path),
+            "--artifact-root",
+            str(self.sandbox / "artifacts"),
+            "--slice-id",
+            "slice5b",
+            "--run-id",
+            "run1",
+            "--protocol",
+            "protocol.json",
+            "--implementation-commit",
+            "commit1",
+            "--protocol-commit",
+            "commit2",
+        ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "repo-root" in res.stderr.lower()
+            or "repo_root" in res.stderr.lower()
+            or "required" in res.stderr.lower()
+        )
 
     def test_69_cli_requires_artifact_root(self) -> None:
         """69. prepare CLI must require --artifact-root parameter."""
@@ -966,10 +986,25 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            ".",
+            str(self.sandbox / "repo"),
+            "--slice-id",
+            "slice5b",
+            "--run-id",
+            "run1",
+            "--protocol",
+            "protocol.json",
+            "--implementation-commit",
+            "commit1",
+            "--protocol-commit",
+            "commit2",
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "artifact-root" in res.stderr.lower()
+            or "artifact_root" in res.stderr.lower()
+            or "required" in res.stderr.lower()
+        )
 
     def test_70_cli_requires_slice_id(self) -> None:
         """70. prepare CLI must require --slice-id parameter."""
@@ -981,12 +1016,25 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            ".",
+            str(self.sandbox / "repo"),
             "--artifact-root",
-            "/tmp/art",  # noqa: S108
+            str(self.sandbox / "artifacts"),
+            "--run-id",
+            "run1",
+            "--protocol",
+            "protocol.json",
+            "--implementation-commit",
+            "commit1",
+            "--protocol-commit",
+            "commit2",
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "slice-id" in res.stderr.lower()
+            or "slice_id" in res.stderr.lower()
+            or "required" in res.stderr.lower()
+        )
 
     def test_71_cli_requires_run_id(self) -> None:
         """71. prepare CLI must require --run-id parameter."""
@@ -998,14 +1046,25 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            ".",
+            str(self.sandbox / "repo"),
             "--artifact-root",
-            "/tmp/art",  # noqa: S108
+            str(self.sandbox / "artifacts"),
             "--slice-id",
             "slice5b",
+            "--protocol",
+            "protocol.json",
+            "--implementation-commit",
+            "commit1",
+            "--protocol-commit",
+            "commit2",
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "run-id" in res.stderr.lower()
+            or "run_id" in res.stderr.lower()
+            or "required" in res.stderr.lower()
+        )
 
     def test_72_cli_requires_protocol(self) -> None:
         """72. prepare CLI must require --protocol parameter."""
@@ -1017,16 +1076,23 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            ".",
+            str(self.sandbox / "repo"),
             "--artifact-root",
-            "/tmp/art",  # noqa: S108
+            str(self.sandbox / "artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
-            "r1",
+            "run1",
+            "--implementation-commit",
+            "commit1",
+            "--protocol-commit",
+            "commit2",
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "protocol" in res.stderr.lower() or "required" in res.stderr.lower()
+        )
 
     def test_73_cli_requires_implementation_commit(self) -> None:
         """73. prepare CLI must require --implementation-commit parameter."""
@@ -1038,18 +1104,25 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            ".",
+            str(self.sandbox / "repo"),
             "--artifact-root",
-            "/tmp/art",  # noqa: S108
+            str(self.sandbox / "artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
-            "r1",
+            "run1",
             "--protocol",
-            "proto.json",
+            "protocol.json",
+            "--protocol-commit",
+            "commit2",
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "implementation-commit" in res.stderr.lower()
+            or "implementation_commit" in res.stderr.lower()
+            or "required" in res.stderr.lower()
+        )
 
     def test_74_cli_requires_protocol_commit(self) -> None:
         """74. prepare CLI must require --protocol-commit parameter."""
@@ -1061,20 +1134,25 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            ".",
+            str(self.sandbox / "repo"),
             "--artifact-root",
-            "/tmp/art",  # noqa: S108
+            str(self.sandbox / "artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
-            "r1",
+            "run1",
             "--protocol",
-            "proto.json",
+            "protocol.json",
             "--implementation-commit",
             "commit1",
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(
+            "protocol-commit" in res.stderr.lower()
+            or "protocol_commit" in res.stderr.lower()
+            or "required" in res.stderr.lower()
+        )
 
     def test_75_cli_accepts_repeatable_input(self) -> None:
         """75. prepare CLI must accept repeatable --input NAME=PATH arguments."""
@@ -1086,9 +1164,9 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            ".",
+            str(self.sandbox / "repo"),
             "--artifact-root",
-            str(self.sandbox),
+            str(self.sandbox / "artifacts"),
             "--slice-id",
             "slice5b",
             "--run-id",
@@ -1117,7 +1195,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox),
+            str(self.sandbox / "repo"),
             "--artifact-root",
             "/tmp",  # noqa: S108
             "--slice-id",
@@ -1145,7 +1223,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--repo-root",
-            str(self.sandbox),
+            str(self.sandbox / "repo"),
             "--artifact-root",
             str(target_dir),
             "--slice-id",
@@ -1172,7 +1250,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             sys.executable,
             str(script_path),
             "--run-dir",
-            str(self.sandbox),
+            str(self.sandbox / "valid_run"),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertEqual(res.returncode, 0)
@@ -1330,7 +1408,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             "--protocol",
             "p.json",
             "--output-dir",
-            "/tmp/out",  # noqa: S108
+            str(self.sandbox / "out"),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(res.returncode, 0)
