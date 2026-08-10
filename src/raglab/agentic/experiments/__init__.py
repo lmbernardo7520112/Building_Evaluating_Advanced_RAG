@@ -1,6 +1,6 @@
 """Experimental Readiness Module — RAGLab V7.
 
-Core integrity, receipt state machine, and lineage verification package.
+Core integrity, receipt state machine, path policy, and lineage verification package.
 """
 
 from raglab.agentic.experiments.integrity import (
@@ -10,6 +10,10 @@ from raglab.agentic.experiments.integrity import (
     compute_canonical_json_sha256,
     compute_file_sha256,
     verify_artifact_integrity,
+)
+from raglab.agentic.experiments.path_policy import (
+    ExperimentalPathPolicy,
+    PathPolicyError,
 )
 from raglab.agentic.experiments.receipts import (
     ALLOWED_TRANSITIONS,
@@ -26,6 +30,8 @@ __all__ = [
     "RunReceipt",
     "ReceiptStoreError",
     "IntegrityError",
+    "ExperimentalPathPolicy",
+    "PathPolicyError",
     "ALLOWED_TRANSITIONS",
     "SECRET_FIELDS_FORBIDDEN",
     "compute_bytes_sha256",
