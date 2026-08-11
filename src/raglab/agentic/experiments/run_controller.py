@@ -205,6 +205,19 @@ class RunController:
                     raise RunControllerError(
                         "Provided run lock is not acquired"
                     )
+                # Bind supplied lock to target run directory
+                lock_dir = lock.lock_path.parent.resolve()
+                if lock_dir != validated_dir:
+                    raise RunControllerError(
+                        f"Supplied lock belongs to '{lock_dir}', "
+                        f"but target run_dir is '{validated_dir}'"
+                    )
+                # Bind supplied lock run_id to chain's run_id
+                if chain and lock.run_id != latest.run_id:
+                    raise RunControllerError(
+                        f"Supplied lock run_id '{lock.run_id}' does not match "
+                        f"chain run_id '{latest.run_id}'"
+                    )
                 active_lock = lock
             elif (
                 validated_dir in self._active_locks

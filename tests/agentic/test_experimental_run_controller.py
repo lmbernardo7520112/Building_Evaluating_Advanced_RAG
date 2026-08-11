@@ -271,6 +271,123 @@ class TestRunControllerFocal(unittest.TestCase):
             "Lock must remain acquired on exception",
         )
 
+    # ------------------------------------------------------------------
+    # Lock ↔ run_dir binding (GREEN-2C.2B remediation)
+    # ------------------------------------------------------------------
+
+    # 14. Lock de outro diretório rejeitado
+    def test_14_cross_directory_lock_rejected(self) -> None:
+        run_dir_a = self.sandbox / "slice_5b" / "run14a"
+        run_dir_b = self.sandbox / "slice_5b" / "run14b"
+        store_a = RunReceiptStore(run_dir_a)
+        store_a.append(_make_prepared_receipt(run_dir_a, run_id="run_14a"))
+        store_b = RunReceiptStore(run_dir_b)
+        store_b.append(_make_prepared_receipt(run_dir_b, run_id="run_14b"))
+
+        lock_a = ExperimentalRunLock.acquire(run_dir_a, run_id="run_14a")
+        controller = RunController(allowed_roots=[self.sandbox])
+
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.transition_state(
+                run_dir_b, RunState.RUN_STARTED, lock=lock_a
+            )
+        self.assertIn("Supplied lock belongs to", str(ctx.exception))
+
+    # 15. Cadeia alvo inalterada após rejeição de lock estrangeiro
+    def test_15_target_chain_preserved_on_rejection(self) -> None:
+        run_dir_a = self.sandbox / "slice_5b" / "run15a"
+        run_dir_b = self.sandbox / "slice_5b" / "run15b"
+        store_a = RunReceiptStore(run_dir_a)
+        store_a.append(_make_prepared_receipt(run_dir_a, run_id="run_15a"))
+        store_b = RunReceiptStore(run_dir_b)
+        r0_b = _make_prepared_receipt(run_dir_b, run_id="run_15b")
+        store_b.append(r0_b)
+
+        lock_a = ExperimentalRunLock.acquire(run_dir_a, run_id="run_15a")
+        controller = RunController(allowed_roots=[self.sandbox])
+
+        with self.assertRaises(RunControllerError):
+            controller.transition_state(
+                run_dir_b, RunState.RUN_STARTED, lock=lock_a
+            )
+
+        chain_b = store_b.load_history_chain()
+        self.assertEqual(len(chain_b), 1)
+        self.assertEqual(chain_b[0].receipt_sha256, r0_b.receipt_sha256)
+
+    # 16. Lock alheio permanece adquirido após rejeição
+    def test_16_foreign_lock_remains_acquired(self) -> None:
+        run_dir_a = self.sandbox / "slice_5b" / "run16a"
+        run_dir_b = self.sandbox / "slice_5b" / "run16b"
+        store_a = RunReceiptStore(run_dir_a)
+        store_a.append(_make_prepared_receipt(run_dir_a, run_id="run_16a"))
+        store_b = RunReceiptStore(run_dir_b)
+        store_b.append(_make_prepared_receipt(run_dir_b, run_id="run_16b"))
+
+        lock_a = ExperimentalRunLock.acquire(run_dir_a, run_id="run_16a")
+        controller = RunController(allowed_roots=[self.sandbox])
+
+        with self.assertRaises(RunControllerError):
+            controller.transition_state(
+                run_dir_b, RunState.RUN_STARTED, lock=lock_a
+            )
+
+        self.assertTrue(
+            lock_a.is_acquired(),
+            "Foreign lock must remain acquired after rejection",
+        )
+
+    # 17. Mesmo run_id em diretórios diferentes rejeitado
+    def test_17_same_run_id_different_dirs_rejected(self) -> None:
+        run_dir_a = self.sandbox / "slice_5b" / "run17a"
+        run_dir_b = self.sandbox / "slice_5b" / "run17b"
+        store_a = RunReceiptStore(run_dir_a)
+        store_a.append(_make_prepared_receipt(run_dir_a, run_id="shared_id"))
+        store_b = RunReceiptStore(run_dir_b)
+        store_b.append(_make_prepared_receipt(run_dir_b, run_id="shared_id"))
+
+        lock_a = ExperimentalRunLock.acquire(run_dir_a, run_id="shared_id")
+        controller = RunController(allowed_roots=[self.sandbox])
+
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.transition_state(
+                run_dir_b, RunState.RUN_STARTED, lock=lock_a
+            )
+        # Must be rejected by directory binding, not run_id
+        self.assertIn("Supplied lock belongs to", str(ctx.exception))
+
+    # 18. Lock correto aceito
+    def test_18_correct_target_lock_accepted(self) -> None:
+        run_dir = self.sandbox / "slice_5b" / "run18"
+        store = RunReceiptStore(run_dir)
+        r0 = _make_prepared_receipt(run_dir, run_id="run_18")
+        store.append(r0)
+
+        lock = ExperimentalRunLock.acquire(run_dir, run_id="run_18")
+        controller = RunController(allowed_roots=[self.sandbox])
+
+        receipt = controller.transition_state(
+            run_dir, RunState.RUN_STARTED, lock=lock
+        )
+        self.assertEqual(receipt.state, RunState.RUN_STARTED)
+        self.assertEqual(receipt.previous_receipt_sha256, r0.receipt_sha256)
+
+    # 19. start_run herda a proteção de binding
+    def test_19_start_run_inherits_lock_binding(self) -> None:
+        run_dir_a = self.sandbox / "slice_5b" / "run19a"
+        run_dir_b = self.sandbox / "slice_5b" / "run19b"
+        store_a = RunReceiptStore(run_dir_a)
+        store_a.append(_make_prepared_receipt(run_dir_a, run_id="run_19a"))
+        store_b = RunReceiptStore(run_dir_b)
+        store_b.append(_make_prepared_receipt(run_dir_b, run_id="run_19b"))
+
+        lock_a = ExperimentalRunLock.acquire(run_dir_a, run_id="run_19a")
+        controller = RunController(allowed_roots=[self.sandbox])
+
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.start_run(run_dir_b, lock=lock_a)
+        self.assertIn("Supplied lock belongs to", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
