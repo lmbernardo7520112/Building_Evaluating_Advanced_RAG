@@ -472,46 +472,72 @@ class TestRunControllerPreflight(unittest.TestCase):
     # preflight_git_check
     # ------------------------------------------------------------------
 
-    def test_20_clean_worktree_accepted(self) -> None:
+    def test_20_default_no_args_clean_repo_accepted(self) -> None:
         controller = self._make_controller()
-        # Should not raise
-        controller.preflight_git_check(allow_dirty=False, allow_staged=False)
+        # Default preflight_git_check() with no args on clean repo must pass
+        controller.preflight_git_check()
 
-    def test_21_tracked_dirty_rejected(self) -> None:
+    def test_21_default_no_args_tracked_dirty_rejected(self) -> None:
         (self.repo_dir / "src_file.py").write_text(
             "# modified", encoding="utf-8"
         )
         controller = self._make_controller()
+        # Default preflight_git_check() with no args on tracked dirty repo must fail closed
         with self.assertRaises(RunControllerError) as ctx:
-            controller.preflight_git_check(allow_dirty=False)
+            controller.preflight_git_check()
         self.assertIn("dirty", str(ctx.exception).lower())
 
-    def test_22_tracked_dirty_allowed_when_flag_true(self) -> None:
+    def test_22_default_no_args_staged_rejected(self) -> None:
+        (self.repo_dir / "new_file.py").write_text(
+            "# new", encoding="utf-8"
+        )
+        self._git("add", "new_file.py")
+        controller = self._make_controller()
+        # Default preflight_git_check() with no args on non-empty staging must fail closed
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.preflight_git_check()
+        self.assertIn("staged", str(ctx.exception).lower())
+
+    def test_23_explicit_allow_dirty_accepts_tracked_dirty(self) -> None:
         (self.repo_dir / "src_file.py").write_text(
             "# modified", encoding="utf-8"
         )
         controller = self._make_controller()
-        # allow_dirty=True should not raise
+        # Explicit opt-in allow_dirty=True accepts tracked dirty
         controller.preflight_git_check(allow_dirty=True)
 
-    def test_23_staged_rejected(self) -> None:
+    def test_24_explicit_allow_staged_accepts_staged(self) -> None:
         (self.repo_dir / "new_file.py").write_text(
             "# new", encoding="utf-8"
         )
         self._git("add", "new_file.py")
         controller = self._make_controller()
-        with self.assertRaises(RunControllerError) as ctx:
-            controller.preflight_git_check(allow_staged=False)
-        self.assertIn("staged", str(ctx.exception).lower())
-
-    def test_24_staged_allowed_when_flag_true(self) -> None:
-        (self.repo_dir / "new_file.py").write_text(
-            "# new", encoding="utf-8"
-        )
-        self._git("add", "new_file.py")
-        controller = self._make_controller()
-        # allow_staged=True should not raise
+        # Explicit opt-in allow_staged=True accepts non-empty staging
         controller.preflight_git_check(allow_staged=True)
+
+    def test_24b_opt_in_flags_are_independent(self) -> None:
+        # Create both tracked dirty and staged changes
+        (self.repo_dir / "src_file.py").write_text(
+            "# modified", encoding="utf-8"
+        )
+        (self.repo_dir / "staged_file.py").write_text(
+            "# staged", encoding="utf-8"
+        )
+        self._git("add", "staged_file.py")
+        controller = self._make_controller()
+
+        # allow_dirty=True alone fails because staged is present and allow_staged=False by default
+        with self.assertRaises(RunControllerError) as ctx_dirty:
+            controller.preflight_git_check(allow_dirty=True)
+        self.assertIn("staged", str(ctx_dirty.exception).lower())
+
+        # allow_staged=True alone fails because dirty is present and allow_dirty=False by default
+        with self.assertRaises(RunControllerError) as ctx_staged:
+            controller.preflight_git_check(allow_staged=True)
+        self.assertIn("dirty", str(ctx_staged.exception).lower())
+
+        # Both explicit opt-ins required to pass when both conditions exist
+        controller.preflight_git_check(allow_dirty=True, allow_staged=True)
 
     # ------------------------------------------------------------------
     # validate_commits

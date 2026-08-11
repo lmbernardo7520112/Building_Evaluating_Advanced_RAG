@@ -408,8 +408,8 @@ class RunController:
     def preflight_git_check(
         self,
         *,
-        allow_dirty: bool = True,
-        allow_staged: bool = True,
+        allow_dirty: bool = False,
+        allow_staged: bool = False,
     ) -> None:
         """Verify Git worktree cleanliness. Read-only — no mutations.
 
