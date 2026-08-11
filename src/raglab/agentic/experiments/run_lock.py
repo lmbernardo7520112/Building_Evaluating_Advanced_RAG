@@ -33,8 +33,9 @@ _LOCK_FILENAME = ".run.lock"
 class ExperimentalRunLock:
     """Exclusive file-based lock for an experimental run directory.
 
-    Uses ``O_CREAT | O_EXCL | O_WRONLY`` for atomic lock creation.
-    Ownership is enforced by a random ``owner_token`` (UUID4), not just PID.
+    Uses ``O_CREAT | O_EXCL | O_WRONLY`` with mode ``0o600`` for atomic creation.
+    Ownership is enforced by a random ``owner_token`` (UUID4) and inode identity
+    (``st_dev``, ``st_ino``).
 
     Typical usage::
 
@@ -50,10 +51,14 @@ class ExperimentalRunLock:
         lock_path: Path,
         owner_token: str,
         run_id: str,
+        st_dev: int = 0,
+        st_ino: int = 0,
     ) -> None:
         self._lock_path = lock_path
         self._owner_token = owner_token
         self._run_id = run_id
+        self._st_dev = st_dev
+        self._st_ino = st_ino
         self._acquired = True
 
     # ------------------------------------------------------------------
@@ -75,6 +80,16 @@ class ExperimentalRunLock:
         """Run ID associated with this lock."""
         return self._run_id
 
+    @property
+    def st_dev(self) -> int:
+        """Device ID of the lock file at acquisition time."""
+        return self._st_dev
+
+    @property
+    def st_ino(self) -> int:
+        """Inode number of the lock file at acquisition time."""
+        return self._st_ino
+
     def is_acquired(self) -> bool:
         """Return True if this instance currently holds the lock."""
         return self._acquired and self._lock_path.exists()
@@ -82,9 +97,10 @@ class ExperimentalRunLock:
     def release(self) -> None:
         """Release the lock, removing the lock file.
 
-        Only the holder with the correct ``owner_token`` can release.
-        Raises ``RunLockError`` if the token does not match or the lock
-        file is absent/malformed.
+        Only the holder with matching ``owner_token`` and inode identity
+        (``st_dev``, ``st_ino``) can release.
+        Raises ``RunLockError`` if the token does not match, inode identity
+        differs, or the lock file is absent/malformed.
         """
         if not self._acquired:
             raise RunLockError("Lock was already released by this instance")
@@ -95,18 +111,38 @@ class ExperimentalRunLock:
                 f"Lock file does not exist: {self._lock_path}"
             )
 
-        # Read and verify ownership
+        # Read and verify ownership token (do not leak token in errors)
         current_data = _read_lock_data(self._lock_path)
         current_token = str(current_data.get("owner_token", ""))
 
         if current_token != self._owner_token:
             raise RunLockError(
-                f"Cannot release lock: owner_token mismatch. "
-                f"Lock belongs to token '{current_token[:8]}…', "
-                f"this instance has token '{self._owner_token[:8]}…'"
+                "Cannot release lock: owner_token mismatch."
             )
 
-        # Safe to remove — we own it
+        # Verify inode and device identity to prevent deleting a successor lock
+        try:
+            st_current = os.stat(self._lock_path, follow_symlinks=False)
+        except OSError as exc:
+            self._acquired = False
+            raise RunLockError(
+                f"Lock file stat failed during release: {exc}"
+            ) from exc
+
+        if (
+            self._st_dev != 0
+            and self._st_ino != 0
+            and (
+                st_current.st_dev != self._st_dev
+                or st_current.st_ino != self._st_ino
+            )
+        ):
+            raise RunLockError(
+                "Cannot release lock: inode or device identity mismatch. "
+                "Lock path points to a successor lock."
+            )
+
+        # Safe to remove — token and inode match
         try:
             os.unlink(self._lock_path)
         except OSError as exc:
@@ -128,7 +164,7 @@ class ExperimentalRunLock:
     ) -> ExperimentalRunLock:
         """Acquire an exclusive lock on the given run directory.
 
-        Creates ``<run_dir>/.run.lock`` atomically using ``O_EXCL``.
+        Creates ``<run_dir>/.run.lock`` atomically using ``O_EXCL`` with mode ``0o600``.
         If the lock file already exists, raises ``RunLockError``.
 
         Returns an ``ExperimentalRunLock`` instance on success.
@@ -152,13 +188,18 @@ class ExperimentalRunLock:
             lock_data, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
 
-        # Atomic creation with O_EXCL — fails if file already exists
+        # Atomic creation with O_EXCL and 0o600 permissions
         try:
             fd = os.open(
                 str(lock_path),
                 os.O_CREAT | os.O_EXCL | os.O_WRONLY,
-                0o644,
+                0o600,
             )
+            with contextlib.suppress(OSError):
+                os.fchmod(fd, 0o600)
+            st = os.fstat(fd)
+            st_dev = st.st_dev
+            st_ino = st.st_ino
         except FileExistsError:
             # Lock already held — read existing lock info for diagnostics
             try:
@@ -195,6 +236,8 @@ class ExperimentalRunLock:
             lock_path=lock_path,
             owner_token=owner_token,
             run_id=run_id,
+            st_dev=st_dev,
+            st_ino=st_ino,
         )
 
     @classmethod

@@ -1,13 +1,16 @@
 """Focal Unit Test Suite — ExperimentalRunLock (GREEN-2C.1).
 
 Tests exclusive O_EXCL lock acquisition, owner_token enforcement,
-release semantics, multiprocess contention, and malformed lock handling.
+release semantics, multiprocess contention, 0o600 permissions,
+and inode identity tracking (successor lock preservation).
 """
 
 from __future__ import annotations
 
 import json
 import multiprocessing
+import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,6 +39,7 @@ class TestExperimentalRunLockFocal(unittest.TestCase):
         self.assertTrue(lock.lock_path.exists())
         self.assertEqual(lock.run_id, "r1")
         self.assertTrue(len(lock.owner_token) > 0)
+        self.assertNotEqual(lock.st_ino, 0)
 
     # 2. Second acquisition rejected
     def test_02_second_acquisition_rejected(self) -> None:
@@ -95,6 +99,8 @@ class TestExperimentalRunLockFocal(unittest.TestCase):
             lock_path=lock.lock_path,
             owner_token="wrong_token_fake",  # noqa: S106
             run_id="r1",
+            st_dev=lock.st_dev,
+            st_ino=lock.st_ino,
         )
         with self.assertRaises(RunLockError) as ctx:
             fake_lock.release()
@@ -111,6 +117,8 @@ class TestExperimentalRunLockFocal(unittest.TestCase):
             lock_path=lock.lock_path,
             owner_token="0" * 32,
             run_id="r1",
+            st_dev=lock.st_dev,
+            st_ino=lock.st_ino,
         )
         with self.assertRaises(RunLockError):
             impostor.release()
@@ -196,6 +204,75 @@ class TestExperimentalRunLockFocal(unittest.TestCase):
         source = inspect.getsource(ExperimentalRunLock.acquire)
         self.assertIn("O_EXCL", source)
         self.assertIn("O_CREAT", source)
+
+    # 15. Lock file permissions 0o600
+    def test_15_lock_file_permissions_0600(self) -> None:
+        """Lock file must be created with 0o600 permissions, denying group/other access."""
+        run_dir = self.sandbox / "run15"
+        lock = ExperimentalRunLock.acquire(run_dir, run_id="r15")
+        st = lock.lock_path.stat()
+        mode_octal = oct(stat.S_IMODE(st.st_mode))
+        self.assertEqual(mode_octal, "0o600")
+        self.assertEqual(
+            st.st_mode & 0o077, 0, "Group and other must have 0 permissions"
+        )
+        lock.release()
+
+    # 16. Successor lock inode replacement rejected
+    def test_16_successor_lock_inode_replacement_rejected(self) -> None:
+        """Release by old owner must fail if lock pathname was replaced by a successor lock (different inode)."""
+        run_dir = self.sandbox / "run16"
+        other_dir = self.sandbox / "run16_other"
+
+        # 1. Acquire original lock1
+        lock1 = ExperimentalRunLock.acquire(run_dir, run_id="r16_original")
+        lock_path = lock1.lock_path
+        st1 = lock_path.stat()
+        self.assertEqual(st1.st_ino, lock1.st_ino)
+
+        # 2. Acquire lock2 in other_dir while lock1 is still on disk (guarantees distinct inode)
+        lock2 = ExperimentalRunLock.acquire(other_dir, run_id="r16_successor")
+        st2 = lock2.lock_path.stat()
+        self.assertNotEqual(
+            st1.st_ino, st2.st_ino, "Successor lock must have a different inode"
+        )
+
+        # 3. Simulate lock replacement: remove lock1 and move lock2 over lock_path
+        os.unlink(lock_path)
+        os.replace(lock2.lock_path, lock_path)
+        bytes_successor_before = lock_path.read_bytes()
+
+        # 4a. Old owner (lock1) attempts release -> MUST fail due to token/inode mismatch
+        with self.assertRaises(RunLockError) as ctx:
+            lock1.release()
+        self.assertIn("mismatch", str(ctx.exception))
+
+        # 4b. Impostor with matching lock2 token but old lock1 inode -> MUST fail due to inode mismatch
+        impostor_same_token = ExperimentalRunLock(
+            lock_path=lock_path,
+            owner_token=lock2.owner_token,
+            run_id=lock2.run_id,
+            st_dev=st1.st_dev,
+            st_ino=st1.st_ino,
+        )
+        with self.assertRaises(RunLockError) as ctx2:
+            impostor_same_token.release()
+        self.assertIn("inode or device identity mismatch", str(ctx2.exception))
+
+        # 5. Confirm successor lock is preserved byte-by-byte
+        self.assertTrue(lock_path.exists())
+        self.assertEqual(lock_path.read_bytes(), bytes_successor_before)
+
+        # 6. Reconstructed successor lock instance matching lock_path and lock2's parameters can release normally
+        lock2_reconstructed = ExperimentalRunLock(
+            lock_path=lock_path,
+            owner_token=lock2.owner_token,
+            run_id=lock2.run_id,
+            st_dev=st2.st_dev,
+            st_ino=st2.st_ino,
+        )
+        lock2_reconstructed.release()
+        self.assertFalse(lock_path.exists())
 
 
 if __name__ == "__main__":
