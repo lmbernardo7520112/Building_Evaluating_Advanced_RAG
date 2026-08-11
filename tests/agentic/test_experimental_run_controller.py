@@ -389,5 +389,327 @@ class TestRunControllerFocal(unittest.TestCase):
         self.assertIn("Supplied lock belongs to", str(ctx.exception))
 
 
+class TestRunControllerPreflight(unittest.TestCase):
+    """Focal unit tests for read-only preflight validations (GREEN-2C.2C.1).
+
+    Uses a temporary Git repository for hermetic isolation.
+    """
+
+    def setUp(self) -> None:
+        import hashlib as _hashlib
+        import tempfile
+
+        self.tmpdir_obj = tempfile.TemporaryDirectory()
+        self.repo_dir = Path(self.tmpdir_obj.name).resolve()
+
+        # Initialize hermetic git repo
+        self._git("init")
+        self._git("config", "user.name", "TestUser")
+        self._git("config", "user.email", "test@example.com")
+
+        # Create initial commit (implementation)
+        (self.repo_dir / "src_file.py").write_text("# code", encoding="utf-8")
+        self._git("add", "src_file.py")
+        self._git("commit", "-m", "impl commit")
+        self.impl_commit = self._git_output("rev-parse", "HEAD")
+
+        # Create protocol file and commit (protocol)
+        self.proto_file = self.repo_dir / "protocol.json"
+        self.proto_content = '{"protocol_id":"proto_1","version":"1.0"}'
+        self.proto_file.write_text(self.proto_content, encoding="utf-8")
+        self.proto_sha = _hashlib.sha256(
+            self.proto_content.encode("utf-8")
+        ).hexdigest()
+        self._git("add", "protocol.json")
+        self._git("commit", "-m", "proto commit")
+        self.proto_commit = self._git_output("rev-parse", "HEAD")
+
+        # Create input file
+        self.input_file = self.repo_dir / "inputs" / "qrels.json"
+        self.input_file.parent.mkdir(parents=True, exist_ok=True)
+        self.input_file.write_text('{"q1":"d1"}', encoding="utf-8")
+        self._git("add", "inputs/qrels.json")
+        self._git("commit", "-m", "add inputs")
+
+        self.head_commit = self._git_output("rev-parse", "HEAD")
+        self.main_branch = self._git_output("rev-parse", "--abbrev-ref", "HEAD")
+
+    def tearDown(self) -> None:
+        self.tmpdir_obj.cleanup()
+
+    def _git(self, *args: str) -> None:
+        import shutil as _shutil
+        import subprocess as _sp
+
+        git_bin = _shutil.which("git") or "git"
+        _sp.run(  # noqa: S603, S607
+            [git_bin, *args],
+            cwd=str(self.repo_dir),
+            check=True,
+            capture_output=True,
+        )
+
+    def _git_output(self, *args: str) -> str:
+        import shutil as _shutil
+        import subprocess as _sp
+
+        git_bin = _shutil.which("git") or "git"
+        return (
+            _sp.run(  # noqa: S603, S607
+                [git_bin, *args],
+                cwd=str(self.repo_dir),
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+        )
+
+    def _make_controller(self) -> RunController:
+        return RunController(repo_root=self.repo_dir)
+
+    # ------------------------------------------------------------------
+    # preflight_git_check
+    # ------------------------------------------------------------------
+
+    def test_20_clean_worktree_accepted(self) -> None:
+        controller = self._make_controller()
+        # Should not raise
+        controller.preflight_git_check(allow_dirty=False, allow_staged=False)
+
+    def test_21_tracked_dirty_rejected(self) -> None:
+        (self.repo_dir / "src_file.py").write_text(
+            "# modified", encoding="utf-8"
+        )
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.preflight_git_check(allow_dirty=False)
+        self.assertIn("dirty", str(ctx.exception).lower())
+
+    def test_22_tracked_dirty_allowed_when_flag_true(self) -> None:
+        (self.repo_dir / "src_file.py").write_text(
+            "# modified", encoding="utf-8"
+        )
+        controller = self._make_controller()
+        # allow_dirty=True should not raise
+        controller.preflight_git_check(allow_dirty=True)
+
+    def test_23_staged_rejected(self) -> None:
+        (self.repo_dir / "new_file.py").write_text(
+            "# new", encoding="utf-8"
+        )
+        self._git("add", "new_file.py")
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.preflight_git_check(allow_staged=False)
+        self.assertIn("staged", str(ctx.exception).lower())
+
+    def test_24_staged_allowed_when_flag_true(self) -> None:
+        (self.repo_dir / "new_file.py").write_text(
+            "# new", encoding="utf-8"
+        )
+        self._git("add", "new_file.py")
+        controller = self._make_controller()
+        # allow_staged=True should not raise
+        controller.preflight_git_check(allow_staged=True)
+
+    # ------------------------------------------------------------------
+    # validate_commits
+    # ------------------------------------------------------------------
+
+    def test_25_valid_commits_accepted(self) -> None:
+        controller = self._make_controller()
+        controller.validate_commits(
+            implementation_commit=self.impl_commit,
+            protocol_commit=self.proto_commit,
+        )
+
+    def test_26_nonexistent_impl_commit_rejected(self) -> None:
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_commits(
+                implementation_commit="0" * 40,
+                protocol_commit=self.proto_commit,
+            )
+        self.assertIn("implementation_commit", str(ctx.exception))
+
+    def test_27_nonexistent_proto_commit_rejected(self) -> None:
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_commits(
+                implementation_commit=self.impl_commit,
+                protocol_commit="0" * 40,
+            )
+        self.assertIn("protocol_commit", str(ctx.exception))
+
+    # ------------------------------------------------------------------
+    # validate_commit_ancestry
+    # ------------------------------------------------------------------
+
+    def test_28_valid_ancestry_accepted(self) -> None:
+        controller = self._make_controller()
+        controller.validate_commit_ancestry(
+            impl_commit=self.impl_commit,
+            proto_commit=self.proto_commit,
+        )
+
+    def test_29_invalid_ancestry_rejected(self) -> None:
+        controller = self._make_controller()
+        # proto_commit is older than head_commit, so head->proto is not valid
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_commit_ancestry(
+                impl_commit=self.head_commit,
+                proto_commit=self.impl_commit,
+            )
+        self.assertIn("not an ancestor", str(ctx.exception))
+
+    # ------------------------------------------------------------------
+    # validate_protocol_in_head_ancestry
+    # ------------------------------------------------------------------
+
+    def test_30_protocol_in_head_ancestry_accepted(self) -> None:
+        controller = self._make_controller()
+        controller.validate_protocol_in_head_ancestry(self.proto_commit)
+
+    def test_31_protocol_not_in_head_ancestry_rejected(self) -> None:
+        # Create an orphan branch commit not in HEAD ancestry
+        self._git("checkout", "--orphan", "orphan_branch")
+        (self.repo_dir / "orphan.txt").write_text("orphan", encoding="utf-8")
+        self._git("add", "orphan.txt")
+        self._git("commit", "-m", "orphan commit")
+        orphan_commit = self._git_output("rev-parse", "HEAD")
+        # Go back to main branch
+        self._git("checkout", self.main_branch)
+
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_protocol_in_head_ancestry(orphan_commit)
+        self.assertIn("not in HEAD ancestry", str(ctx.exception))
+
+    # ------------------------------------------------------------------
+    # validate_protocol_tracked
+    # ------------------------------------------------------------------
+
+    def test_32_tracked_protocol_accepted(self) -> None:
+        controller = self._make_controller()
+        controller.validate_protocol_tracked(self.proto_file)
+
+    def test_33_untracked_protocol_rejected(self) -> None:
+        untracked = self.repo_dir / "untracked_proto.json"
+        untracked.write_text("{}", encoding="utf-8")
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_protocol_tracked(untracked)
+        self.assertIn("not tracked", str(ctx.exception))
+
+    def test_34_protocol_outside_repo_rejected(self) -> None:
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            f.write(b"{}")
+            outside_path = Path(f.name)
+        try:
+            controller = self._make_controller()
+            with self.assertRaises(RunControllerError) as ctx:
+                controller.validate_protocol_tracked(outside_path)
+            self.assertIn("outside the repository", str(ctx.exception))
+        finally:
+            outside_path.unlink(missing_ok=True)
+
+    # ------------------------------------------------------------------
+    # validate_protocol_unmodified
+    # ------------------------------------------------------------------
+
+    def test_35_unmodified_protocol_accepted(self) -> None:
+        controller = self._make_controller()
+        controller.validate_protocol_unmodified("protocol.json")
+
+    def test_36_worktree_modified_protocol_rejected(self) -> None:
+        self.proto_file.write_text('{"modified":true}', encoding="utf-8")
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_protocol_unmodified("protocol.json")
+        self.assertIn("unstaged modifications", str(ctx.exception))
+
+    def test_37_staged_modified_protocol_rejected(self) -> None:
+        self.proto_file.write_text('{"staged":true}', encoding="utf-8")
+        self._git("add", "protocol.json")
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_protocol_unmodified("protocol.json")
+        self.assertIn("staged modifications", str(ctx.exception))
+
+    # ------------------------------------------------------------------
+    # validate_protocol_sha
+    # ------------------------------------------------------------------
+
+    def test_38_correct_sha_accepted(self) -> None:
+        controller = self._make_controller()
+        controller.validate_protocol_sha(
+            protocol_path="protocol.json",
+            expected_sha=self.proto_sha,
+        )
+
+    def test_39_incorrect_sha_rejected(self) -> None:
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_protocol_sha(
+                protocol_path="protocol.json",
+                expected_sha="0" * 64,
+            )
+        self.assertIn("mismatch", str(ctx.exception).lower())
+
+    # ------------------------------------------------------------------
+    # validate_inputs
+    # ------------------------------------------------------------------
+
+    def test_40_valid_inputs_accepted(self) -> None:
+        controller = self._make_controller()
+        controller.validate_inputs({"qrels": str(self.input_file)})
+
+    def test_41_missing_input_rejected(self) -> None:
+        controller = self._make_controller()
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.validate_inputs(
+                {"missing": "/path/does/not/exist.json"}
+            )
+        self.assertIn("not found", str(ctx.exception))
+
+    # ------------------------------------------------------------------
+    # Zero mutation after preflight
+    # ------------------------------------------------------------------
+
+    def test_42_preflight_does_not_mutate_git(self) -> None:
+        head_before = self._git_output("rev-parse", "HEAD")
+        status_before = self._git_output("status", "--porcelain")
+
+        controller = self._make_controller()
+        controller.preflight_git_check(allow_dirty=True, allow_staged=True)
+        controller.validate_commits(
+            implementation_commit=self.impl_commit,
+            protocol_commit=self.proto_commit,
+        )
+        controller.validate_commit_ancestry(
+            impl_commit=self.impl_commit,
+            proto_commit=self.proto_commit,
+        )
+        controller.validate_protocol_in_head_ancestry(self.proto_commit)
+        controller.validate_protocol_tracked(self.proto_file)
+        controller.validate_protocol_unmodified("protocol.json")
+        controller.validate_protocol_sha(
+            protocol_path="protocol.json",
+            expected_sha=self.proto_sha,
+        )
+        controller.validate_inputs({"qrels": str(self.input_file)})
+
+        head_after = self._git_output("rev-parse", "HEAD")
+        status_after = self._git_output("status", "--porcelain")
+
+        self.assertEqual(head_before, head_after, "HEAD must not change")
+        self.assertEqual(
+            status_before, status_after, "Git status must not change"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

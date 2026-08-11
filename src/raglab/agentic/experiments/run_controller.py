@@ -12,6 +12,10 @@ Invariants:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import shutil
+import subprocess
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -50,6 +54,7 @@ class RunController:
         self,
         allowed_roots: tuple[Path | str, ...] | list[Path | str] | None = None,
         enforce_lock: bool = True,
+        repo_root: Path | str | None = None,
     ) -> None:
         if allowed_roots is not None:
             self._allowed_roots: list[Path | str] | None = list(allowed_roots)
@@ -57,6 +62,10 @@ class RunController:
             self._allowed_roots = None
         self._enforce_lock = enforce_lock
         self._active_locks: dict[Path, ExperimentalRunLock] = {}
+        if repo_root is not None:
+            self._repo_root: Path | None = Path(repo_root).resolve()
+        else:
+            self._repo_root = None
 
     # ------------------------------------------------------------------
     # Public Query Methods
@@ -69,6 +78,52 @@ class RunController:
     # ------------------------------------------------------------------
     # Internal Helpers
     # ------------------------------------------------------------------
+
+    def _get_repo_root(self) -> Path:
+        """Resolve the Git repository root directory.
+
+        Uses the explicit ``repo_root`` if set, otherwise detects via
+        ``git rev-parse --show-toplevel``.
+        """
+        if self._repo_root is not None:
+            return self._repo_root
+        git_bin = shutil.which("git") or "git"
+        try:
+            result = subprocess.run(  # noqa: S603, S607
+                [git_bin, "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return Path(result.stdout.strip()).resolve()
+        except (subprocess.CalledProcessError, OSError) as exc:
+            raise RunControllerError(
+                f"Cannot determine Git repository root: {exc}"
+            ) from exc
+
+    def _run_git(
+        self, *args: str, repo_dir: Path | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a Git command in the repository directory.
+
+        Uses list args, never shell=True. Returns CompletedProcess.
+        Raises RunControllerError on failure.
+        """
+        cwd = repo_dir if repo_dir is not None else self._get_repo_root()
+        git_bin = shutil.which("git") or "git"
+        cmd = [git_bin, *args]
+        try:
+            return subprocess.run(  # noqa: S603, S607
+                cmd,
+                cwd=str(cwd),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as exc:
+            raise RunControllerError(
+                f"Git command failed: {cmd}: {exc}"
+            ) from exc
 
     def _get_path_policy(self) -> ExperimentalPathPolicy:
         """Construct ExperimentalPathPolicy or raise error if missing."""
@@ -345,3 +400,226 @@ class RunController:
         return self.transition_state(
             run_dir, RunState.RUN_STARTED, lock=lock
         )
+
+    # ------------------------------------------------------------------
+    # Read-Only Preflight Validations
+    # ------------------------------------------------------------------
+
+    def preflight_git_check(
+        self,
+        *,
+        allow_dirty: bool = True,
+        allow_staged: bool = True,
+    ) -> None:
+        """Verify Git worktree cleanliness. Read-only — no mutations.
+
+        Raises ``RunControllerError`` if:
+        - ``allow_dirty=False`` and tracked files have unstaged modifications.
+        - ``allow_staged=False`` and files are staged in the index.
+        """
+        if not allow_dirty:
+            result = self._run_git("diff", "--name-only")
+            if result.returncode != 0:
+                raise RunControllerError(
+                    f"git diff failed (exit {result.returncode}): "
+                    f"{result.stderr.strip()}"
+                )
+            if result.stdout.strip():
+                raise RunControllerError(
+                    "Git worktree has tracked dirty files: "
+                    f"{result.stdout.strip()}"
+                )
+
+        if not allow_staged:
+            result = self._run_git("diff", "--cached", "--name-only")
+            if result.returncode != 0:
+                raise RunControllerError(
+                    f"git diff --cached failed (exit {result.returncode}): "
+                    f"{result.stderr.strip()}"
+                )
+            if result.stdout.strip():
+                raise RunControllerError(
+                    "Git index has staged files: "
+                    f"{result.stdout.strip()}"
+                )
+
+    def validate_commits(
+        self,
+        *,
+        implementation_commit: str,
+        protocol_commit: str,
+    ) -> None:
+        """Verify that both commit hashes exist in the repository. Read-only.
+
+        Raises ``RunControllerError`` if either commit does not exist
+        or is not a valid commit object.
+        """
+        for label, sha in [
+            ("implementation_commit", implementation_commit),
+            ("protocol_commit", protocol_commit),
+        ]:
+            result = self._run_git("cat-file", "-t", sha)
+            if result.returncode != 0:
+                raise RunControllerError(
+                    f"{label} '{sha}' does not exist in the repository"
+                )
+            obj_type = result.stdout.strip()
+            if obj_type != "commit":
+                raise RunControllerError(
+                    f"{label} '{sha}' is not a commit object "
+                    f"(type: {obj_type})"
+                )
+
+    def validate_commit_ancestry(
+        self,
+        *,
+        impl_commit: str,
+        proto_commit: str,
+    ) -> None:
+        """Verify impl_commit is an ancestor of proto_commit. Read-only.
+
+        Uses ``git merge-base --is-ancestor``.
+        Raises ``RunControllerError`` if not.
+        """
+        result = self._run_git(
+            "merge-base", "--is-ancestor", impl_commit, proto_commit
+        )
+        if result.returncode != 0:
+            raise RunControllerError(
+                f"Implementation commit '{impl_commit}' is not an ancestor "
+                f"of protocol commit '{proto_commit}'"
+            )
+
+    def validate_protocol_in_head_ancestry(
+        self,
+        protocol_commit: str,
+    ) -> None:
+        """Verify protocol_commit is an ancestor of HEAD. Read-only.
+
+        Uses ``git merge-base --is-ancestor``.
+        Raises ``RunControllerError`` if not.
+        """
+        result = self._run_git(
+            "merge-base", "--is-ancestor", protocol_commit, "HEAD"
+        )
+        if result.returncode != 0:
+            raise RunControllerError(
+                f"Protocol commit '{protocol_commit}' is not in HEAD ancestry"
+            )
+
+    def validate_protocol_tracked(
+        self,
+        protocol_path: Path | str,
+    ) -> None:
+        """Verify protocol file is tracked by Git. Read-only.
+
+        The path must be inside the repository. Untracked files are rejected.
+        Raises ``RunControllerError`` on failure.
+        """
+        repo_root = self._get_repo_root()
+        proto = Path(protocol_path).resolve()
+
+        # Reject files outside the repository
+        try:
+            rel_path = proto.relative_to(repo_root)
+        except ValueError:
+            raise RunControllerError(
+                f"Protocol file '{proto}' is outside the repository "
+                f"'{repo_root}'"
+            ) from None
+
+        result = self._run_git("ls-files", "--error-unmatch", str(rel_path))
+        if result.returncode != 0:
+            raise RunControllerError(
+                f"Protocol file '{rel_path}' is not tracked by Git"
+            )
+
+    def validate_protocol_unmodified(
+        self,
+        protocol_path: str,
+    ) -> None:
+        """Verify protocol file has no unstaged or staged modifications. Read-only.
+
+        Checks both worktree modifications and staging area.
+        Raises ``RunControllerError`` if modified.
+        """
+        # Check worktree modifications
+        result = self._run_git("diff", "--name-only", "--", protocol_path)
+        if result.returncode != 0:
+            raise RunControllerError(
+                f"git diff failed for protocol '{protocol_path}': "
+                f"{result.stderr.strip()}"
+            )
+        if result.stdout.strip():
+            raise RunControllerError(
+                f"Protocol file '{protocol_path}' has unstaged modifications"
+            )
+
+        # Check staged modifications
+        result = self._run_git(
+            "diff", "--cached", "--name-only", "--", protocol_path
+        )
+        if result.returncode != 0:
+            raise RunControllerError(
+                f"git diff --cached failed for protocol '{protocol_path}': "
+                f"{result.stderr.strip()}"
+            )
+        if result.stdout.strip():
+            raise RunControllerError(
+                f"Protocol file '{protocol_path}' has staged modifications"
+            )
+
+    def validate_protocol_sha(
+        self,
+        *,
+        protocol_path: str,
+        expected_sha: str,
+    ) -> None:
+        """Verify protocol file SHA-256 matches expected value. Read-only.
+
+        Reads the file bytes directly and computes SHA-256.
+        Uses constant-time comparison via ``hmac.compare_digest``.
+        Raises ``RunControllerError`` on mismatch or missing file.
+        """
+        repo_root = self._get_repo_root()
+        proto_file = (repo_root / protocol_path).resolve()
+
+        if not proto_file.exists():
+            raise RunControllerError(
+                f"Protocol file not found: {proto_file}"
+            )
+        if proto_file.is_dir():
+            raise RunControllerError(
+                f"Protocol path is a directory: {proto_file}"
+            )
+
+        h = hashlib.sha256()
+        with proto_file.open("rb") as f:
+            while chunk := f.read(65536):
+                h.update(chunk)
+        actual_sha = h.hexdigest()
+
+        if not hmac.compare_digest(actual_sha, expected_sha):
+            raise RunControllerError(
+                f"Protocol SHA-256 mismatch for '{protocol_path}': "
+                f"actual '{actual_sha}' != expected '{expected_sha}'"
+            )
+
+    def validate_inputs(
+        self,
+        input_paths: dict[str, str | Path],
+    ) -> None:
+        """Verify all input files exist. Read-only.
+
+        Raises ``RunControllerError`` if any input file is missing.
+        """
+        for label, path_str in input_paths.items():
+            p = Path(path_str).resolve()
+            if not p.exists():
+                raise RunControllerError(
+                    f"Input file '{label}' not found: {p}"
+                )
+            if not p.is_file():
+                raise RunControllerError(
+                    f"Input path '{label}' is not a file: {p}"
+                )
