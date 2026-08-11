@@ -18,6 +18,7 @@ from raglab.agentic.experiments import (
     ReceiptStoreError,
     RunController,
     RunControllerError,
+    RunLockError,
     RunReceipt,
     RunReceiptStore,
     RunState,
@@ -1076,6 +1077,157 @@ class TestRunControllerPreflight(unittest.TestCase):
 
         run_dir = (allowed_dir / "slice_5b" / "run_hash_mismatch").resolve()
         self.assertIn(run_dir, controller._active_locks)
+
+    def test_55_safe_release_lock_success_removes_file_and_tracking(
+        self,
+    ) -> None:
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        run_dir = allowed_dir / "slice_5b" / "run_rel_succ"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        lock = ExperimentalRunLock.acquire(run_dir, run_id="run_rel_succ")
+        controller._active_locks[run_dir] = lock
+
+        controller._safe_release_lock(run_dir, lock)
+
+        self.assertFalse((run_dir / ".run.lock").exists())
+        self.assertNotIn(run_dir, controller._active_locks)
+
+    def test_56_safe_release_lock_already_released_clears_tracking(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        run_dir = allowed_dir / "slice_5b" / "run_rel_already"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        lock = ExperimentalRunLock.acquire(run_dir, run_id="run_rel_already")
+        lock.release()
+        controller._active_locks[run_dir] = lock
+
+        with patch.object(
+            ExperimentalRunLock, "release", wraps=lock.release
+        ) as mock_release:
+            controller._safe_release_lock(run_dir, lock)
+            mock_release.assert_not_called()
+
+        self.assertNotIn(run_dir, controller._active_locks)
+
+    def test_57_safe_release_lock_error_preserves_file_and_tracking(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        run_dir = allowed_dir / "slice_5b" / "run_rel_err"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        lock = ExperimentalRunLock.acquire(run_dir, run_id="run_rel_err")
+        controller._active_locks[run_dir] = lock
+
+        with (
+            patch.object(
+                ExperimentalRunLock,
+                "release",
+                side_effect=RunLockError("Simulated release error"),
+            ),
+            self.assertRaises(RunControllerError),
+        ):
+            controller._safe_release_lock(run_dir, lock)
+
+        self.assertTrue((run_dir / ".run.lock").exists())
+        self.assertIn(run_dir, controller._active_locks)
+
+    def test_58_safe_release_lock_error_preserves_exact_lock_object(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        run_dir = allowed_dir / "slice_5b" / "run_rel_obj"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        orig_lock = ExperimentalRunLock.acquire(run_dir, run_id="run_rel_obj")
+        controller._active_locks[run_dir] = orig_lock
+
+        with (
+            patch.object(
+                ExperimentalRunLock,
+                "release",
+                side_effect=RunLockError("Simulated release error"),
+            ),
+            self.assertRaises(RunControllerError),
+        ):
+            controller._safe_release_lock(run_dir, orig_lock)
+
+        self.assertIs(controller._active_locks[run_dir], orig_lock)
+
+    def test_59_safe_release_lock_error_preserves_cause(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        run_dir = allowed_dir / "slice_5b" / "run_rel_cause"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        lock = ExperimentalRunLock.acquire(run_dir, run_id="run_rel_cause")
+        controller._active_locks[run_dir] = lock
+
+        err_cause = RunLockError("Lock I/O failure cause")
+        with (
+            patch.object(ExperimentalRunLock, "release", side_effect=err_cause),
+            self.assertRaises(RunControllerError) as ctx,
+        ):
+            controller._safe_release_lock(run_dir, lock)
+
+        self.assertIs(ctx.exception.__cause__, err_cause)
+
+    def test_60_safe_release_lock_error_no_second_release_attempt(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        run_dir = allowed_dir / "slice_5b" / "run_rel_once"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        lock = ExperimentalRunLock.acquire(run_dir, run_id="run_rel_once")
+        controller._active_locks[run_dir] = lock
+
+        call_count = 0
+
+        def _fail_release(self_lock: Any) -> None:
+            nonlocal call_count
+            call_count += 1
+            raise RunLockError("Single release failure")
+
+        with (
+            patch.object(ExperimentalRunLock, "release", _fail_release),
+            self.assertRaises(RunControllerError),
+        ):
+            controller._safe_release_lock(run_dir, lock)
+
+        self.assertEqual(call_count, 1)
 
 
 if __name__ == "__main__":

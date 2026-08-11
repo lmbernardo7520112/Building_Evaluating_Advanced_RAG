@@ -407,15 +407,17 @@ class RunController:
         self, run_dir: Path, lock: ExperimentalRunLock
     ) -> None:
         """Safely release run lock. Converts RunLockError to RunControllerError."""
+        if not lock.is_acquired():
+            self._active_locks.pop(run_dir, None)
+            return
+
         try:
-            if lock.is_acquired():
-                lock.release()
+            lock.release()
+            self._active_locks.pop(run_dir, None)
         except RunLockError as exc:
             raise RunControllerError(
                 f"Failed to release run lock: {exc}"
             ) from exc
-        finally:
-            self._active_locks.pop(run_dir, None)
 
     def prepare_run(
         self,
