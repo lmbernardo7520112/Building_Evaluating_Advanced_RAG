@@ -397,10 +397,14 @@ class TestRunControllerPreflight(unittest.TestCase):
 
     def setUp(self) -> None:
         import hashlib as _hashlib
-        import tempfile
+        import shutil as _shutil
 
-        self.tmpdir_obj = tempfile.TemporaryDirectory()
-        self.repo_dir = Path(self.tmpdir_obj.name).resolve()
+        self.repo_dir = (
+            Path.home() / ".cache" / "raglab_test_git_sandbox"
+        ).resolve()
+        if self.repo_dir.exists():
+            _shutil.rmtree(self.repo_dir)
+        self.repo_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize hermetic git repo
         self._git("init")
@@ -435,7 +439,10 @@ class TestRunControllerPreflight(unittest.TestCase):
         self.main_branch = self._git_output("rev-parse", "--abbrev-ref", "HEAD")
 
     def tearDown(self) -> None:
-        self.tmpdir_obj.cleanup()
+        import shutil as _shutil
+
+        if self.repo_dir.exists():
+            _shutil.rmtree(self.repo_dir, ignore_errors=True)
 
     def _git(self, *args: str) -> None:
         import shutil as _shutil
@@ -629,18 +636,18 @@ class TestRunControllerPreflight(unittest.TestCase):
         self.assertIn("not tracked", str(ctx.exception))
 
     def test_34_protocol_outside_repo_rejected(self) -> None:
-        import tempfile
-
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
-            f.write(b"{}")
-            outside_path = Path(f.name)
+        outside_dir = self.repo_dir.parent / "outside_dir"
+        outside_dir.mkdir(parents=True, exist_ok=True)
+        outside_path = outside_dir / "outside_proto.json"
+        outside_path.write_text("{}", encoding="utf-8")
         try:
             controller = self._make_controller()
             with self.assertRaises(RunControllerError) as ctx:
                 controller.validate_protocol_tracked(outside_path)
             self.assertIn("outside the repository", str(ctx.exception))
         finally:
-            outside_path.unlink(missing_ok=True)
+            import shutil as _shutil
+            _shutil.rmtree(outside_dir, ignore_errors=True)
 
     # ------------------------------------------------------------------
     # validate_protocol_unmodified
@@ -735,6 +742,101 @@ class TestRunControllerPreflight(unittest.TestCase):
         self.assertEqual(
             status_before, status_after, "Git status must not change"
         )
+
+    # ------------------------------------------------------------------
+    # prepare_run tests
+    # ------------------------------------------------------------------
+
+    def test_43_prepare_run_creates_layout_and_prepared_receipt(self) -> None:
+        controller = self._make_controller()
+        artifact_root = self.repo_dir / "artifacts_sandbox"
+        artifact_root.mkdir(parents=True, exist_ok=True)
+
+        receipt = controller.prepare_run(
+            run_id="run_001",
+            slice_id="slice_5b",
+            protocol_path=self.proto_file,
+            artifact_root=artifact_root,
+        )
+
+        self.assertEqual(receipt.state, RunState.PREPARED)
+        self.assertEqual(receipt.run_id, "run_001")
+        self.assertEqual(receipt.slice_id, "slice_5b")
+
+        run_dir = Path(receipt.run_directory)
+        self.assertTrue((run_dir / "receipts" / "000_PREPARED.json").exists())
+        self.assertTrue((run_dir / "raw").is_dir())
+        self.assertTrue((run_dir / "derived").is_dir())
+        self.assertTrue((run_dir / "logs").is_dir())
+        self.assertTrue((run_dir / "hashes.sha256").exists())
+        self.assertTrue((run_dir / "protocol.snapshot.json").exists())
+
+    def test_44_prepare_run_snapshots_protocol(self) -> None:
+        import hashlib as _hashlib
+
+        controller = self._make_controller()
+        artifact_root = self.repo_dir / "artifacts_sandbox"
+        artifact_root.mkdir(parents=True, exist_ok=True)
+
+        receipt = controller.prepare_run(
+            run_id="run_snap",
+            slice_id="slice_5b",
+            protocol_path=self.proto_file,
+            artifact_root=artifact_root,
+        )
+
+        snapshot_path = Path(receipt.run_directory) / "protocol.snapshot.json"
+        orig_bytes = self.proto_file.read_bytes()
+        snap_bytes = snapshot_path.read_bytes()
+        self.assertEqual(
+            _hashlib.sha256(orig_bytes).hexdigest(),
+            _hashlib.sha256(snap_bytes).hexdigest(),
+        )
+
+    def test_45_prepare_run_computes_input_hashes(self) -> None:
+        controller = self._make_controller()
+        artifact_root = self.repo_dir / "artifacts_sandbox"
+        artifact_root.mkdir(parents=True, exist_ok=True)
+
+        receipt = controller.prepare_run(
+            run_id="run_inputs",
+            slice_id="slice_5b",
+            protocol_path=self.proto_file,
+            artifact_root=artifact_root,
+            inputs={"qrels": str(self.input_file)},
+        )
+
+        self.assertIn("qrels", receipt.input_hashes)
+        self.assertEqual(len(receipt.input_hashes["qrels"]), 64)
+
+    def test_46_prepare_run_existing_non_empty_dir_rejected(self) -> None:
+        controller = self._make_controller()
+        artifact_root = self.repo_dir / "artifacts_sandbox"
+        existing_run_dir = artifact_root / "slice_5b" / "existing_run"
+        existing_run_dir.mkdir(parents=True, exist_ok=True)
+        (existing_run_dir / "file.txt").write_text("data", encoding="utf-8")
+
+        with self.assertRaises(RunControllerError):
+            controller.prepare_run(
+                run_id="existing_run",
+                slice_id="slice_5b",
+                protocol_path=self.proto_file,
+                artifact_root=artifact_root,
+            )
+
+    def test_47_prepare_run_secret_metadata_rejected(self) -> None:
+        controller = self._make_controller()
+        artifact_root = self.repo_dir / "artifacts_sandbox"
+        artifact_root.mkdir(parents=True, exist_ok=True)
+
+        with self.assertRaises(RunControllerError):
+            controller.prepare_run(
+                run_id="run_sec",
+                slice_id="slice_5b",
+                protocol_path=self.proto_file,
+                artifact_root=artifact_root,
+                metadata={"GEMINI_API_KEY": "secret_val"},
+            )
 
 
 if __name__ == "__main__":

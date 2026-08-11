@@ -20,7 +20,9 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
+from raglab.agentic.experiments.integrity import compute_file_sha256
 from raglab.agentic.experiments.path_policy import (
     ExperimentalPathPolicy,
     PathPolicyError,
@@ -400,6 +402,174 @@ class RunController:
         return self.transition_state(
             run_dir, RunState.RUN_STARTED, lock=lock
         )
+
+    def prepare_run(
+        self,
+        *,
+        run_id: str,
+        slice_id: str,
+        protocol_path: Path | str,
+        artifact_root: Path | str | None = None,
+        inputs: dict[str, str | Path] | None = None,
+        implementation_commit: str | None = None,
+        protocol_commit: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        runner_version: str = "raglab-v7",
+        allow_dirty: bool = False,
+        allow_staged: bool = False,
+    ) -> RunReceipt:
+        """Prepare a new experimental run directory layout and persist PREPARED receipt.
+
+        Executes preflight checks, resolves path policy, acquires lock,
+        initializes layout, snapshots protocol, and appends 000_PREPARED receipt.
+        """
+        # 1. Preflight Git / Protocol / Inputs
+        self.preflight_git_check(allow_dirty=allow_dirty, allow_staged=allow_staged)
+
+        head_result = self._run_git("rev-parse", "HEAD")
+        if head_result.returncode != 0:
+            raise RunControllerError("Cannot determine HEAD commit")
+        head_commit = head_result.stdout.strip()
+
+        impl_commit = implementation_commit or head_commit
+        proto_commit = protocol_commit or head_commit
+
+        self.validate_commits(
+            implementation_commit=impl_commit,
+            protocol_commit=proto_commit,
+        )
+        self.validate_commit_ancestry(
+            impl_commit=impl_commit,
+            proto_commit=proto_commit,
+        )
+        self.validate_protocol_in_head_ancestry(proto_commit)
+
+        proto_file = Path(protocol_path).resolve()
+        self.validate_protocol_tracked(proto_file)
+        self.validate_protocol_unmodified(str(proto_file))
+
+        if inputs:
+            self.validate_inputs(inputs)
+
+        # 2. Metadata security check
+        if metadata is not None:
+            try:
+                RunReceipt.validate_metadata_security(metadata)
+            except ValueError as exc:
+                raise RunControllerError(f"Security validation failed: {exc}") from exc
+
+        # 3. PathPolicy & canonical run_dir derivation
+        if artifact_root is not None:
+            root_path = Path(artifact_root).resolve()
+        elif self._allowed_roots:
+            root_path = Path(self._allowed_roots[0]).resolve()
+        else:
+            raise RunControllerError(
+                "artifact_root must be specified or allowed_roots configured"
+            )
+
+        try:
+            if self._allowed_roots:
+                policy = self._get_path_policy()
+            else:
+                policy = ExperimentalPathPolicy(allowed_roots=[root_path])
+            run_dir = policy.derive_run_directory(root_path, slice_id, run_id)
+            policy.validate_target_directory(run_dir, must_be_empty=True)
+        except PathPolicyError as exc:
+            raise RunControllerError(
+                f"Path policy validation failed: {exc}"
+            ) from exc
+
+        if run_dir.exists() and any(run_dir.iterdir()):
+            raise RunControllerError(
+                f"Run directory already exists and is non-empty: '{run_dir}'"
+            )
+
+        # 4. Exclusive lock acquisition
+        try:
+            lock = ExperimentalRunLock.acquire(run_dir, run_id=run_id)
+        except RunLockError as exc:
+            raise RunControllerError(
+                f"Failed to acquire run lock on '{run_dir}': {exc}"
+            ) from exc
+
+        self._active_locks[run_dir] = lock
+
+        try:
+            # 5. Hashes computation
+            proto_sha256 = compute_file_sha256(proto_file)
+            input_hashes: dict[str, str] = {}
+            if inputs:
+                for k, v in inputs.items():
+                    input_hashes[k] = compute_file_sha256(v)
+
+            # 6. Layout creation & protocol snapshot
+            (run_dir / "receipts").mkdir(parents=True, exist_ok=True)
+            (run_dir / "raw").mkdir(parents=True, exist_ok=True)
+            (run_dir / "derived").mkdir(parents=True, exist_ok=True)
+            (run_dir / "logs").mkdir(parents=True, exist_ok=True)
+            (run_dir / "hashes.sha256").touch()
+
+            snapshot_path = run_dir / "protocol.snapshot.json"
+            shutil.copyfile(proto_file, snapshot_path)
+
+            # 7. Construct & Append RunReceipt PREPARED
+            now_utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            draft = RunReceipt(
+                schema_version=1,
+                run_id=run_id,
+                slice_id=slice_id,
+                state=RunState.PREPARED,
+                artifact_root=str(root_path),
+                run_directory=str(run_dir),
+                implementation_commit=impl_commit,
+                protocol_commit=proto_commit,
+                protocol_sha256=proto_sha256,
+                input_hashes=input_hashes,
+                runner_version=runner_version,
+                created_at_utc=now_utc,
+                previous_receipt_sha256=None,
+                receipt_sha256="",
+            )
+            computed_sha = draft.compute_hash()
+            new_receipt = RunReceipt(
+                schema_version=draft.schema_version,
+                run_id=draft.run_id,
+                slice_id=draft.slice_id,
+                state=draft.state,
+                artifact_root=draft.artifact_root,
+                run_directory=draft.run_directory,
+                implementation_commit=draft.implementation_commit,
+                protocol_commit=draft.protocol_commit,
+                protocol_sha256=draft.protocol_sha256,
+                input_hashes=draft.input_hashes,
+                runner_version=draft.runner_version,
+                created_at_utc=draft.created_at_utc,
+                started_at_utc=draft.started_at_utc,
+                finished_at_utc=draft.finished_at_utc,
+                exit_code=draft.exit_code,
+                artifact_inventory=draft.artifact_inventory,
+                artifact_hashes=draft.artifact_hashes,
+                previous_receipt_sha256=draft.previous_receipt_sha256,
+                receipt_sha256=computed_sha,
+            )
+
+            store = RunReceiptStore(run_dir)
+            store.append(new_receipt)
+
+            # 8. Re-read / reconciliation
+            reread_receipt = store.load_latest(run_dir)
+            if reread_receipt.receipt_sha256 != computed_sha:
+                raise RunControllerError("Post-write receipt verification failed")
+
+            return reread_receipt
+        except Exception as exc:
+            if not isinstance(exc, RunControllerError):
+                raise RunControllerError(f"prepare_run failed: {exc}") from exc
+            raise
+        finally:
+            lock.release()
+            self._active_locks.pop(run_dir, None)
 
     # ------------------------------------------------------------------
     # Read-Only Preflight Validations
