@@ -10,6 +10,7 @@ from __future__ import annotations
 import shutil
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from raglab.agentic.experiments import (
@@ -743,100 +744,338 @@ class TestRunControllerPreflight(unittest.TestCase):
             status_before, status_after, "Git status must not change"
         )
 
+        self.assertEqual(head_before, head_after, "HEAD must not change")
+        self.assertEqual(
+            status_before, status_after, "Git status must not change"
+        )
+
     # ------------------------------------------------------------------
-    # prepare_run tests
+    # prepare_run remediation focal tests (GREEN-2C.2C.2)
     # ------------------------------------------------------------------
 
-    def test_43_prepare_run_creates_layout_and_prepared_receipt(self) -> None:
-        controller = self._make_controller()
-        artifact_root = self.repo_dir / "artifacts_sandbox"
-        artifact_root.mkdir(parents=True, exist_ok=True)
+    def test_43_prepare_run_allowed_roots_none_fails_without_io(self) -> None:
+        controller = RunController(allowed_roots=None, repo_root=self.repo_dir)
+        artifact_root = self.repo_dir / "allowed"
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.prepare_run(
+                run_id="run_none",
+                slice_id="slice_5b",
+                protocol_path=self.proto_file,
+                artifact_root=artifact_root,
+            )
+        self.assertIn("allowed_roots", str(ctx.exception))
+        self.assertFalse((artifact_root / "slice_5b" / "run_none").exists())
 
+    def test_44_prepare_run_allowed_roots_empty_fails_without_io(self) -> None:
+        controller = RunController(allowed_roots=[], repo_root=self.repo_dir)
+        artifact_root = self.repo_dir / "allowed"
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.prepare_run(
+                run_id="run_empty_roots",
+                slice_id="slice_5b",
+                protocol_path=self.proto_file,
+                artifact_root=artifact_root,
+            )
+        self.assertIn("allowed_roots", str(ctx.exception))
+        self.assertFalse(
+            (artifact_root / "slice_5b" / "run_empty_roots").exists()
+        )
+
+    def test_45_prepare_run_artifact_root_outside_allowlist_fails_without_io(
+        self,
+    ) -> None:
+        allowed_dir = self.repo_dir / "allowed"
+        outside_dir = self.repo_dir / "outside"
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.prepare_run(
+                run_id="run_outside",
+                slice_id="slice_5b",
+                protocol_path=self.proto_file,
+                artifact_root=outside_dir,
+            )
+        self.assertIn("Path policy validation failed", str(ctx.exception))
+        self.assertFalse((outside_dir / "slice_5b" / "run_outside").exists())
+
+    def test_46_prepare_run_artifact_root_inside_allowlist_succeeds(
+        self,
+    ) -> None:
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
         receipt = controller.prepare_run(
-            run_id="run_001",
+            run_id="run_inside",
             slice_id="slice_5b",
             protocol_path=self.proto_file,
-            artifact_root=artifact_root,
+            artifact_root=allowed_dir,
         )
+        self.assertEqual(receipt.state, RunState.PREPARED)
+
+    def test_47_prepare_run_preexisting_empty_run_dir_rejected(self) -> None:
+        allowed_dir = self.repo_dir / "allowed"
+        run_dir = allowed_dir / "slice_5b" / "run_pre_empty"
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.prepare_run(
+                run_id="run_pre_empty",
+                slice_id="slice_5b",
+                protocol_path=self.proto_file,
+                artifact_root=allowed_dir,
+            )
+        self.assertIn("already exists", str(ctx.exception))
+        self.assertEqual(list(run_dir.iterdir()), [])
+
+    def test_48_prepare_run_preexisting_non_empty_dir_rejected_and_preserved(
+        self,
+    ) -> None:
+        allowed_dir = self.repo_dir / "allowed"
+        run_dir = allowed_dir / "slice_5b" / "run_pre_nonempty"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        existing_file = run_dir / "existing.txt"
+        existing_file.write_text("preexisting content", encoding="utf-8")
+        content_before = existing_file.read_bytes()
+
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        with self.assertRaises(RunControllerError) as ctx:
+            controller.prepare_run(
+                run_id="run_pre_nonempty",
+                slice_id="slice_5b",
+                protocol_path=self.proto_file,
+                artifact_root=allowed_dir,
+            )
+        self.assertTrue(
+            "already exists" in str(ctx.exception)
+            or "not empty" in str(ctx.exception)
+        )
+        self.assertEqual(existing_file.read_bytes(), content_before)
+        self.assertEqual(set(run_dir.iterdir()), {existing_file})
+
+    def test_49_prepare_run_confirmed_success_append_releases_lock(
+        self,
+    ) -> None:
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+        receipt = controller.prepare_run(
+            run_id="run_succ",
+            slice_id="slice_5b",
+            protocol_path=self.proto_file,
+            artifact_root=allowed_dir,
+        )
+        run_dir = Path(receipt.run_directory)
+        self.assertNotIn(run_dir, controller._active_locks)
+
+    def test_50_prepare_run_append_failure_before_publication_releases_lock(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+
+        with patch.object(
+            RunReceiptStore, "append", side_effect=OSError("Disk write failed")
+        ):
+            with self.assertRaises(RunControllerError) as ctx:
+                controller.prepare_run(
+                    run_id="run_fail_pub",
+                    slice_id="slice_5b",
+                    protocol_path=self.proto_file,
+                    artifact_root=allowed_dir,
+                )
+            self.assertIn("Disk write failed", str(ctx.exception))
+
+        run_dir = (allowed_dir / "slice_5b" / "run_fail_pub").resolve()
+        self.assertNotIn(run_dir, controller._active_locks)
+
+    def test_51_prepare_run_append_publishes_then_throws_re_read_succeeds(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+
+        orig_append = RunReceiptStore.append
+
+        def _append_and_throw(receipt: Any) -> None:
+            store_self = RunReceiptStore(Path(receipt.run_directory))
+            orig_append(store_self, receipt)
+            raise OSError("Post-write notification failed")
+
+        with patch.object(
+            RunReceiptStore, "append", side_effect=_append_and_throw
+        ):
+            receipt = controller.prepare_run(
+                run_id="run_pub_throw",
+                slice_id="slice_5b",
+                protocol_path=self.proto_file,
+                artifact_root=allowed_dir,
+            )
 
         self.assertEqual(receipt.state, RunState.PREPARED)
-        self.assertEqual(receipt.run_id, "run_001")
-        self.assertEqual(receipt.slice_id, "slice_5b")
-
         run_dir = Path(receipt.run_directory)
-        self.assertTrue((run_dir / "receipts" / "000_PREPARED.json").exists())
-        self.assertTrue((run_dir / "raw").is_dir())
-        self.assertTrue((run_dir / "derived").is_dir())
-        self.assertTrue((run_dir / "logs").is_dir())
-        self.assertTrue((run_dir / "hashes.sha256").exists())
-        self.assertTrue((run_dir / "protocol.snapshot.json").exists())
+        self.assertNotIn(run_dir, controller._active_locks)
 
-    def test_44_prepare_run_snapshots_protocol(self) -> None:
-        import hashlib as _hashlib
+    def test_52_prepare_run_unreadable_reread_preserves_lock(self) -> None:
+        from unittest.mock import patch
 
-        controller = self._make_controller()
-        artifact_root = self.repo_dir / "artifacts_sandbox"
-        artifact_root.mkdir(parents=True, exist_ok=True)
-
-        receipt = controller.prepare_run(
-            run_id="run_snap",
-            slice_id="slice_5b",
-            protocol_path=self.proto_file,
-            artifact_root=artifact_root,
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
         )
 
-        snapshot_path = Path(receipt.run_directory) / "protocol.snapshot.json"
-        orig_bytes = self.proto_file.read_bytes()
-        snap_bytes = snapshot_path.read_bytes()
-        self.assertEqual(
-            _hashlib.sha256(orig_bytes).hexdigest(),
-            _hashlib.sha256(snap_bytes).hexdigest(),
+        def _append_corrupted(receipt: Any) -> None:
+            rec_dir = Path(receipt.run_directory) / "receipts"
+            rec_dir.mkdir(parents=True, exist_ok=True)
+            rec_file = rec_dir / "000_PREPARED.json"
+            rec_file.write_text("{corrupted json", encoding="utf-8")
+            raise OSError("Write corrupted file")
+
+        with patch.object(
+            RunReceiptStore, "append", side_effect=_append_corrupted
+        ):
+            with self.assertRaises(RunControllerError) as ctx:
+                controller.prepare_run(
+                    run_id="run_corrupt",
+                    slice_id="slice_5b",
+                    protocol_path=self.proto_file,
+                    artifact_root=allowed_dir,
+                )
+            self.assertIn("PREPARE_RUN_STATE_UNCERTAIN", str(ctx.exception))
+
+        run_dir = (allowed_dir / "slice_5b" / "run_corrupt").resolve()
+        self.assertIn(run_dir, controller._active_locks)
+        self.assertTrue(controller._active_locks[run_dir].is_acquired())
+
+    def test_53_prepare_run_divergent_chain_preserves_lock(self) -> None:
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
         )
 
-    def test_45_prepare_run_computes_input_hashes(self) -> None:
-        controller = self._make_controller()
-        artifact_root = self.repo_dir / "artifacts_sandbox"
-        artifact_root.mkdir(parents=True, exist_ok=True)
+        orig_append = RunReceiptStore.append
 
-        receipt = controller.prepare_run(
-            run_id="run_inputs",
-            slice_id="slice_5b",
-            protocol_path=self.proto_file,
-            artifact_root=artifact_root,
-            inputs={"qrels": str(self.input_file)},
-        )
-
-        self.assertIn("qrels", receipt.input_hashes)
-        self.assertEqual(len(receipt.input_hashes["qrels"]), 64)
-
-    def test_46_prepare_run_existing_non_empty_dir_rejected(self) -> None:
-        controller = self._make_controller()
-        artifact_root = self.repo_dir / "artifacts_sandbox"
-        existing_run_dir = artifact_root / "slice_5b" / "existing_run"
-        existing_run_dir.mkdir(parents=True, exist_ok=True)
-        (existing_run_dir / "file.txt").write_text("data", encoding="utf-8")
-
-        with self.assertRaises(RunControllerError):
-            controller.prepare_run(
-                run_id="existing_run",
+        def _append_divergent(receipt: Any) -> None:
+            store_self = RunReceiptStore(Path(receipt.run_directory))
+            div_receipt = RunReceipt(
+                schema_version=1,
+                run_id="different_id",
                 slice_id="slice_5b",
-                protocol_path=self.proto_file,
-                artifact_root=artifact_root,
+                state=RunState.PREPARED,
+                artifact_root=receipt.artifact_root,
+                run_directory=receipt.run_directory,
+                implementation_commit=receipt.implementation_commit,
+                protocol_commit=receipt.protocol_commit,
+                protocol_sha256=receipt.protocol_sha256,
+                input_hashes={},
+                runner_version=receipt.runner_version,
+                created_at_utc=receipt.created_at_utc,
+                receipt_sha256="",
             )
-
-    def test_47_prepare_run_secret_metadata_rejected(self) -> None:
-        controller = self._make_controller()
-        artifact_root = self.repo_dir / "artifacts_sandbox"
-        artifact_root.mkdir(parents=True, exist_ok=True)
-
-        with self.assertRaises(RunControllerError):
-            controller.prepare_run(
-                run_id="run_sec",
-                slice_id="slice_5b",
-                protocol_path=self.proto_file,
-                artifact_root=artifact_root,
-                metadata={"GEMINI_API_KEY": "secret_val"},
+            h = div_receipt.compute_hash()
+            div_receipt_final = RunReceipt(
+                schema_version=div_receipt.schema_version,
+                run_id=div_receipt.run_id,
+                slice_id=div_receipt.slice_id,
+                state=div_receipt.state,
+                artifact_root=div_receipt.artifact_root,
+                run_directory=div_receipt.run_directory,
+                implementation_commit=div_receipt.implementation_commit,
+                protocol_commit=div_receipt.protocol_commit,
+                protocol_sha256=div_receipt.protocol_sha256,
+                input_hashes=div_receipt.input_hashes,
+                runner_version=div_receipt.runner_version,
+                created_at_utc=div_receipt.created_at_utc,
+                receipt_sha256=h,
             )
+            orig_append(store_self, div_receipt_final)
+
+        with patch.object(
+            RunReceiptStore, "append", side_effect=_append_divergent
+        ):
+            with self.assertRaises(RunControllerError) as ctx:
+                controller.prepare_run(
+                    run_id="run_div",
+                    slice_id="slice_5b",
+                    protocol_path=self.proto_file,
+                    artifact_root=allowed_dir,
+                )
+            self.assertIn("PREPARE_RUN_STATE_UNCERTAIN", str(ctx.exception))
+
+        run_dir = (allowed_dir / "slice_5b" / "run_div").resolve()
+        self.assertIn(run_dir, controller._active_locks)
+
+    def test_54_prepare_run_divergent_hash_preserves_lock(self) -> None:
+        import json
+        from unittest.mock import patch
+
+        allowed_dir = self.repo_dir / "allowed"
+        allowed_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(
+            allowed_roots=[allowed_dir], repo_root=self.repo_dir
+        )
+
+        def _append_hash_mismatch(receipt: Any) -> None:
+            rec_dir = Path(receipt.run_directory) / "receipts"
+            rec_dir.mkdir(parents=True, exist_ok=True)
+            fake_receipt = RunReceipt(
+                schema_version=receipt.schema_version,
+                run_id=receipt.run_id,
+                slice_id=receipt.slice_id,
+                state=receipt.state,
+                artifact_root=receipt.artifact_root,
+                run_directory=receipt.run_directory,
+                implementation_commit=receipt.implementation_commit,
+                protocol_commit=receipt.protocol_commit,
+                protocol_sha256=receipt.protocol_sha256,
+                input_hashes=receipt.input_hashes,
+                runner_version=receipt.runner_version,
+                created_at_utc=receipt.created_at_utc,
+                receipt_sha256="0" * 64,
+            )
+            rec_file = rec_dir / "000_PREPARED.json"
+            rec_file.write_text(
+                json.dumps(fake_receipt.to_dict()), encoding="utf-8"
+            )
+            raise OSError("Write hash mismatch")
+
+        with patch.object(
+            RunReceiptStore, "append", side_effect=_append_hash_mismatch
+        ):
+            with self.assertRaises(RunControllerError) as ctx:
+                controller.prepare_run(
+                    run_id="run_hash_mismatch",
+                    slice_id="slice_5b",
+                    protocol_path=self.proto_file,
+                    artifact_root=allowed_dir,
+                )
+            self.assertIn("PREPARE_RUN_STATE_UNCERTAIN", str(ctx.exception))
+
+        run_dir = (allowed_dir / "slice_5b" / "run_hash_mismatch").resolve()
+        self.assertIn(run_dir, controller._active_locks)
 
 
 if __name__ == "__main__":

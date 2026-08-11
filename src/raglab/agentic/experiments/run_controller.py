@@ -403,6 +403,20 @@ class RunController:
             run_dir, RunState.RUN_STARTED, lock=lock
         )
 
+    def _safe_release_lock(
+        self, run_dir: Path, lock: ExperimentalRunLock
+    ) -> None:
+        """Safely release run lock. Converts RunLockError to RunControllerError."""
+        try:
+            if lock.is_acquired():
+                lock.release()
+        except RunLockError as exc:
+            raise RunControllerError(
+                f"Failed to release run lock: {exc}"
+            ) from exc
+        finally:
+            self._active_locks.pop(run_dir, None)
+
     def prepare_run(
         self,
         *,
@@ -420,10 +434,37 @@ class RunController:
     ) -> RunReceipt:
         """Prepare a new experimental run directory layout and persist PREPARED receipt.
 
-        Executes preflight checks, resolves path policy, acquires lock,
-        initializes layout, snapshots protocol, and appends 000_PREPARED receipt.
+        Executes preflight checks, resolves path policy against allowlist,
+        acquires lock, initializes layout, snapshots protocol, and appends
+        000_PREPARED receipt.
         """
-        # 1. Preflight Git / Protocol / Inputs
+        # 1. PathPolicy & allowlist check FIRST (Fail-closed before Git / IO)
+        policy = self._get_path_policy()
+
+        if artifact_root is not None:
+            root_path = Path(artifact_root).resolve()
+        elif self._allowed_roots:
+            root_path = Path(self._allowed_roots[0]).resolve()
+        else:
+            raise RunControllerError(
+                "allowed_roots must be specified and non-empty for RunController"
+            )
+
+        try:
+            run_dir = policy.derive_run_directory(root_path, slice_id, run_id)
+            policy.validate_target_directory(run_dir, must_be_empty=True)
+        except PathPolicyError as exc:
+            raise RunControllerError(
+                f"Path policy validation failed: {exc}"
+            ) from exc
+
+        # 2. Rejection of pre-existing run_dir BEFORE lock acquisition
+        if run_dir.exists():
+            raise RunControllerError(
+                f"Run directory already exists: '{run_dir}'"
+            )
+
+        # 3. Preflight Git / Protocol / Inputs
         self.preflight_git_check(allow_dirty=allow_dirty, allow_staged=allow_staged)
 
         head_result = self._run_git("rev-parse", "HEAD")
@@ -451,41 +492,14 @@ class RunController:
         if inputs:
             self.validate_inputs(inputs)
 
-        # 2. Metadata security check
+        # 4. Metadata security check
         if metadata is not None:
             try:
                 RunReceipt.validate_metadata_security(metadata)
             except ValueError as exc:
                 raise RunControllerError(f"Security validation failed: {exc}") from exc
 
-        # 3. PathPolicy & canonical run_dir derivation
-        if artifact_root is not None:
-            root_path = Path(artifact_root).resolve()
-        elif self._allowed_roots:
-            root_path = Path(self._allowed_roots[0]).resolve()
-        else:
-            raise RunControllerError(
-                "artifact_root must be specified or allowed_roots configured"
-            )
-
-        try:
-            if self._allowed_roots:
-                policy = self._get_path_policy()
-            else:
-                policy = ExperimentalPathPolicy(allowed_roots=[root_path])
-            run_dir = policy.derive_run_directory(root_path, slice_id, run_id)
-            policy.validate_target_directory(run_dir, must_be_empty=True)
-        except PathPolicyError as exc:
-            raise RunControllerError(
-                f"Path policy validation failed: {exc}"
-            ) from exc
-
-        if run_dir.exists() and any(run_dir.iterdir()):
-            raise RunControllerError(
-                f"Run directory already exists and is non-empty: '{run_dir}'"
-            )
-
-        # 4. Exclusive lock acquisition
+        # 5. Exclusive lock acquisition
         try:
             lock = ExperimentalRunLock.acquire(run_dir, run_id=run_id)
         except RunLockError as exc:
@@ -495,15 +509,14 @@ class RunController:
 
         self._active_locks[run_dir] = lock
 
+        # 6. Layout creation, snapshot, receipt creation & append
         try:
-            # 5. Hashes computation
             proto_sha256 = compute_file_sha256(proto_file)
             input_hashes: dict[str, str] = {}
             if inputs:
                 for k, v in inputs.items():
                     input_hashes[k] = compute_file_sha256(v)
 
-            # 6. Layout creation & protocol snapshot
             (run_dir / "receipts").mkdir(parents=True, exist_ok=True)
             (run_dir / "raw").mkdir(parents=True, exist_ok=True)
             (run_dir / "derived").mkdir(parents=True, exist_ok=True)
@@ -513,7 +526,6 @@ class RunController:
             snapshot_path = run_dir / "protocol.snapshot.json"
             shutil.copyfile(proto_file, snapshot_path)
 
-            # 7. Construct & Append RunReceipt PREPARED
             now_utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             draft = RunReceipt(
                 schema_version=1,
@@ -555,21 +567,71 @@ class RunController:
             )
 
             store = RunReceiptStore(run_dir)
-            store.append(new_receipt)
 
-            # 8. Re-read / reconciliation
-            reread_receipt = store.load_latest(run_dir)
-            if reread_receipt.receipt_sha256 != computed_sha:
-                raise RunControllerError("Post-write receipt verification failed")
+            append_exc: Exception | None = None
+            try:
+                store.append(new_receipt)
+            except Exception as exc:
+                append_exc = exc
 
-            return reread_receipt
+            # 7. Post-append reconciliation & state classification
+            try:
+                chain = store.load_history_chain()
+            except ReceiptStoreError as r_exc:
+                receipts_dir = run_dir / "receipts"
+                json_files = (
+                    list(receipts_dir.glob("*.json"))
+                    if receipts_dir.exists()
+                    else []
+                )
+                if json_files:
+                    # PREPARE_RUN_STATE_UNCERTAIN -> PRESERVE LOCK
+                    raise RunControllerError(
+                        "PREPARE_RUN_STATE_UNCERTAIN: Receipt store unreadable "
+                        f"after write: {r_exc}"
+                    ) from (append_exc or r_exc)
+                else:
+                    # FALHA CONFIRMADA ANTES DA PUBLICAÇÃO -> RELEASE LOCK
+                    self._safe_release_lock(run_dir, lock)
+                    raise RunControllerError(
+                        "Receipt append failed before publication: "
+                        f"{append_exc or r_exc}"
+                    ) from (append_exc or r_exc)
+
+            if chain and chain[-1].receipt_sha256 == computed_sha:
+                # SUCESSO CONFIRMADO -> RELEASE LOCK & RETURN RECEIPT
+                self._safe_release_lock(run_dir, lock)
+                return chain[-1]
+            elif not chain:
+                # FALHA CONFIRMADA ANTES DA PUBLICAÇÃO -> RELEASE LOCK
+                if append_exc is not None:
+                    self._safe_release_lock(run_dir, lock)
+                    raise RunControllerError(
+                        f"Receipt append failed before publication: {append_exc}"
+                    ) from append_exc
+                else:
+                    raise RunControllerError(
+                        "PREPARE_RUN_STATE_UNCERTAIN: Receipt chain is empty "
+                        "after append"
+                    )
+            else:
+                # Unexpected/divergent receipt -> UNCERTAIN -> PRESERVE LOCK
+                raise RunControllerError(
+                    "PREPARE_RUN_STATE_UNCERTAIN: Receipt hash mismatch or "
+                    f"divergent chain. Expected '{computed_sha}', "
+                    f"got '{chain[-1].receipt_sha256}'"
+                )
         except Exception as exc:
+            if "PREPARE_RUN_STATE_UNCERTAIN" in str(exc):
+                # PRESERVE LOCK under state uncertainty!
+                if not isinstance(exc, RunControllerError):
+                    raise RunControllerError(str(exc)) from exc
+                raise
+            # For all other setup/write errors before publication, release lock safely
+            self._safe_release_lock(run_dir, lock)
             if not isinstance(exc, RunControllerError):
                 raise RunControllerError(f"prepare_run failed: {exc}") from exc
             raise
-        finally:
-            lock.release()
-            self._active_locks.pop(run_dir, None)
 
     # ------------------------------------------------------------------
     # Read-Only Preflight Validations
