@@ -1,7 +1,7 @@
 """Experimental Readiness Module — RAGLab V7.
 
 Core integrity, receipt state machine, path policy, receipt store,
-and lineage verification package.
+run lock, and lineage verification package.
 """
 
 from raglab.agentic.experiments.integrity import (
@@ -26,11 +26,14 @@ from raglab.agentic.experiments.receipts import (
     validate_state_transition,
     verify_receipt_chain,
 )
+from raglab.agentic.experiments.run_lock import ExperimentalRunLock, RunLockError
 
 __all__ = [
     "RunState",
     "RunReceipt",
     "RunReceiptStore",
+    "ExperimentalRunLock",
+    "RunLockError",
     "ReceiptStoreError",
     "IntegrityError",
     "ExperimentalPathPolicy",
