@@ -507,6 +507,26 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
             any("does not match receipt run_id" in r for r in audit.failure_reasons)
         )
 
+    def test_32_slice_id_matching_directory_accepted(self) -> None:
+        run_dir = self._create_valid_run_dir(slice_id="slice5b", run_id="run_slice_match")
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertTrue(audit.is_valid)
+
+    def test_33_slice_id_mismatched_directory_rejected(self) -> None:
+        run_dir = self._create_valid_run_dir(slice_id="slice5b", run_id="run_slice_test")
+        original_slice_dir = run_dir.parent
+        renamed_slice_dir = self.sandbox / "slice_divergent_dir"
+        original_slice_dir.rename(renamed_slice_dir)
+        new_run_dir = renamed_slice_dir / run_dir.name
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(new_run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("does not match receipt slice_id" in r for r in audit.failure_reasons)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

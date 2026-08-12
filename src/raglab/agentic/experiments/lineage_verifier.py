@@ -103,6 +103,11 @@ class LineageVerifier:
                     f"Run directory name '{target_dir.name}' does not match "
                     f"receipt run_id '{latest.run_id}'"
                 )
+            if latest.slice_id != target_dir.parent.name:
+                reasons.append(
+                    f"Parent directory name '{target_dir.parent.name}' does not match "
+                    f"receipt slice_id '{latest.slice_id}'"
+                )
 
         # 2. Check protocol.snapshot.json
         snapshot_path = target_dir / "protocol.snapshot.json"
