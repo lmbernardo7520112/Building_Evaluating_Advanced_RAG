@@ -549,11 +549,29 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_25_input_modified_after_prepare_detected(self) -> None:
         """25. Input file modified after prepare phase must be detected by verifier."""
         self._import_target_module()
-        from raglab.agentic.experiments import LineageVerifier
+        from raglab.agentic.experiments import (
+            LineageVerifier,
+            RunControllerError,
+            compute_file_sha256,
+        )
+
+        input_file = self.sandbox / "qrels.json"
+        input_file.write_text(
+            json.dumps({"qrel_id": 1}), encoding="utf-8"
+        )
+        initial_hash = compute_file_sha256(input_file)
+
+        # Alter input file after prepare phase
+        input_file.write_text(
+            json.dumps({"qrel_id": 1, "tampered": True}), encoding="utf-8"
+        )
 
         verifier = LineageVerifier()
-        audit = verifier.verify_lineage(self.sandbox / "run_modified_input")
-        self.assertFalse(audit.is_valid)
+        with self.assertRaises((RunControllerError, ValueError)):
+            verifier.verify_input_hashes(
+                actual_inputs={"qrels": input_file},
+                expected_hashes={"qrels": initial_hash},
+            )
 
     def test_26_all_inputs_recorded_in_receipt(self) -> None:
         """26. All passed inputs must appear in input_hashes dictionary of receipt."""
