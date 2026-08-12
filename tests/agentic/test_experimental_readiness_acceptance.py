@@ -959,8 +959,15 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import LineageVerifier
 
+        run_dir = self._create_valid_inventory_run_directory(
+            self.sandbox, run_id="run_tampered_artifact"
+        )
+        (run_dir / "derived" / "metrics.json").write_text(
+            json.dumps({"accuracy": 0.0, "tampered": True}), encoding="utf-8"
+        )
+
         verifier = LineageVerifier()
-        audit = verifier.verify_lineage(self.sandbox / "run_tampered_artifact")
+        audit = verifier.verify_lineage(run_dir)
         self.assertFalse(audit.is_valid)
 
     def test_45_unexpected_file_detected(self) -> None:
