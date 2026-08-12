@@ -975,8 +975,17 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import LineageVerifier
 
+        run_dir = self._create_valid_inventory_run_directory(
+            self.sandbox, run_id="run_unexpected_file"
+        )
+        unexpected_path = run_dir / "raw" / "unexpected.json"
+        unexpected_path.write_text(
+            json.dumps({"unexpected": True}), encoding="utf-8"
+        )
+        self.assertTrue(unexpected_path.exists())
+
         verifier = LineageVerifier()
-        audit = verifier.verify_lineage(self.sandbox / "run_unexpected_file")
+        audit = verifier.verify_lineage(run_dir)
         self.assertFalse(audit.is_valid)
 
     def test_46_hashes_sha256_consistent(self) -> None:
