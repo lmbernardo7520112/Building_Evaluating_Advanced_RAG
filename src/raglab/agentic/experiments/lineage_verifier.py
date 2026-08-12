@@ -172,6 +172,81 @@ class LineageVerifier:
                                     f"directory: {rel_posix}"
                                 )
 
+        # 5. Check hashes.sha256 manifest file consistency
+        if chain:
+            latest = chain[-1]
+            hashes_path = target_dir / "hashes.sha256"
+            if hashes_path.exists() and hashes_path.is_file():
+                try:
+                    lines = (
+                        hashes_path.read_text(encoding="utf-8").splitlines()
+                    )
+                    manifest_map: dict[str, str] = {}
+                    parse_ok = True
+                    for raw_line in lines:
+                        line = raw_line.strip()
+                        if not line:
+                            continue
+                        parts = raw_line.split("  ", 1)
+                        if len(parts) != 2:
+                            parts = raw_line.split(" ", 1)
+
+                        if len(parts) != 2:
+                            reasons.append(
+                                f"Malformed line in hashes.sha256: '{raw_line}'"
+                            )
+                            parse_ok = False
+                            continue
+
+                        digest, rel_path = parts[0].strip(), parts[1].strip()
+                        if len(digest) != 64 or not all(
+                            c in "0123456789abcdefABCDEF" for c in digest
+                        ):
+                            reasons.append(
+                                f"Invalid SHA-256 digest in hashes.sha256: '{digest}'"
+                            )
+                            parse_ok = False
+                            continue
+
+                        if rel_path in manifest_map:
+                            reasons.append(
+                                f"Duplicate path entry in hashes.sha256: '{rel_path}'"
+                            )
+                            parse_ok = False
+                            continue
+
+                        manifest_map[rel_path] = digest
+
+                    if parse_ok:
+                        inv_set = set(latest.artifact_inventory)
+                        hashes_keys_set = set(latest.artifact_hashes.keys())
+                        manifest_set = set(manifest_map.keys())
+
+                        if manifest_set != inv_set:
+                            reasons.append(
+                                "hashes.sha256 paths do not match artifact_inventory"
+                            )
+
+                        if manifest_set != hashes_keys_set:
+                            reasons.append(
+                                "hashes.sha256 paths do not match artifact_hashes keys"
+                            )
+
+                        for path, manifest_sha in manifest_map.items():
+                            if path in latest.artifact_hashes:
+                                receipt_sha = latest.artifact_hashes[path]
+                                if manifest_sha != receipt_sha:
+                                    reasons.append(
+                                        f"Manifest hash mismatch for '{path}': "
+                                        f"manifest '{manifest_sha}', "
+                                        f"receipt '{receipt_sha}'"
+                                    )
+
+                except Exception as exc:
+                    reasons.append(f"Failed to read hashes.sha256: {exc}")
+            elif latest.artifact_inventory:
+                reasons.append("Missing hashes.sha256 at run root")
+
         is_valid = len(reasons) == 0
         return LineageAuditResult(
             is_valid=is_valid, failure_reasons=tuple(reasons)

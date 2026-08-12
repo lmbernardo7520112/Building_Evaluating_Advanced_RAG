@@ -47,6 +47,13 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
 
         hashes_map = artifact_hashes if artifact_hashes is not None else {}
 
+        hashes_content = (
+            "\n".join(f"{h}  {path}" for path, h in hashes_map.items()) + "\n"
+            if hashes_map
+            else ""
+        )
+        (run_dir / "hashes.sha256").write_text(hashes_content, encoding="utf-8")
+
         store = RunReceiptStore(run_dir)
         receipt = RunReceipt(
             schema_version=1,
@@ -394,6 +401,92 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
         self.assertFalse(audit.is_valid)
         self.assertTrue(
             any("Undeclared artifact file found" in r for r in audit.failure_reasons)
+        )
+
+    def test_26_hashes_manifest_valid(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "manifest_valid"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+        h = compute_file_sha256(f_path)
+
+        self._create_valid_run_dir(
+            run_id="manifest_valid",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertTrue(audit.is_valid)
+
+    def test_27_hashes_manifest_digest_mismatch(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "manifest_mismatch"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+        h = compute_file_sha256(f_path)
+
+        self._create_valid_run_dir(
+            run_id="manifest_mismatch",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
+        )
+        (run_dir / "hashes.sha256").write_text(
+            f"{'0' * 64}  raw/data.json\n", encoding="utf-8"
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("Manifest hash mismatch" in r for r in audit.failure_reasons)
+        )
+
+    def test_28_hashes_manifest_malformed_line(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "manifest_malformed"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+        h = compute_file_sha256(f_path)
+
+        self._create_valid_run_dir(
+            run_id="manifest_malformed",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
+        )
+        (run_dir / "hashes.sha256").write_text(
+            "this_is_not_a_sha256_line\n", encoding="utf-8"
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("Malformed line in hashes.sha256" in r for r in audit.failure_reasons)
+        )
+
+    def test_29_hashes_manifest_duplicate_or_missing_path(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "manifest_dup"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+        h = compute_file_sha256(f_path)
+
+        self._create_valid_run_dir(
+            run_id="manifest_dup",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
+        )
+        (run_dir / "hashes.sha256").write_text(
+            f"{h}  raw/data.json\n{h}  raw/data.json\n", encoding="utf-8"
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("Duplicate path entry" in r for r in audit.failure_reasons)
         )
 
 
