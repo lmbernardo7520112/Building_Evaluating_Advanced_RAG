@@ -1268,9 +1268,21 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import LineageVerifier
 
+        multi_error_run = self.sandbox / "multi_error_run"
+        multi_error_run.mkdir(parents=True, exist_ok=True)
+
         verifier = LineageVerifier()
-        audit = verifier.verify_lineage(self.sandbox / "multi_error_run")
+        audit = verifier.verify_lineage(multi_error_run)
+        self.assertFalse(audit.is_valid)
         self.assertGreaterEqual(len(audit.failure_reasons), 2)
+
+        reasons_text = " ".join(audit.failure_reasons).lower()
+        self.assertTrue(
+            "receipt" in reasons_text or "chain" in reasons_text
+        )
+        self.assertTrue(
+            "snapshot" in reasons_text or "protocol" in reasons_text
+        )
 
     # =========================================================================
     # SEGURANÇA (Casos 64 a 67)
