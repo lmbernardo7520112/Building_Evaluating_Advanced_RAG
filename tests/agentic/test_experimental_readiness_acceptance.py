@@ -1099,15 +1099,74 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import (
             LineageVerifier,
+            RunReceipt,
+            RunReceiptStore,
+            RunState,
             compute_file_sha256,
         )
 
-        run_file = self.sandbox / "run_file.json"
-        sha_before = compute_file_sha256(run_file)
+        valid_run_dir = self.sandbox / "valid_run_bytes"
+        receipts_dir = valid_run_dir / "receipts"
+        receipts_dir.mkdir(parents=True, exist_ok=True)
+
+        proto_file = valid_run_dir / "protocol.snapshot.json"
+        proto_file.write_text(
+            json.dumps({"protocol_id": "p1"}, sort_keys=True), encoding="utf-8"
+        )
+        proto_sha = compute_file_sha256(proto_file)
+
+        store = RunReceiptStore(valid_run_dir)
+        draft = RunReceipt(
+            schema_version=1,
+            run_id="valid_run_bytes",
+            slice_id="slice5b",
+            state=RunState.PREPARED,
+            artifact_root=str(self.sandbox),
+            run_directory=str(valid_run_dir),
+            implementation_commit="a" * 64,
+            protocol_commit="b" * 64,
+            protocol_sha256=proto_sha,
+            input_hashes={},
+            runner_version="1.0.0",
+            created_at_utc="2026-08-11T12:00:00Z",
+            previous_receipt_sha256=None,
+            receipt_sha256="",
+        )
+        computed_hash = draft.compute_hash()
+        final_receipt = RunReceipt(
+            schema_version=draft.schema_version,
+            run_id=draft.run_id,
+            slice_id=draft.slice_id,
+            state=draft.state,
+            artifact_root=draft.artifact_root,
+            run_directory=draft.run_directory,
+            implementation_commit=draft.implementation_commit,
+            protocol_commit=draft.protocol_commit,
+            protocol_sha256=draft.protocol_sha256,
+            input_hashes=draft.input_hashes,
+            runner_version=draft.runner_version,
+            created_at_utc=draft.created_at_utc,
+            previous_receipt_sha256=None,
+            receipt_sha256=computed_hash,
+        )
+        store.append(final_receipt)
+
+        def get_file_hashes(dir_path: Path) -> dict[str, str]:
+            hashes = {}
+            for p in sorted(dir_path.rglob("*")):
+                if p.is_file():
+                    rel = str(p.relative_to(dir_path))
+                    hashes[rel] = compute_file_sha256(p)
+            return hashes
+
+        hashes_before = get_file_hashes(valid_run_dir)
         verifier = LineageVerifier()
-        verifier.verify_lineage(self.sandbox)
-        sha_after = compute_file_sha256(run_file)
-        self.assertEqual(sha_before, sha_after)
+        audit = verifier.verify_lineage(valid_run_dir)
+        self.assertTrue(audit.is_valid)
+
+        hashes_after = get_file_hashes(valid_run_dir)
+        self.assertEqual(set(hashes_before.keys()), set(hashes_after.keys()))
+        self.assertEqual(hashes_before, hashes_after)
 
     def test_60_verifier_creates_no_files(self) -> None:
         """60. LineageVerifier must create zero new files in the run directory."""
