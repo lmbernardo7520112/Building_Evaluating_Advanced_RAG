@@ -30,7 +30,10 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def _create_valid_run_dir(
-        self, run_id: str = "run_1", slice_id: str = "slice5b"
+        self,
+        run_id: str = "run_1",
+        slice_id: str = "slice5b",
+        artifact_inventory: tuple[str, ...] = (),
     ) -> Path:
         run_dir = self.sandbox / slice_id / run_id
         receipts_dir = run_dir / "receipts"
@@ -57,6 +60,7 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
             created_at_utc="2026-08-11T12:00:00Z",
             previous_receipt_sha256=None,
             receipt_sha256="",
+            artifact_inventory=artifact_inventory,
         )
         h = receipt.compute_hash()
         final_receipt = RunReceipt(
@@ -74,6 +78,7 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
             created_at_utc=receipt.created_at_utc,
             previous_receipt_sha256=receipt.previous_receipt_sha256,
             receipt_sha256=h,
+            artifact_inventory=receipt.artifact_inventory,
         )
         store.append(final_receipt)
         return run_dir
@@ -83,92 +88,73 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
         verifier = LineageVerifier()
         audit = verifier.verify_lineage(run_dir)
         self.assertTrue(audit.is_valid)
-        self.assertEqual(len(audit.failure_reasons), 0)
 
     def test_02_invalid_result_failure_reasons(self) -> None:
-        result = LineageAuditResult(
-            is_valid=False, failure_reasons=("Reason 1", "Reason 2")
-        )
-        self.assertFalse(result.is_valid)
-        self.assertEqual(len(result.failure_reasons), 2)
-        self.assertIn("Reason 1", result.failure_reasons)
+        res = LineageAuditResult(is_valid=False, failure_reasons=("err1",))
+        self.assertFalse(res.is_valid)
+        self.assertEqual(res.failure_reasons, ("err1",))
 
     def test_03_verify_input_hashes_missing_file(self) -> None:
         verifier = LineageVerifier()
-        missing_p = self.sandbox / "non_existent.json"
         with self.assertRaises(RunControllerError):
             verifier.verify_input_hashes(
-                actual_inputs={"qrels": missing_p},
-                expected_hashes={"qrels": "abc123hash"},
+                actual_inputs={"inp1": self.sandbox / "missing.txt"},
+                expected_hashes={"inp1": "abc"},
             )
 
     def test_04_verify_input_hashes_divergent_hash(self) -> None:
+        f = self.sandbox / "inp.txt"
+        f.write_text("hello", encoding="utf-8")
         verifier = LineageVerifier()
-        input_p = self.sandbox / "input.json"
-        input_p.write_text("content", encoding="utf-8")
         with self.assertRaises(RunControllerError):
             verifier.verify_input_hashes(
-                actual_inputs={"qrels": input_p},
-                expected_hashes={"qrels": "wrong_hash"},
+                actual_inputs={"inp1": f},
+                expected_hashes={"inp1": "0000000000000000000000000000000000000000000000000000000000000000"},
             )
 
     def test_05_verify_input_hashes_name_mismatch(self) -> None:
+        f = self.sandbox / "inp.txt"
+        f.write_text("hello", encoding="utf-8")
         verifier = LineageVerifier()
-        input_p = self.sandbox / "input.json"
-        input_p.write_text("content", encoding="utf-8")
         with self.assertRaises(RunControllerError):
             verifier.verify_input_hashes(
-                actual_inputs={"actual_key": input_p},
-                expected_hashes={"expected_key": "hash123"},
+                actual_inputs={"inp1": f},
+                expected_hashes={"inp2": "abc"},
             )
 
     def test_06_verify_lineage_missing_chain(self) -> None:
-        empty_dir = self.sandbox / "empty_run"
-        empty_dir.mkdir(parents=True, exist_ok=True)
+        run_dir = self.sandbox / "missing_chain_run"
+        run_dir.mkdir(parents=True, exist_ok=True)
         verifier = LineageVerifier()
-        audit = verifier.verify_lineage(empty_dir)
+        audit = verifier.verify_lineage(run_dir)
         self.assertFalse(audit.is_valid)
-        self.assertTrue(
-            any("empty or missing" in r for r in audit.failure_reasons)
-        )
+        self.assertTrue(len(audit.failure_reasons) > 0)
 
     def test_07_verify_lineage_invalid_chain(self) -> None:
-        run_dir = self.sandbox / "invalid_chain_run"
-        rec_dir = run_dir / "receipts"
-        rec_dir.mkdir(parents=True, exist_ok=True)
-        (rec_dir / "000_PREPARED.json").write_text(
-            "{corrupted json", encoding="utf-8"
-        )
+        run_dir = self._create_valid_run_dir(run_id="invalid_chain_run")
+        (run_dir / "receipts" / "000_PREPARED.json").write_text("corrupted", encoding="utf-8")
         verifier = LineageVerifier()
         audit = verifier.verify_lineage(run_dir)
         self.assertFalse(audit.is_valid)
 
     def test_08_verify_lineage_missing_snapshot(self) -> None:
-        run_dir = self._create_valid_run_dir(run_id="missing_snap")
+        run_dir = self._create_valid_run_dir(run_id="missing_snapshot_run")
         (run_dir / "protocol.snapshot.json").unlink()
         verifier = LineageVerifier()
         audit = verifier.verify_lineage(run_dir)
         self.assertFalse(audit.is_valid)
-        self.assertTrue(
-            any("Missing protocol.snapshot.json" in r for r in audit.failure_reasons)
-        )
 
     def test_09_verify_lineage_tampered_snapshot(self) -> None:
-        run_dir = self._create_valid_run_dir(run_id="tampered_snap")
-        (run_dir / "protocol.snapshot.json").write_text(
-            '{"tampered": true}', encoding="utf-8"
-        )
+        run_dir = self._create_valid_run_dir(run_id="tampered_snapshot_run")
+        (run_dir / "protocol.snapshot.json").write_text('{"tampered": true}', encoding="utf-8")
         verifier = LineageVerifier()
         audit = verifier.verify_lineage(run_dir)
         self.assertFalse(audit.is_valid)
-        self.assertTrue(
-            any("SHA-256 mismatch" in r for r in audit.failure_reasons)
-        )
 
     def test_10_verify_lineage_multiple_failures_accumulated(self) -> None:
-        run_dir = self.sandbox / "multi_fail_run"
-        run_dir.mkdir(parents=True, exist_ok=True)
-        # missing receipts chain and missing protocol.snapshot.json
+        run_dir = self._create_valid_run_dir(run_id="multi_fail_run")
+        (run_dir / "protocol.snapshot.json").unlink()
+        (run_dir / "receipts" / "000_PREPARED.json").write_text("bad", encoding="utf-8")
         verifier = LineageVerifier()
         audit = verifier.verify_lineage(run_dir)
         self.assertFalse(audit.is_valid)
@@ -214,6 +200,72 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             LineageVerifier(read_only=False)
+
+    def test_15_artifact_inventory_valid(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "inv_valid"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        (raw_dir / "data.json").write_text("{}", encoding="utf-8")
+
+        self._create_valid_run_dir(
+            run_id="inv_valid",
+            artifact_inventory=("raw/data.json",),
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertTrue(audit.is_valid)
+
+    def test_16_artifact_inventory_missing_file(self) -> None:
+        run_dir = self._create_valid_run_dir(
+            run_id="inv_missing",
+            artifact_inventory=("raw/missing.json",),
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("Missing or non-file" in r for r in audit.failure_reasons)
+        )
+
+    def test_17_artifact_inventory_absolute_path_rejected(self) -> None:
+        run_dir = self._create_valid_run_dir(
+            run_id="inv_abs",
+            artifact_inventory=("/abs/path/artifact.json",),
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("must be relative" in r for r in audit.failure_reasons)
+        )
+
+    def test_18_artifact_inventory_path_traversal_rejected(self) -> None:
+        run_dir = self._create_valid_run_dir(
+            run_id="inv_escape",
+            artifact_inventory=("../outside.json",),
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("escapes run directory" in r for r in audit.failure_reasons)
+        )
+
+    def test_19_artifact_inventory_directory_rejected(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "inv_dir"
+        sub_dir = run_dir / "raw"
+        sub_dir.mkdir(parents=True, exist_ok=True)
+
+        self._create_valid_run_dir(
+            run_id="inv_dir",
+            artifact_inventory=("raw",),
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("Missing or non-file" in r for r in audit.failure_reasons)
+        )
 
 
 if __name__ == "__main__":

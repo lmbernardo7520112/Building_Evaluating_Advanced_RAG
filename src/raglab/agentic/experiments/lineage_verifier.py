@@ -113,6 +113,26 @@ class LineageVerifier:
             except Exception as exc:
                 reasons.append(f"Failed to read protocol.snapshot.json: {exc}")
 
+        # 3. Check declared artifact inventory presence
+        if chain:
+            latest = chain[-1]
+            for rel_path in latest.artifact_inventory:
+                p_rel = Path(rel_path)
+                if p_rel.is_absolute():
+                    reasons.append(f"Artifact path must be relative: {rel_path}")
+                    continue
+                try:
+                    resolved_target = (target_dir / p_rel).resolve()
+                    resolved_target.relative_to(target_dir)
+                except ValueError:
+                    reasons.append(
+                        f"Artifact path escapes run directory: {rel_path}"
+                    )
+                    continue
+
+                if not resolved_target.exists() or not resolved_target.is_file():
+                    reasons.append(f"Missing or non-file artifact: {rel_path}")
+
         is_valid = len(reasons) == 0
         return LineageAuditResult(
             is_valid=is_valid, failure_reasons=tuple(reasons)
