@@ -192,6 +192,115 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
         return run_dir
 
+    def _create_valid_inventory_run_directory(
+        self,
+        artifact_root: Path,
+        slice_id: str = "slice5b",
+        run_id: str = "run_valid_inventory",
+    ) -> Path:
+        """Create a valid run directory layout with real artifacts and receipt chain."""
+        from raglab.agentic.experiments import (
+            RunReceipt,
+            RunReceiptStore,
+            RunState,
+            compute_file_sha256,
+        )
+
+        run_dir = artifact_root / slice_id / run_id
+        receipts_dir = run_dir / "receipts"
+        raw_dir = run_dir / "raw"
+        derived_dir = run_dir / "derived"
+        logs_dir = run_dir / "logs"
+
+        for d in (receipts_dir, raw_dir, derived_dir, logs_dir):
+            d.mkdir(parents=True, exist_ok=True)
+
+        proto_file = run_dir / "protocol.snapshot.json"
+        proto_file.write_text(
+            json.dumps({"protocol_id": "p1"}, sort_keys=True), encoding="utf-8"
+        )
+        proto_sha = compute_file_sha256(proto_file)
+
+        raw_file = raw_dir / "data.json"
+        raw_file.write_text(
+            json.dumps({"raw": True}), encoding="utf-8"
+        )
+        raw_sha = compute_file_sha256(raw_file)
+
+        derived_file = derived_dir / "metrics.json"
+        derived_file.write_text(
+            json.dumps({"accuracy": 1.0}), encoding="utf-8"
+        )
+        derived_sha = compute_file_sha256(derived_file)
+
+        logs_file = logs_dir / "execution.log"
+        logs_file.write_text(
+            "Execution finished cleanly.\n", encoding="utf-8"
+        )
+        logs_sha = compute_file_sha256(logs_file)
+
+        inventory = (
+            "raw/data.json",
+            "derived/metrics.json",
+            "logs/execution.log",
+        )
+        hashes = {
+            "raw/data.json": raw_sha,
+            "derived/metrics.json": derived_sha,
+            "logs/execution.log": logs_sha,
+        }
+
+        hashes_content = (
+            "\n".join(f"{h}  {path}" for path, h in hashes.items()) + "\n"
+        )
+        (run_dir / "hashes.sha256").write_text(hashes_content, encoding="utf-8")
+
+        store = RunReceiptStore(run_dir)
+        draft = RunReceipt(
+            schema_version=1,
+            run_id=run_id,
+            slice_id=slice_id,
+            state=RunState.PREPARED,
+            artifact_root=str(artifact_root),
+            run_directory=str(run_dir),
+            implementation_commit="a" * 64,
+            protocol_commit="b" * 64,
+            protocol_sha256=proto_sha,
+            input_hashes={},
+            runner_version="1.0.0",
+            created_at_utc="2026-08-11T12:00:00Z",
+            previous_receipt_sha256=None,
+            receipt_sha256="",
+            artifact_inventory=inventory,
+            artifact_hashes=hashes,
+        )
+        computed_hash = draft.compute_hash()
+        final_receipt = RunReceipt(
+            schema_version=draft.schema_version,
+            run_id=draft.run_id,
+            slice_id=draft.slice_id,
+            state=draft.state,
+            artifact_root=draft.artifact_root,
+            run_directory=draft.run_directory,
+            implementation_commit=draft.implementation_commit,
+            protocol_commit=draft.protocol_commit,
+            protocol_sha256=draft.protocol_sha256,
+            input_hashes=draft.input_hashes,
+            runner_version=draft.runner_version,
+            created_at_utc=draft.created_at_utc,
+            previous_receipt_sha256=None,
+            receipt_sha256=computed_hash,
+            artifact_inventory=draft.artifact_inventory,
+            artifact_hashes=draft.artifact_hashes,
+        )
+        store.append(final_receipt)
+
+        (run_dir / "run_receipt.json").write_text(
+            json.dumps(final_receipt.to_dict(), indent=2), encoding="utf-8"
+        )
+
+        return run_dir
+
     def _get_directory_inventory(
         self, target_dir: Path
     ) -> tuple[dict[str, tuple[int, str]], set[str]]:
@@ -824,8 +933,11 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import LineageVerifier
 
+        run_dir = self._create_valid_inventory_run_directory(
+            self.sandbox, run_id="run_valid_inventory"
+        )
         verifier = LineageVerifier()
-        audit = verifier.verify_lineage(self.sandbox / "run_valid_inventory")
+        audit = verifier.verify_lineage(run_dir)
         self.assertTrue(audit.is_valid)
 
     def test_43_missing_artifact_detected(self) -> None:
