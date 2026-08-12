@@ -31,9 +31,6 @@ def build_bounded_loop_coordinator(
     ports: Mapping[PipelineStrategy, Any],
     run_id: str,
     *,
-    max_logical_calls: int = 2,
-    max_physical_attempts: int = 2,
-    max_retries: int = 0,
     clock: Any = None,
     invocation_id_gen: Any = None,
 ) -> BoundedLoopRunner:
@@ -60,11 +57,11 @@ def build_bounded_loop_coordinator(
     # 2. Build public DispatchingRetrievalBackend
     dispatcher = DispatchingRetrievalBackend(adapters)
 
-    # 3. Build a fresh Budget instance
+    # 3. Build a fresh Budget instance frozen at 2/2/0
     budget = Budget(
-        max_logical_calls=max_logical_calls,
-        max_physical_attempts=max_physical_attempts,
-        max_retries=max_retries,
+        max_logical_calls=2,
+        max_physical_attempts=2,
+        max_retries=0,
     )
 
     # 4. Build and return BoundedLoopRunner

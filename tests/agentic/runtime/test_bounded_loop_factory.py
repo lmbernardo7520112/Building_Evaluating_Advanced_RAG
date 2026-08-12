@@ -105,6 +105,25 @@ class TestBoundedLoopFactory(unittest.TestCase):
         self.assertLessEqual(runner1.budget.remaining()["logical_calls"], 1)
         self.assertEqual(runner2.budget.remaining()["logical_calls"], 2)
 
+    def test_06_factory_exposes_fixed_budget_contract(self) -> None:
+        """Confirm factory builds frozen 2/2/0 Budget and signature excludes budget overrides."""
+        import inspect
+
+        runner = self._build_coordinator(self.ports, run_id="run_test_06")
+        self.assertEqual(
+            runner.budget.remaining(),
+            {
+                "logical_calls": 2,
+                "physical_attempts": 2,
+                "retries": 0,
+            },
+        )
+
+        sig = inspect.signature(_get_factory_func())
+        self.assertNotIn("max_logical_calls", sig.parameters)
+        self.assertNotIn("max_physical_attempts", sig.parameters)
+        self.assertNotIn("max_retries", sig.parameters)
+
 
 if __name__ == "__main__":
     unittest.main()
