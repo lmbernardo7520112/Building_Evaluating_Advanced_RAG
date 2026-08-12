@@ -489,6 +489,24 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
             any("Duplicate path entry" in r for r in audit.failure_reasons)
         )
 
+    def test_30_run_id_matching_directory_accepted(self) -> None:
+        run_dir = self._create_valid_run_dir(run_id="run_id_match")
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertTrue(audit.is_valid)
+
+    def test_31_run_id_mismatched_directory_rejected(self) -> None:
+        run_dir = self._create_valid_run_dir(run_id="run_id_inside_receipt")
+        renamed_dir = run_dir.parent / "run_id_divergent_dir"
+        run_dir.rename(renamed_dir)
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(renamed_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("does not match receipt run_id" in r for r in audit.failure_reasons)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -97,6 +97,13 @@ class LineageVerifier:
             except ReceiptStoreError as r_exc:
                 reasons.append(f"Receipt chain integrity failure: {r_exc}")
 
+            latest = chain[-1]
+            if latest.run_id != target_dir.name:
+                reasons.append(
+                    f"Run directory name '{target_dir.name}' does not match "
+                    f"receipt run_id '{latest.run_id}'"
+                )
+
         # 2. Check protocol.snapshot.json
         snapshot_path = target_dir / "protocol.snapshot.json"
         if not snapshot_path.exists() or not snapshot_path.is_file():
