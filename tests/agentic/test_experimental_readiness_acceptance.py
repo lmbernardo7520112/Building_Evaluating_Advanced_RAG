@@ -1024,8 +1024,20 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import LineageVerifier
 
+        original_run_dir = self._create_valid_inventory_run_directory(
+            self.sandbox, run_id="run_id_original"
+        )
         verifier = LineageVerifier()
-        audit = verifier.verify_lineage(self.sandbox / "run_mismatched_id")
+        self.assertTrue(verifier.verify_lineage(original_run_dir).is_valid)
+
+        renamed_run_dir = original_run_dir.parent / "run_id_divergent"
+        original_run_dir.rename(renamed_run_dir)
+
+        self.assertFalse(original_run_dir.exists())
+        self.assertTrue(renamed_run_dir.exists())
+        self.assertNotEqual(renamed_run_dir.name, "run_id_original")
+
+        audit = verifier.verify_lineage(renamed_run_dir)
         self.assertFalse(audit.is_valid)
 
     def test_48_slice_id_coincides_with_directory(self) -> None:
