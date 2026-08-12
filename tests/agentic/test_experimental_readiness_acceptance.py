@@ -946,10 +946,62 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_55_valid_run_returns_valid_status(self) -> None:
         """55. LineageVerifier must return is_valid=True for a completely valid run."""
         self._import_target_module()
-        from raglab.agentic.experiments import LineageVerifier
+        from raglab.agentic.experiments import (
+            LineageVerifier,
+            RunReceipt,
+            RunReceiptStore,
+            RunState,
+            compute_file_sha256,
+        )
+
+        valid_run_dir = self.sandbox / "valid_run"
+        receipts_dir = valid_run_dir / "receipts"
+        receipts_dir.mkdir(parents=True, exist_ok=True)
+
+        proto_file = valid_run_dir / "protocol.snapshot.json"
+        proto_file.write_text(
+            json.dumps({"protocol_id": "p1"}, sort_keys=True), encoding="utf-8"
+        )
+        proto_sha = compute_file_sha256(proto_file)
+
+        store = RunReceiptStore(valid_run_dir)
+        draft = RunReceipt(
+            schema_version=1,
+            run_id="valid_run",
+            slice_id="slice5b",
+            state=RunState.PREPARED,
+            artifact_root=str(self.sandbox),
+            run_directory=str(valid_run_dir),
+            implementation_commit="a" * 64,
+            protocol_commit="b" * 64,
+            protocol_sha256=proto_sha,
+            input_hashes={},
+            runner_version="1.0.0",
+            created_at_utc="2026-08-11T12:00:00Z",
+            previous_receipt_sha256=None,
+            receipt_sha256="",
+        )
+        computed_hash = draft.compute_hash()
+        final_receipt = RunReceipt(
+            schema_version=draft.schema_version,
+            run_id=draft.run_id,
+            slice_id=draft.slice_id,
+            state=draft.state,
+            artifact_root=draft.artifact_root,
+            run_directory=draft.run_directory,
+            implementation_commit=draft.implementation_commit,
+            protocol_commit=draft.protocol_commit,
+            protocol_sha256=draft.protocol_sha256,
+            input_hashes=draft.input_hashes,
+            runner_version=draft.runner_version,
+            created_at_utc=draft.created_at_utc,
+            previous_receipt_sha256=None,
+            receipt_sha256=computed_hash,
+        )
+        store.append(final_receipt)
 
         verifier = LineageVerifier()
-        audit = verifier.verify_lineage(self.sandbox / "valid_run")
+        audit = verifier.verify_lineage(valid_run_dir)
         self.assertTrue(audit.is_valid)
 
     def test_56_valid_run_returns_exit_code_zero(self) -> None:
