@@ -1,15 +1,21 @@
 """Contract tests for public DispatchingRetrievalBackend."""
 
 import unittest
+from typing import Any
 from unittest.mock import MagicMock
-
-from raglab.agentic.runtime.dispatching_backend import (
-    DispatchingRetrievalBackend,
-)
 
 from raglab.agentic.contracts import ToolObservation
 from raglab.agentic.enums import InvocationStatus
 from raglab.agentic.runtime.retrieval_tool_adapter import RetrievalToolAdapter
+
+
+def _get_dispatching_backend_cls() -> type:
+    """Import and return the target class at test execution time."""
+    from raglab.agentic.runtime.dispatching_backend import (
+        DispatchingRetrievalBackend,
+    )
+
+    return DispatchingRetrievalBackend
 
 
 class TestDispatchingRetrievalBackendContract(unittest.TestCase):
@@ -49,8 +55,12 @@ class TestDispatchingRetrievalBackendContract(unittest.TestCase):
             "retrieve_sentence_window_rerank": self.mock_adapter_window,
         }
 
+    def _make_dispatcher(self) -> Any:
+        cls = _get_dispatching_backend_cls()
+        return cls(self.adapters)
+
     def test_01_dispatch_baseline_invokes_baseline_adapter_only(self) -> None:
-        dispatcher = DispatchingRetrievalBackend(self.adapters)
+        dispatcher = self._make_dispatcher()
         obs = dispatcher.retrieve(
             query="test query baseline",
             strategy="baseline",
@@ -68,7 +78,7 @@ class TestDispatchingRetrievalBackendContract(unittest.TestCase):
     def test_02_dispatch_sentence_window_rerank_invokes_its_adapter_only(
         self,
     ) -> None:
-        dispatcher = DispatchingRetrievalBackend(self.adapters)
+        dispatcher = self._make_dispatcher()
         obs = dispatcher.retrieve(
             query="compare A and B",
             strategy="sentence_window_rerank",
@@ -84,7 +94,7 @@ class TestDispatchingRetrievalBackendContract(unittest.TestCase):
         self.mock_adapter_baseline.retrieve.assert_not_called()
 
     def test_03_query_strategy_top_k_forwarded_correctly(self) -> None:
-        dispatcher = DispatchingRetrievalBackend(self.adapters)
+        dispatcher = self._make_dispatcher()
         dispatcher.retrieve(
             query="exact question",
             strategy="baseline",
@@ -98,7 +108,7 @@ class TestDispatchingRetrievalBackendContract(unittest.TestCase):
         )
 
     def test_04_unknown_strategy_rejected_fail_closed(self) -> None:
-        dispatcher = DispatchingRetrievalBackend(self.adapters)
+        dispatcher = self._make_dispatcher()
 
         with self.assertRaises((ValueError, KeyError)):
             dispatcher.retrieve(
