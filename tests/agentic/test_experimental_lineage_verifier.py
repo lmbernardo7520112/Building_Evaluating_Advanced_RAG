@@ -330,6 +330,72 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
             any("Missing expected artifact hash entry" in r for r in audit.failure_reasons)
         )
 
+    def test_23_undeclared_artifact_all_declared_valid(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "undec_valid"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+        h = compute_file_sha256(f_path)
+
+        self._create_valid_run_dir(
+            run_id="undec_valid",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertTrue(audit.is_valid)
+
+    def test_24_undeclared_artifact_extra_in_raw_rejected(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "undec_raw"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+        h = compute_file_sha256(f_path)
+
+        extra_path = raw_dir / "unexpected.json"
+        extra_path.write_text('{"extra": true}', encoding="utf-8")
+
+        self._create_valid_run_dir(
+            run_id="undec_raw",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("Undeclared artifact file found" in r for r in audit.failure_reasons)
+        )
+
+    def test_25_undeclared_artifact_extra_in_derived_or_logs_rejected(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "undec_logs"
+        raw_dir = run_dir / "raw"
+        logs_dir = run_dir / "logs"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+        h = compute_file_sha256(f_path)
+
+        log_path = logs_dir / "unrecorded.log"
+        log_path.write_text("extra log", encoding="utf-8")
+
+        self._create_valid_run_dir(
+            run_id="undec_logs",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("Undeclared artifact file found" in r for r in audit.failure_reasons)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

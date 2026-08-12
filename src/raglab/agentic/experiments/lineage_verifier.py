@@ -153,6 +153,25 @@ class LineageVerifier:
                         f"Failed to compute SHA-256 for '{rel_path}': {exc}"
                     )
 
+        # 4. Check for undeclared regular files under raw/, derived/, and logs/
+        if chain:
+            latest = chain[-1]
+            declared_set = set(latest.artifact_inventory)
+            artifact_subdirs = ("raw", "derived", "logs")
+            for subdir_name in artifact_subdirs:
+                sub_dir = target_dir / subdir_name
+                if sub_dir.exists() and sub_dir.is_dir():
+                    for physical_file in sub_dir.rglob("*"):
+                        if physical_file.is_file():
+                            rel_posix = (
+                                physical_file.relative_to(target_dir).as_posix()
+                            )
+                            if rel_posix not in declared_set:
+                                reasons.append(
+                                    "Undeclared artifact file found in run "
+                                    f"directory: {rel_posix}"
+                                )
+
         is_valid = len(reasons) == 0
         return LineageAuditResult(
             is_valid=is_valid, failure_reasons=tuple(reasons)
