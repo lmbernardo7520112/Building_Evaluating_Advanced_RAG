@@ -34,6 +34,7 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
         run_id: str = "run_1",
         slice_id: str = "slice5b",
         artifact_inventory: tuple[str, ...] = (),
+        artifact_hashes: dict[str, str] | None = None,
     ) -> Path:
         run_dir = self.sandbox / slice_id / run_id
         receipts_dir = run_dir / "receipts"
@@ -43,6 +44,8 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
         proto_content = json.dumps({"protocol_id": "p1"}, sort_keys=True)
         proto_file.write_text(proto_content, encoding="utf-8")
         proto_sha = compute_file_sha256(proto_file)
+
+        hashes_map = artifact_hashes if artifact_hashes is not None else {}
 
         store = RunReceiptStore(run_dir)
         receipt = RunReceipt(
@@ -61,6 +64,7 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
             previous_receipt_sha256=None,
             receipt_sha256="",
             artifact_inventory=artifact_inventory,
+            artifact_hashes=hashes_map,
         )
         h = receipt.compute_hash()
         final_receipt = RunReceipt(
@@ -79,6 +83,7 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
             previous_receipt_sha256=receipt.previous_receipt_sha256,
             receipt_sha256=h,
             artifact_inventory=receipt.artifact_inventory,
+            artifact_hashes=receipt.artifact_hashes,
         )
         store.append(final_receipt)
         return run_dir
@@ -205,11 +210,14 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
         run_dir = self.sandbox / "slice5b" / "inv_valid"
         raw_dir = run_dir / "raw"
         raw_dir.mkdir(parents=True, exist_ok=True)
-        (raw_dir / "data.json").write_text("{}", encoding="utf-8")
+        f_path = raw_dir / "data.json"
+        f_path.write_text("{}", encoding="utf-8")
+        h = compute_file_sha256(f_path)
 
         self._create_valid_run_dir(
             run_id="inv_valid",
             artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
         )
         verifier = LineageVerifier()
         audit = verifier.verify_lineage(run_dir)
@@ -265,6 +273,61 @@ class TestExperimentalLineageVerifier(unittest.TestCase):
         self.assertFalse(audit.is_valid)
         self.assertTrue(
             any("Missing or non-file" in r for r in audit.failure_reasons)
+        )
+
+    def test_20_artifact_hashes_valid(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "hashes_valid"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+        h = compute_file_sha256(f_path)
+
+        self._create_valid_run_dir(
+            run_id="hashes_valid",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": h},
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertTrue(audit.is_valid)
+
+    def test_21_artifact_hashes_tampered_content(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "hashes_tampered"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+
+        self._create_valid_run_dir(
+            run_id="hashes_tampered",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={"raw/data.json": "0" * 64},
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("SHA-256 mismatch" in r for r in audit.failure_reasons)
+        )
+
+    def test_22_artifact_hashes_missing_entry(self) -> None:
+        run_dir = self.sandbox / "slice5b" / "hashes_missing_entry"
+        raw_dir = run_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        f_path = raw_dir / "data.json"
+        f_path.write_text('{"v": 1}', encoding="utf-8")
+
+        self._create_valid_run_dir(
+            run_id="hashes_missing_entry",
+            artifact_inventory=("raw/data.json",),
+            artifact_hashes={},
+        )
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
+        self.assertFalse(audit.is_valid)
+        self.assertTrue(
+            any("Missing expected artifact hash entry" in r for r in audit.failure_reasons)
         )
 
 

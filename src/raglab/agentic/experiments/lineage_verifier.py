@@ -132,6 +132,26 @@ class LineageVerifier:
 
                 if not resolved_target.exists() or not resolved_target.is_file():
                     reasons.append(f"Missing or non-file artifact: {rel_path}")
+                    continue
+
+                if rel_path not in latest.artifact_hashes:
+                    reasons.append(
+                        f"Missing expected artifact hash entry: {rel_path}"
+                    )
+                    continue
+
+                try:
+                    actual_hash = compute_file_sha256(resolved_target)
+                    expected_hash = latest.artifact_hashes[rel_path]
+                    if actual_hash != expected_hash:
+                        reasons.append(
+                            f"Artifact SHA-256 mismatch for '{rel_path}': "
+                            f"expected '{expected_hash}', got '{actual_hash}'"
+                        )
+                except Exception as exc:
+                    reasons.append(
+                        f"Failed to compute SHA-256 for '{rel_path}': {exc}"
+                    )
 
         is_valid = len(reasons) == 0
         return LineageAuditResult(
