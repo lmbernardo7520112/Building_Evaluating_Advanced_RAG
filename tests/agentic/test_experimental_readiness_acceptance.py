@@ -993,10 +993,30 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import LineageVerifier
 
-        verifier = LineageVerifier()
-        audit = verifier.verify_lineage(
-            self.sandbox / "run_inconsistent_hashes"
+        run_dir = self._create_valid_inventory_run_directory(
+            self.sandbox, run_id="run_inconsistent_hashes"
         )
+        hashes_file = run_dir / "hashes.sha256"
+        target_file = run_dir / "derived" / "metrics.json"
+
+        self.assertTrue(hashes_file.exists())
+        self.assertTrue(target_file.exists())
+
+        lines = hashes_file.read_text(encoding="utf-8").splitlines()
+        new_lines = []
+        modified_line_found = False
+        for line in lines:
+            if "derived/metrics.json" in line:
+                new_lines.append(f"{'0' * 64}  derived/metrics.json")
+                modified_line_found = True
+            else:
+                new_lines.append(line)
+
+        self.assertTrue(modified_line_found)
+        hashes_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+        verifier = LineageVerifier()
+        audit = verifier.verify_lineage(run_dir)
         self.assertFalse(audit.is_valid)
 
     def test_47_run_id_coincides_with_directory(self) -> None:
