@@ -1153,7 +1153,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             compute_file_sha256,
         )
 
-        valid_run_dir = self.sandbox / "valid_run"
+        valid_run_dir = self.sandbox / "slice5b" / "valid_run"
         receipts_dir = valid_run_dir / "receipts"
         receipts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1286,7 +1286,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             compute_file_sha256,
         )
 
-        valid_run_dir = self.sandbox / "valid_run_bytes"
+        valid_run_dir = self.sandbox / "slice5b" / "valid_run_bytes"
         receipts_dir = valid_run_dir / "receipts"
         receipts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1372,7 +1372,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             compute_file_sha256,
         )
 
-        valid_run_dir = self.sandbox / "run_state_check"
+        valid_run_dir = self.sandbox / "slice5b" / "run_state_check"
         receipts_dir = valid_run_dir / "receipts"
         receipts_dir.mkdir(parents=True, exist_ok=True)
 
