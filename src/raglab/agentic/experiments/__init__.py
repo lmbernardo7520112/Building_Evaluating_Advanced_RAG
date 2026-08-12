@@ -12,6 +12,10 @@ from raglab.agentic.experiments.integrity import (
     compute_file_sha256,
     verify_artifact_integrity,
 )
+from raglab.agentic.experiments.lineage_verifier import (
+    LineageAuditResult,
+    LineageVerifier,
+)
 from raglab.agentic.experiments.path_policy import (
     ExperimentalPathPolicy,
     PathPolicyError,
@@ -47,6 +51,8 @@ __all__ = [
     "IntegrityError",
     "ExperimentalPathPolicy",
     "PathPolicyError",
+    "LineageAuditResult",
+    "LineageVerifier",
     "ALLOWED_TRANSITIONS",
     "SECRET_FIELDS_FORBIDDEN",
     "compute_bytes_sha256",
