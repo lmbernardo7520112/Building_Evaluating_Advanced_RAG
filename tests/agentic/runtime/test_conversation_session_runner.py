@@ -193,19 +193,28 @@ class TestConversationSessionRunner(unittest.TestCase):
         self.assertEqual(len(runner.get_conversation("conv_b").turns), 1)
 
     def test_08_unexpected_exception_propagates_without_partial_turn_write(self) -> None:
-        failing_ports = {
-            PipelineStrategy.BASELINE: HermeticRetrievalPort("base", should_fail=True),
-            PipelineStrategy.SENTENCE_WINDOW_RERANK: HermeticRetrievalPort("window", should_fail=True),
-        }
+        from unittest.mock import MagicMock, patch
 
-        runner = self._make_runner(ports=failing_ports)
-        runner.create_conversation("conv_panic")
+        runner = self._make_runner()
+        state_before = runner.create_conversation("conv_panic")
 
-        with self.assertRaises(RuntimeError):
+        mock_coordinator = MagicMock()
+        mock_coordinator.execute.side_effect = RuntimeError("Unexpected bounded loop failure")
+
+        with (
+            patch(
+                "raglab.agentic.runtime.conversation_session_runner.build_bounded_loop_coordinator",
+                return_value=mock_coordinator,
+            ),
+            self.assertRaises(RuntimeError),
+        ):
             runner.execute_turn("conv_panic", "Panic query")
 
-        state = runner.get_conversation("conv_panic")
-        self.assertEqual(state.turns, ())
+        state_after = runner.get_conversation("conv_panic")
+        self.assertEqual(state_after.turns, state_before.turns)
+        self.assertEqual(state_after.turns, ())
+        self.assertEqual(state_after.status, state_before.status)
+        self.assertEqual(state_after.updated_at, state_before.updated_at)
 
 
 if __name__ == "__main__":
