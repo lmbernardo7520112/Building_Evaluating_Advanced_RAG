@@ -108,7 +108,7 @@ class TestOneShotCoordinatorFactory(unittest.TestCase):
 
         self.assertIsNotNone(res)
         remaining = runner.budget.remaining()
-        self.assertEqual(remaining.get("logical_call"), 0)
+        self.assertEqual(remaining.get("logical_calls"), 0)
 
     def test_05_missing_required_strategy_fails_during_construction(
         self,
@@ -127,8 +127,8 @@ class TestOneShotCoordinatorFactory(unittest.TestCase):
 
         runner1.execute("q1", "Compare A and B", top_k=3)
 
-        self.assertEqual(runner1.budget.remaining().get("logical_call"), 0)
-        self.assertEqual(runner2.budget.remaining().get("logical_call"), 1)
+        self.assertEqual(runner1.budget.remaining().get("logical_calls"), 0)
+        self.assertEqual(runner2.budget.remaining().get("logical_calls"), 1)
         self.assertIsNot(runner1.budget, runner2.budget)
         self.assertIsNot(runner1.registry, runner2.registry)
 
