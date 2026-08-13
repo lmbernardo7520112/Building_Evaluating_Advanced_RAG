@@ -223,6 +223,39 @@ class TestBoundedLoopDualQuery(unittest.TestCase):
         self.assertEqual(base_port.call_count, 0)
         self.assertEqual(window_port.call_count, 0)
 
+    def test_05_forbidden_token_in_raw_routing_query_is_rejected_with_clean_retrieval_query(
+        self,
+    ) -> None:
+        base_port = CapturingRetrievalPort("base")
+        window_port = CapturingRetrievalPort("window")
+        ports = {
+            PipelineStrategy.BASELINE: base_port,
+            PipelineStrategy.SENTENCE_WINDOW_RERANK: window_port,
+        }
+        runner = self._build_runner(ports)
+
+        leaked_raw_query = "Compare qrels vs gold_answer for search evaluation"
+        clean_retrieval_query = "Compare vector vs keyword search"
+
+        res = runner.execute(
+            query_id="q_dual_05",
+            query_text=leaked_raw_query,
+            top_k=3,
+            retrieval_query_text=clean_retrieval_query,
+        )
+
+        # 1. Stop decision must be TOOL_FAILURE with LeakageDetectedError detail
+        self.assertEqual(
+            res.stop_decision.reason, StopReason.TOOL_FAILURE
+        )
+        self.assertIsNotNone(res.error)
+        self.assertIn("LeakageDetectedError", res.error or "")
+        self.assertIn("LeakageDetectedError", res.stop_decision.detail or "")
+
+        # 2. Zero port calls on all adapters
+        self.assertEqual(base_port.call_count, 0)
+        self.assertEqual(window_port.call_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
