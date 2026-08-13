@@ -19,9 +19,35 @@ from raglab.agentic.runtime.bounded_loop_factory import (
 from raglab.agentic.runtime.bounded_loop_runner import BoundedLoopResult
 from raglab.domain.enums import PipelineStrategy
 
+MAX_RETRIEVAL_QUERY_CHARS = 512
+MAX_HISTORY_QUERY_CHARS = 256
+SEPARATOR = "\n\n"
+
 
 def _default_clock() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _build_bounded_retrieval_query(
+    current_query: str,
+    previous_query: str | None,
+) -> str:
+    """Derive bounded retrieval query from previous turn and current query."""
+    if previous_query is None:
+        return current_query
+
+    available_history_chars = (
+        MAX_RETRIEVAL_QUERY_CHARS - len(current_query) - len(SEPARATOR)
+    )
+    history_chars = min(
+        MAX_HISTORY_QUERY_CHARS, max(0, available_history_chars)
+    )
+
+    if history_chars == 0:
+        return current_query
+
+    history_prefix = previous_query[:history_chars]
+    return f"{history_prefix}{SEPARATOR}{current_query}"
 
 
 class ConversationStatus(str, Enum):  # noqa: UP042
@@ -41,6 +67,8 @@ class ConversationTurnResult:
     bounded_loop_result: BoundedLoopResult
     created_at: str
     state_hash: str
+    retrieval_query: str
+    context_sha256: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +131,12 @@ class ConversationSessionRunner:
         if not user_query or not user_query.strip():
             raise ValueError("user_query must be a non-empty string")
 
+        if len(user_query) > MAX_RETRIEVAL_QUERY_CHARS:
+            raise ValueError(
+                f"user_query exceeds maximum length of "
+                f"{MAX_RETRIEVAL_QUERY_CHARS} characters"
+            )
+
         session = self._sessions[conversation_id]
         if session.status == ConversationStatus.EXHAUSTED:
             raise ValueError(
@@ -114,6 +148,16 @@ class ConversationSessionRunner:
             raise ValueError(
                 f"Conversation turn limit reached ({turn_index}/{self.max_turns})"
             )
+
+        previous_query = (
+            session.turns[-1].user_query if session.turns else None
+        )
+        retrieval_query = _build_bounded_retrieval_query(
+            user_query, previous_query
+        )
+        context_sha256 = hashlib.sha256(
+            retrieval_query.encode("utf-8")
+        ).hexdigest()
 
         run_id = f"{conversation_id}_turn_{turn_index}"
 
@@ -130,6 +174,7 @@ class ConversationSessionRunner:
             query_id=f"{run_id}_q",
             query_text=user_query,
             top_k=top_k,
+            retrieval_query_text=retrieval_query,
         )
 
         # 3. Calculate canonical SHA-256 turn state hash
@@ -154,6 +199,8 @@ class ConversationSessionRunner:
             bounded_loop_result=bounded_loop_result,
             created_at=now,
             state_hash=state_hash,
+            retrieval_query=retrieval_query,
+            context_sha256=context_sha256,
         )
 
         # 4. Atomic state update
