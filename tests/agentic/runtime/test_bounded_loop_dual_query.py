@@ -233,6 +233,7 @@ class TestBoundedLoopDualQuery(unittest.TestCase):
             PipelineStrategy.SENTENCE_WINDOW_RERANK: window_port,
         }
         runner = self._build_runner(ports)
+        physical_attempts_before = runner.budget.remaining()["physical_attempts"]
 
         leaked_raw_query = "Compare qrels vs gold_answer for search evaluation"
         clean_retrieval_query = "Compare vector vs keyword search"
@@ -255,6 +256,12 @@ class TestBoundedLoopDualQuery(unittest.TestCase):
         # 2. Zero port calls on all adapters
         self.assertEqual(base_port.call_count, 0)
         self.assertEqual(window_port.call_count, 0)
+
+        # 3. Budget must not record any physical attempt
+        self.assertEqual(
+            runner.budget.remaining()["physical_attempts"],
+            physical_attempts_before,
+        )
 
 
 if __name__ == "__main__":
