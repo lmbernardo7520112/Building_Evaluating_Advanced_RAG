@@ -48,7 +48,11 @@ from raglab.agentic.router import (
     get_deterministic_policy_metadata,
     route_deterministic,
 )
-from raglab.agentic.tool_executor import RetrievalBackend, ToolExecutor
+from raglab.agentic.tool_executor import (
+    RetrievalBackend,
+    ToolExecutor,
+    validate_query_safety,
+)
 from raglab.agentic.tool_registry import ToolRegistry
 
 
@@ -199,6 +203,9 @@ class BoundedLoopRunner:
             step_error: str | None = None
 
             try:
+                if step_index == 0 and retrieval_query_text is not None:
+                    validate_query_safety(query_text)
+
                 args = ToolArguments(
                     query=effective_retrieval_query,
                     strategy=current_strategy,
