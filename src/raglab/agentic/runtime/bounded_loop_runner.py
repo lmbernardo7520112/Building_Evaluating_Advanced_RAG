@@ -108,11 +108,19 @@ class BoundedLoopRunner:
         query_id: str,
         query_text: str,
         top_k: int = 3,
+        *,
+        retrieval_query_text: str | None = None,
     ) -> BoundedLoopResult:
         """Run up to 2 retrieval steps for a single query."""
         evidence = EvidenceAccumulator()
         executor = ToolExecutor(self.registry, self.budget)
         policy_meta = get_deterministic_policy_metadata()
+
+        effective_retrieval_query = (
+            retrieval_query_text
+            if retrieval_query_text is not None
+            else query_text
+        )
 
         steps: list[TrajectoryStep] = []
         executed_tools: set[str] = set()
@@ -192,7 +200,7 @@ class BoundedLoopRunner:
 
             try:
                 args = ToolArguments(
-                    query=query_text,
+                    query=effective_retrieval_query,
                     strategy=current_strategy,
                     top_k=top_k,
                 )
