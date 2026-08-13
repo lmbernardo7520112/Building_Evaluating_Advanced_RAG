@@ -211,12 +211,13 @@ class TestBoundedLoopDualQuery(unittest.TestCase):
             retrieval_query_text=leaked_retrieval_query,
         )
 
-        # 1. Stop decision must be LEAKAGE_DETECTED
+        # 1. Stop decision must be TOOL_FAILURE with LeakageDetectedError detail
         self.assertEqual(
-            res.stop_decision.reason, StopReason.LEAKAGE_DETECTED
+            res.stop_decision.reason, StopReason.TOOL_FAILURE
         )
         self.assertIsNotNone(res.error)
         self.assertIn("LeakageDetectedError", res.error or "")
+        self.assertIn("LeakageDetectedError", res.stop_decision.detail or "")
 
         # 2. Ports must NOT have been called
         self.assertEqual(base_port.call_count, 0)
