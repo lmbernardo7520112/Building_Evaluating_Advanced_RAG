@@ -23,6 +23,7 @@ from raglab.agentic.budget import Budget
 from raglab.agentic.contracts import (
     SCHEMA_VERSION,
     AgentTrajectory,
+    EvidenceItem,
     RoutingDecision,
     StopDecision,
     ToolArguments,
@@ -92,6 +93,7 @@ class BoundedLoopResult:
     stop_decision: StopDecision
     evidence_count: int
     error: str | None = None
+    evidence_items: tuple[EvidenceItem, ...] = ()
 
 
 @dataclass
@@ -164,6 +166,7 @@ class BoundedLoopRunner:
                 stop_decision=final_stop_decision,
                 evidence_count=0,
                 error=None,
+                evidence_items=(),
             )
 
         # Bounded Loop (Step 0 and optional Step 1)
@@ -375,10 +378,15 @@ class BoundedLoopRunner:
             created_at=finished_at,
         )
 
+        accumulated_items = (
+            evidence.items_in_order() if error_msg is None else ()
+        )
+
         return BoundedLoopResult(
             trajectory=trajectory,
             routing_decision=decision,
             stop_decision=final_stop_decision,
-            evidence_count=len(evidence.items_in_order()),
+            evidence_count=len(accumulated_items),
             error=error_msg,
+            evidence_items=accumulated_items,
         )
