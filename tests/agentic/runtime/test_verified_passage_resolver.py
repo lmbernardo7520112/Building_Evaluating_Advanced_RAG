@@ -322,3 +322,67 @@ class TestVerifiedPassageResolver(unittest.TestCase):
         item = EvidenceItem("ps_001", "doc_1", 1, 0.9, sha, "t1", "inv_1")
         with self.assertRaises(PassageIntegrityError):
             resolver.resolve((item,))
+
+    def test_11_preserves_explicit_page_number_from_payload(self) -> None:
+        self._import_target_modules()
+        from raglab.agentic.runtime.passage_resolver import (
+            PassagePayload,
+            VerifiedPassageResolver,
+        )
+
+        text = "Evidence text on explicit physical page"
+        sha = _sha256(text)
+        payload = PassagePayload(
+            "ps_001", ChunkId("c1"), "doc_1", text, sha, page_number=42
+        )
+        port = MockPassageLookupPort(payload_map={"ps_001": payload})
+        resolver = VerifiedPassageResolver(port)
+
+        item = EvidenceItem("ps_001", "doc_1", 1, 0.95, sha, "t1", "inv_1")
+        results = resolver.resolve((item,))
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].page_number, 42)
+
+    def test_12_accepts_none_page_number_for_unpaginated_payload(self) -> None:
+        self._import_target_modules()
+        from raglab.agentic.runtime.passage_resolver import (
+            PassagePayload,
+            VerifiedPassageResolver,
+        )
+
+        text = "Unpaginated raw web or text evidence"
+        sha = _sha256(text)
+        payload = PassagePayload(
+            "ps_001", ChunkId("c1"), "doc_1", text, sha, page_number=None
+        )
+        port = MockPassageLookupPort(payload_map={"ps_001": payload})
+        resolver = VerifiedPassageResolver(port)
+
+        item = EvidenceItem("ps_001", "doc_1", 1, 0.9, sha, "t1", "inv_1")
+        results = resolver.resolve((item,))
+
+        self.assertEqual(len(results), 1)
+        self.assertIsNone(results[0].page_number)
+
+    def test_13_rejects_negative_page_number_with_passage_integrity_error(
+        self,
+    ) -> None:
+        self._import_target_modules()
+        from raglab.agentic.errors import PassageIntegrityError
+        from raglab.agentic.runtime.passage_resolver import (
+            PassagePayload,
+            VerifiedPassageResolver,
+        )
+
+        text = "Evidence text with invalid negative page number"
+        sha = _sha256(text)
+        payload = PassagePayload(
+            "ps_001", ChunkId("c1"), "doc_1", text, sha, page_number=-1
+        )
+        port = MockPassageLookupPort(payload_map={"ps_001": payload})
+        resolver = VerifiedPassageResolver(port)
+
+        item = EvidenceItem("ps_001", "doc_1", 1, 0.9, sha, "t1", "inv_1")
+        with self.assertRaises(PassageIntegrityError):
+            resolver.resolve((item,))
