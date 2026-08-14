@@ -49,15 +49,14 @@ class TestVerifiedPassageResolver(unittest.TestCase):
 
     def _import_target_modules(self) -> None:
         """Dynamic runtime import helper to ensure tests are collectable in RED phase."""
+        from raglab.agentic.errors import (  # noqa: F401
+            PassageIntegrityError,
+            PassageNotFoundError,
+        )
         from raglab.agentic.runtime.passage_resolver import (  # noqa: F401
             PassageLookupPort,
             PassagePayload,
             VerifiedPassageResolver,
-        )
-
-        from raglab.agentic.errors import (  # noqa: F401
-            PassageIntegrityError,
-            PassageNotFoundError,
         )
 
     def test_01_empty_input_returns_empty_tuple_without_lookup(self) -> None:
@@ -169,7 +168,10 @@ class TestVerifiedPassageResolver(unittest.TestCase):
         payload_bad = PassagePayload(
             "raw_bad_id_001", ChunkId("c1"), "doc_1", text, sha
         )
-        port = MockPassageLookupPort(payload_map={"raw_bad_id_001": payload_bad})
+        port = MockPassageLookupPort(
+            payload_map={"raw_bad_id_001": payload_bad},
+            return_order=["raw_bad_id_001"],
+        )
         resolver = VerifiedPassageResolver(port)
 
         valid_item = EvidenceItem(
@@ -180,12 +182,11 @@ class TestVerifiedPassageResolver(unittest.TestCase):
 
     def test_05_rejects_duplicate_input_ids(self) -> None:
         self._import_target_modules()
+        from raglab.agentic.errors import PassageIntegrityError
         from raglab.agentic.runtime.passage_resolver import (
             PassagePayload,
             VerifiedPassageResolver,
         )
-
-        from raglab.agentic.errors import PassageIntegrityError
 
         text = "Unique text"
         sha = _sha256(text)
@@ -201,14 +202,13 @@ class TestVerifiedPassageResolver(unittest.TestCase):
 
     def test_06_rejects_missing_unexpected_or_duplicate_lookup_ids(self) -> None:
         self._import_target_modules()
-        from raglab.agentic.runtime.passage_resolver import (
-            PassagePayload,
-            VerifiedPassageResolver,
-        )
-
         from raglab.agentic.errors import (
             PassageIntegrityError,
             PassageNotFoundError,
+        )
+        from raglab.agentic.runtime.passage_resolver import (
+            PassagePayload,
+            VerifiedPassageResolver,
         )
 
         t1, t2 = "Text 1", "Text 2"
@@ -242,12 +242,11 @@ class TestVerifiedPassageResolver(unittest.TestCase):
 
     def test_07_rejects_document_id_mismatch(self) -> None:
         self._import_target_modules()
+        from raglab.agentic.errors import PassageIntegrityError
         from raglab.agentic.runtime.passage_resolver import (
             PassagePayload,
             VerifiedPassageResolver,
         )
-
-        from raglab.agentic.errors import PassageIntegrityError
 
         text = "Mismatched document text"
         sha = _sha256(text)
@@ -265,12 +264,11 @@ class TestVerifiedPassageResolver(unittest.TestCase):
 
     def test_08_rejects_empty_text_with_typed_error(self) -> None:
         self._import_target_modules()
+        from raglab.agentic.errors import PassageIntegrityError
         from raglab.agentic.runtime.passage_resolver import (
             PassagePayload,
             VerifiedPassageResolver,
         )
-
-        from raglab.agentic.errors import PassageIntegrityError
 
         empty_text = "   "
         sha = _sha256(empty_text)
@@ -284,12 +282,11 @@ class TestVerifiedPassageResolver(unittest.TestCase):
 
     def test_09_rejects_text_sha256_mismatch(self) -> None:
         self._import_target_modules()
+        from raglab.agentic.errors import PassageIntegrityError
         from raglab.agentic.runtime.passage_resolver import (
             PassagePayload,
             VerifiedPassageResolver,
         )
-
-        from raglab.agentic.errors import PassageIntegrityError
 
         actual_text = "Actual physical text from disk/store"
         claimed_sha = _sha256("Tampered or different text")
@@ -306,12 +303,11 @@ class TestVerifiedPassageResolver(unittest.TestCase):
 
     def test_10_rejects_payload_hash_mismatch(self) -> None:
         self._import_target_modules()
+        from raglab.agentic.errors import PassageIntegrityError
         from raglab.agentic.runtime.passage_resolver import (
             PassagePayload,
             VerifiedPassageResolver,
         )
-
-        from raglab.agentic.errors import PassageIntegrityError
 
         text = "Consistent text body"
         sha = _sha256(text)
