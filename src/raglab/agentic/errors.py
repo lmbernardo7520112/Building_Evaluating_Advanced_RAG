@@ -100,3 +100,19 @@ class OptionalBackendNotAvailableError(AgenticError):
     def __init__(self, backend: str) -> None:
         self.backend = backend
         super().__init__(f"OPTIONAL_AGENTIC_BACKEND_NOT_AVAILABLE: '{backend}'")
+
+
+class PassageNotFoundError(AgenticError):
+    """Raised when a canonical passage is not found in the lookup store."""
+
+    def __init__(self, passage_id: str) -> None:
+        self.passage_id = passage_id
+        super().__init__(f"Passage not found: '{passage_id}'")
+
+
+class PassageIntegrityError(AgenticError):
+    """Raised when passage resolution fails cryptographic or provenance invariants."""
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Passage integrity violation: {detail}")
