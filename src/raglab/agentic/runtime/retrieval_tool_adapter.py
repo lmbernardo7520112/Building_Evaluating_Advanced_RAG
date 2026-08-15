@@ -11,6 +11,7 @@ Design:
 - Computes content hashes and retrieval config hashes.
 - Records latency.
 - Reports typed failures.
+- Optionally captures resolved passage payloads into PassageCapturePort.
 """
 
 from __future__ import annotations
@@ -18,12 +19,24 @@ from __future__ import annotations
 import hashlib
 import time
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Protocol
 
 from raglab.agentic.contracts import ToolObservation, _canonical_json, _sha256
 from raglab.agentic.enums import InvocationStatus
 from raglab.agentic.errors import NonCanonicalIdError
+from raglab.agentic.runtime.passage_resolver import PassagePayload
 from raglab.domain.entities import RetrievedEvidence
+
+
+class PassageCapturePort(Protocol):
+    """Pure runtime port for capturing passage payloads during retrieval."""
+
+    def record_passages(
+        self,
+        payloads: Sequence[PassagePayload],
+    ) -> None:
+        """Atomically record a batch of PassagePayload instances."""
+        ...
 
 
 class RetrievalToolAdapter:
@@ -39,10 +52,12 @@ class RetrievalToolAdapter:
         retrieval_port: Any,  # RetrievalPort protocol — duck-typed
         *,
         version: str = "1.0.0",
+        passage_store: PassageCapturePort | None = None,
     ) -> None:
         self._strategy = strategy
         self._port = retrieval_port
         self._version = version
+        self._passage_store = passage_store
         self._config_hash = _sha256(
             _canonical_json(
                 {
@@ -89,12 +104,13 @@ class RetrievalToolAdapter:
 
         elapsed_ms = (time.monotonic_ns() - start_ns) / 1_000_000
 
-        # Convert to ToolObservation
+        # Convert to ToolObservation and PassagePayload
         passage_ids: list[str] = []
         document_ids: list[str] = []
         ranks: list[int] = []
         scores: list[float] = []
         content_hashes: list[str] = []
+        captured_payloads: list[PassagePayload] = []
 
         for ev in evidence:
             # Use passage_id if available, else generate from chunk_id
@@ -119,6 +135,20 @@ class RetrievalToolAdapter:
                 else hashlib.sha256(ev.text.encode("utf-8")).hexdigest()
             )
             content_hashes.append(ch)
+
+            captured_payloads.append(
+                PassagePayload(
+                    passage_id=pid,
+                    chunk_id=ev.chunk_id,
+                    document_id=ev.document_id,
+                    text=ev.text,
+                    content_sha256=ch,
+                    page_number=ev.page_number,
+                )
+            )
+
+        if self._passage_store is not None and captured_payloads:
+            self._passage_store.record_passages(tuple(captured_payloads))
 
         # Build a stable invocation_id from the query+strategy+top_k
         inv_hash = _sha256(
