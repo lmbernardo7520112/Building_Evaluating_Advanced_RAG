@@ -13,7 +13,12 @@ The actual Gemini calls are covered by integration tests (Ambiente B only).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
+
+from raglab.domain.entities import RetrievedEvidence
+from raglab.domain.value_objects import ChunkId
 
 
 class TestGeminiGeneratorNoCredential:
@@ -225,3 +230,131 @@ class TestGeminiGeneratorParsingAndCitations:
         source = inspect.getsource(FakeGeneratorAdapter)
         assert "google.genai" not in source
         assert "genai.Client" not in source
+
+
+@dataclass
+class _LegacyEvidenceDouble:
+    """Test double representing legacy evidence with start_page/page attributes."""
+
+    chunk_id: ChunkId
+    document_id: str
+    text: str
+    rank: int
+    score: float
+    page_number: int | None = None
+    start_page: int | None = None
+    page: int | None = None
+    passage_id: str | None = None
+    content_sha256: str | None = None
+
+
+_PAGE_PRECEDENCE_CASES = [
+    # 1. page_number=91, doc_p7 -> 91
+    (
+        RetrievedEvidence(
+            chunk_id=ChunkId("c1"),
+            document_id="doc_p7",
+            text="Evidence text for case 1",
+            rank=1,
+            score=0.9,
+            page_number=91,
+        ),
+        91,
+    ),
+    # 2. page_number=0, doc_p7 -> 0
+    (
+        RetrievedEvidence(
+            chunk_id=ChunkId("c2"),
+            document_id="doc_p7",
+            text="Evidence text for case 2",
+            rank=1,
+            score=0.9,
+            page_number=0,
+        ),
+        0,
+    ),
+    # 3. page_number=None, start_page=33, doc_p7 -> 33
+    (
+        _LegacyEvidenceDouble(
+            chunk_id=ChunkId("c3"),
+            document_id="doc_p7",
+            text="Evidence text for case 3",
+            rank=1,
+            score=0.9,
+            page_number=None,
+            start_page=33,
+        ),
+        33,
+    ),
+    # 4. page_number=None, start_page=None, page=44, doc_p7 -> 44
+    (
+        _LegacyEvidenceDouble(
+            chunk_id=ChunkId("c4"),
+            document_id="doc_p7",
+            text="Evidence text for case 4",
+            rank=1,
+            score=0.9,
+            page_number=None,
+            start_page=None,
+            page=44,
+        ),
+        44,
+    ),
+    # 5. todos explícitos/legados None, doc_p7 -> 7
+    (
+        RetrievedEvidence(
+            chunk_id=ChunkId("c5"),
+            document_id="doc_p7",
+            text="Evidence text for case 5",
+            rank=1,
+            score=0.9,
+            page_number=None,
+        ),
+        7,
+    ),
+    # 6. todos explícitos/legados None, unpaginated_doc -> 0
+    (
+        RetrievedEvidence(
+            chunk_id=ChunkId("c6"),
+            document_id="unpaginated_doc",
+            text="Evidence text for case 6",
+            rank=1,
+            score=0.9,
+            page_number=None,
+        ),
+        0,
+    ),
+]
+
+
+class TestGeminiGeneratorPagePrecedence:
+    """Matrix tests for page number resolution precedence in GeminiGeneratorAdapter."""
+
+    @pytest.mark.parametrize("evidence_item, expected_page", _PAGE_PRECEDENCE_CASES)
+    def test_page_precedence_matrix(self, monkeypatch, evidence_item, expected_page):
+        from unittest.mock import MagicMock
+
+        import google.genai as genai
+
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_offline_key")
+        monkeypatch.setattr(genai, "Client", lambda **kwargs: MagicMock())
+
+        adapter = GeminiGeneratorAdapter()
+        monkeypatch.setattr(
+            adapter,
+            "_call_with_retry",
+            lambda qid, prompt: '{"status": "ANSWER", "answer": "Resposta de teste", "citations": ["E1"]}',
+        )
+
+        answer = adapter.generate(
+            query_id="q_test_prec",
+            query="Qual é a técnica de demonstração?",
+            evidence=[evidence_item],
+        )
+        assert answer.abstained is False
+        assert len(answer.citations) >= 1
+        assert answer.citations[0].page_number == expected_page
