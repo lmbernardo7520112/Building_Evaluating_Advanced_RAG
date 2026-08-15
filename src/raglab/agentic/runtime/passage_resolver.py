@@ -30,6 +30,7 @@ class PassagePayload:
     document_id: str
     text: str
     content_sha256: str
+    page_number: int | None = None
 
 
 class PassageLookupPort(Protocol):
@@ -75,6 +76,7 @@ class VerifiedPassageResolver:
         7. SHA256(text) == EvidenceItem.content_sha256 == payload.content_sha256.
         8. rank and score originate from EvidenceItem.
         9. chunk_id (real domain ChunkId) and text originate from payload.
+        10. page_number is non-negative if present.
         """
         if not evidence_items:
             return ()
@@ -150,6 +152,12 @@ class VerifiedPassageResolver:
                     f"'{payload.content_sha256}' != '{item.content_sha256}'"
                 )
 
+            if payload.page_number is not None and payload.page_number < 0:
+                raise PassageIntegrityError(
+                    f"Negative page_number '{payload.page_number}' for "
+                    f"passage '{item.passage_id}'"
+                )
+
             evidence = RetrievedEvidence(
                 chunk_id=payload.chunk_id,
                 document_id=item.document_id,
@@ -158,6 +166,7 @@ class VerifiedPassageResolver:
                 score=item.score,
                 passage_id=item.passage_id,
                 content_sha256=item.content_sha256,
+                page_number=payload.page_number,
             )
             resolved.append(evidence)
 
