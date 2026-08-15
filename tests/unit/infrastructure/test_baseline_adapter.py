@@ -200,5 +200,21 @@ class TestLoadTinyCorpus(unittest.TestCase):
             self.skipTest("tiny corpus not found at expected path")
 
 
+class TestBaselineRetrieval(unittest.TestCase):
+    """Explicit page provenance tests for baseline retrieval."""
+
+    def test_retrieval_preserves_explicit_page_number(self) -> None:
+        """Each result must preserve the exact start_page from its source chunk."""
+        adapter = InMemoryBaselineAdapter()
+        chunks = _make_chunks()
+        adapter.index_chunks(chunks)
+        chunk_page_map = {c.chunk_id.value: c.start_page for c in chunks}
+        results = adapter.retrieve("retrieval", top_k=3)
+        self.assertGreater(len(results), 0)
+        for r in results:
+            expected_page = chunk_page_map[r.chunk_id.value]
+            self.assertEqual(r.page_number, expected_page)
+
+
 if __name__ == "__main__":
     unittest.main()

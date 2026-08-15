@@ -50,6 +50,29 @@ class TestSentenceWindowAdapter(unittest.TestCase):
         self.assertIn("Segunda frase sobre exaustão", results[0].text)
         self.assertIn("Terceira frase", results[0].text)
 
+    def test_sentence_window_retrieval_preserves_page_number(self) -> None:
+        adapter = SentenceWindowAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter(),
+            window_size=1,
+        )
+
+        pages = [
+            DocumentPage(
+                document_id="doc1",
+                page_number=91,
+                text=(
+                    "Primeira frase da página. "
+                    "Segunda frase sobre exaustão. "
+                    "Terceira frase final."
+                ),
+            )
+        ]
+        adapter.index_pages(pages)
+
+        results = adapter.retrieve("exaustão", top_k=1)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].page_number, 91)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,6 +47,33 @@ class TestLocalRerankerAdapter(unittest.TestCase):
         self.assertIsNotNone(damage)
         self.assertGreaterEqual(damage.relevant_passage_dropped_rate, 0.0)
 
+    def test_rerank_preserves_page_number_provenance(self) -> None:
+        reranker = LocalRerankerAdapter(
+            embedding_adapter=DeterministicTestEmbeddingAdapter()
+        )
+
+        test_cases: list[tuple[str, int | None]] = [
+            ("explicit_page", 91),
+            ("zero_page", 0),
+            ("none_page", None),
+        ]
+
+        for name, page in test_cases:
+            with self.subTest(name=name, page=page):
+                evidences = [
+                    RetrievedEvidence(
+                        chunk_id=ChunkId("chunk_target"),
+                        document_id="doc1",
+                        text="Texto sobre exaustão.",
+                        rank=1,
+                        score=0.9,
+                        page_number=page,
+                    )
+                ]
+                reranked, _ = reranker.rerank("exaustão", evidences, top_n=1)
+                self.assertEqual(len(reranked), 1)
+                self.assertEqual(reranked[0].page_number, page)
+
 
 if __name__ == "__main__":
     unittest.main()
