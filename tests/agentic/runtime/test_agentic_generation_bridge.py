@@ -11,6 +11,8 @@ import unittest
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+import pytest
+
 from raglab.agentic.contracts import EvidenceItem
 from raglab.agentic.errors import PassageIntegrityError, PassageNotFoundError
 from raglab.domain.entities import GeneratedAnswer, RetrievedEvidence
@@ -342,10 +344,11 @@ class TestAgenticGenerationBridge(unittest.TestCase):
         bridge = AgenticGenerationBridge(resolver, generator)
 
         item = EvidenceItem("ps_001", "doc_1", 1, 0.9, sha1, "t1", "inv_1")
-        with self.assertRaises(
-            (CitationProvenanceMismatchError, InvalidIdentifierError)
-        ):
+        with pytest.raises(InvalidIdentifierError):
             bridge.generate("q_001", "Question?", (item,))
+
+        self.assertEqual(len(resolver.resolve_calls), 1)
+        self.assertEqual(len(generator.generate_calls), 1)
 
     def test_10_rejects_citation_identity_or_explicit_page_mismatch(self) -> None:
         from raglab.agentic.runtime.agentic_generation_bridge import (
