@@ -145,6 +145,7 @@ class SentenceAnchorAdapter(RetrievalPort):
                 text=node["anchor_text"],   # anchor only — never window text
                 rank=rank,
                 score=round(clamped_score, 4),
+                page_number=node["page_number"],
             )
             retrieved_evidence.append(evidence)
             rank += 1

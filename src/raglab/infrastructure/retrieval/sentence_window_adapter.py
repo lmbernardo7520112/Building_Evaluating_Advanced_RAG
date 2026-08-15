@@ -169,6 +169,7 @@ class SentenceWindowAdapter(RetrievalPort):
                 text=node["window_text"],
                 rank=rank,
                 score=round(clamped_score, 4),
+                page_number=page_num,
             )
             retrieved_evidence.append(evidence)
             rank += 1
