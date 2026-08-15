@@ -1,11 +1,14 @@
 """Contract tests for public build_bounded_loop_coordinator factory."""
 
+from __future__ import annotations
+
 import unittest
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from raglab.agentic.runtime.bounded_loop_runner import BoundedLoopRunner
+from raglab.agentic.runtime.passage_resolver import PassagePayload
 from raglab.domain.entities import RetrievedEvidence
 from raglab.domain.enums import PipelineStrategy
 from raglab.domain.value_objects import ChunkId
@@ -39,6 +42,26 @@ class FakeRetrievalPort:
         ]
 
 
+class SpyPassageCaptureStore:
+    """Spy satisfying PassageCapturePort for test validation."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[PassagePayload, ...]] = []
+
+    @property
+    def call_count(self) -> int:
+        return len(self.calls)
+
+    @property
+    def recorded_payloads(self) -> tuple[PassagePayload, ...]:
+        if not self.calls:
+            return ()
+        return self.calls[-1]
+
+    def record_passages(self, payloads: Sequence[PassagePayload]) -> None:
+        self.calls.append(tuple(payloads))
+
+
 class TestBoundedLoopFactory(unittest.TestCase):
     """Contract tests for build_bounded_loop_coordinator factory."""
 
@@ -50,9 +73,14 @@ class TestBoundedLoopFactory(unittest.TestCase):
             PipelineStrategy.SENTENCE_WINDOW_RERANK: self.port_window,
         }
 
-    def _build_coordinator(self, ports: dict[Any, Any], run_id: str) -> Any:
+    def _build_coordinator(
+        self,
+        ports: dict[Any, Any],
+        run_id: str,
+        **kwargs: Any,
+    ) -> Any:
         factory = _get_factory_func()
-        return factory(ports, run_id=run_id)
+        return factory(ports, run_id=run_id, **kwargs)
 
     def test_01_factory_returns_functional_bounded_loop_runner(self) -> None:
         runner = self._build_coordinator(self.ports, run_id="run_l3_factory_01")
@@ -123,6 +151,36 @@ class TestBoundedLoopFactory(unittest.TestCase):
         self.assertNotIn("max_logical_calls", sig.parameters)
         self.assertNotIn("max_physical_attempts", sig.parameters)
         self.assertNotIn("max_retries", sig.parameters)
+
+    def test_07_factory_accepts_and_propagates_passage_store_to_adapters(
+        self,
+    ) -> None:
+        spy = SpyPassageCaptureStore()
+        runner = self._build_coordinator(
+            self.ports,
+            run_id="run_l3_factory_07",
+            passage_store=spy,
+        )
+        result = runner.execute("q_07", "Query for test 07", top_k=1)
+
+        self.assertEqual(result.evidence_count, 1)
+        self.assertEqual(spy.call_count, 1)
+        self.assertEqual(
+            spy.recorded_payloads[0].passage_id,
+            result.evidence_items[0].passage_id,
+        )
+
+    def test_08_factory_without_passage_store_retains_legacy_behavior(
+        self,
+    ) -> None:
+        runner = self._build_coordinator(
+            self.ports,
+            run_id="run_l3_factory_08",
+        )
+        result = runner.execute("q_08", "Query for test 08", top_k=1)
+
+        self.assertEqual(result.evidence_count, 1)
+        self.assertTrue(result.evidence_items[0].passage_id.startswith("ps_"))
 
 
 if __name__ == "__main__":

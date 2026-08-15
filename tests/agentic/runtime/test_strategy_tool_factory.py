@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from raglab.agentic.runtime.passage_resolver import PassagePayload
 from raglab.agentic.runtime.strategy_tool_factory import (
     ALL_STRATEGIES,
     build_adapter,
@@ -23,17 +24,39 @@ from raglab.domain.value_objects import ChunkId
 class StubPort:
     """Stub satisfying RetrievalPort."""
 
+    passage_id: str = "ps_stub_001"
+
     def retrieve(self, query: str, top_k: int) -> Sequence[RetrievedEvidence]:
         return [
             RetrievedEvidence(
-                chunk_id=ChunkId(value="stub_001"),
+                chunk_id=ChunkId(value=self.passage_id.replace("ps_", "")),
                 document_id="doc_01",
-                text="stub evidence",
+                text=f"stub evidence for {self.passage_id}",
                 rank=1,
                 score=0.9,
-                passage_id="ps_stub_001",
+                passage_id=self.passage_id,
             )
         ]
+
+
+class SpyPassageCaptureStore:
+    """Spy satisfying PassageCapturePort for test validation."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[PassagePayload, ...]] = []
+
+    @property
+    def call_count(self) -> int:
+        return len(self.calls)
+
+    @property
+    def recorded_payloads(self) -> tuple[PassagePayload, ...]:
+        if not self.calls:
+            return ()
+        return self.calls[-1]
+
+    def record_passages(self, payloads: Sequence[PassagePayload]) -> None:
+        self.calls.append(tuple(payloads))
 
 
 class TestStrategyToolFactory:
@@ -90,3 +113,61 @@ class TestStrategyToolFactory:
         s1 = make_tool_spec(PipelineStrategy.AUTO_MERGING)
         s2 = make_tool_spec(PipelineStrategy.AUTO_MERGING)
         assert s1.implementation_sha256 == s2.implementation_sha256
+
+    def test_08_build_adapter_accepts_and_wires_passage_store(self) -> None:
+        spy = SpyPassageCaptureStore()
+        port = StubPort(passage_id="ps_custom_008")
+        adapter = build_adapter(
+            PipelineStrategy.BASELINE,
+            port,
+            passage_store=spy,
+        )
+        obs = adapter.retrieve(query="test", strategy="baseline", top_k=3)
+
+        assert obs.passage_ids == ("ps_custom_008",)
+        assert spy.call_count == 1
+        assert len(spy.recorded_payloads) == 1
+        assert spy.recorded_payloads[0].passage_id == "ps_custom_008"
+        assert spy.recorded_payloads[0].chunk_id == ChunkId("custom_008")
+
+    def test_09_build_registry_wires_same_passage_store_instance_to_all_adapters(
+        self,
+    ) -> None:
+        spy = SpyPassageCaptureStore()
+        ports = {
+            PipelineStrategy.BASELINE: StubPort("ps_base_09"),
+            PipelineStrategy.SENTENCE_WINDOW: StubPort("ps_window_09"),
+        }
+        registry, adapters = build_registry_with_adapters(
+            ports,
+            passage_store=spy,
+        )
+
+        obs_base = adapters["retrieve_baseline"].retrieve(
+            query="q",
+            strategy="baseline",
+            top_k=1,
+        )
+        obs_win = adapters["retrieve_sentence_window"].retrieve(
+            query="q",
+            strategy="sentence_window",
+            top_k=1,
+        )
+
+        assert obs_base.passage_ids == ("ps_base_09",)
+        assert obs_win.passage_ids == ("ps_window_09",)
+        assert spy.call_count == 2
+        assert spy.calls[0][0].passage_id == "ps_base_09"
+        assert spy.calls[1][0].passage_id == "ps_window_09"
+
+    def test_10_build_registry_works_without_passage_store(self) -> None:
+        ports = {PipelineStrategy.BASELINE: StubPort("ps_legacy_10")}
+        registry, adapters = build_registry_with_adapters(ports)
+
+        obs = adapters["retrieve_baseline"].retrieve(
+            query="q",
+            strategy="baseline",
+            top_k=1,
+        )
+        assert obs.passage_ids == ("ps_legacy_10",)
+        assert obs.status.name == "EXECUTED"
