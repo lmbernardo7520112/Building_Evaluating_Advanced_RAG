@@ -211,6 +211,11 @@ class LlamaIndexBaselineAdapter:
                 else str(n.node.metadata.get("document_id", "unknown"))
             )
             score = float(n.score) if n.score is not None else 0.0
+            page_number = (
+                original_chunk.start_page
+                if original_chunk is not None
+                else int(n.node.metadata.get("start_page", 0))
+            )
 
             results.append(
                 RetrievedEvidence(
@@ -219,6 +224,7 @@ class LlamaIndexBaselineAdapter:
                     text=n.node.get_content(),
                     rank=rank,
                     score=score,
+                    page_number=page_number,
                 )
             )
 
