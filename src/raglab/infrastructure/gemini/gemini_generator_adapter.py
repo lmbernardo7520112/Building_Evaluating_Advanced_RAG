@@ -51,6 +51,17 @@ def _extract_page_from_doc_id(document_id: str) -> int:
         return 0
 
 
+def _resolve_page_number(evidence: object) -> int:
+    """Resolve page number with field precedence."""
+    for field in ("page_number", "start_page", "page"):
+        value = getattr(evidence, field, None)
+        if value is not None:
+            return int(value)
+
+    doc_id = str(getattr(evidence, "document_id", ""))
+    return _extract_page_from_doc_id(doc_id)
+
+
 class GeminiGeneratorAdapter:
     """Answer generator using Gemini API.
 
@@ -214,9 +225,7 @@ class GeminiGeneratorAdapter:
                 raise CitationProvenanceMismatchError(cite_str)
 
             ev = evidence_by_id[cite_str]
-            page_num = getattr(ev, "start_page", getattr(ev, "page", None))
-            if page_num is None:
-                page_num = _extract_page_from_doc_id(ev.document_id)
+            page_num = _resolve_page_number(ev)
 
             ev_passage_id = (
                 getattr(ev, "canonical_passage_id", None)
