@@ -171,7 +171,7 @@ class TestH0LeafRetrieval:
         for ev in results:
             node = adapter.hierarchy_nodes[ev.chunk_id.value]
             assert ev.page_number is not None
-            assert ev.page_number == node.page_number
+            assert ev.page_number == node.page_start
 
     def test_h0_no_duplicate_chunk_ids(self):
         adapter = HierarchicalRetrievalAdapter(
