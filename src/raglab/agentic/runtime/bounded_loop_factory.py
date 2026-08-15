@@ -15,6 +15,7 @@ from raglab.agentic.runtime.bounded_loop_runner import BoundedLoopRunner
 from raglab.agentic.runtime.dispatching_backend import (
     DispatchingRetrievalBackend,
 )
+from raglab.agentic.runtime.retrieval_tool_adapter import PassageCapturePort
 from raglab.agentic.runtime.strategy_tool_factory import (
     build_registry_with_adapters,
 )
@@ -33,6 +34,7 @@ def build_bounded_loop_coordinator(
     *,
     clock: Any = None,
     invocation_id_gen: Any = None,
+    passage_store: PassageCapturePort | None = None,
 ) -> BoundedLoopRunner:
     """Build a BoundedLoopRunner wired with DispatchingRetrievalBackend.
 
@@ -52,7 +54,10 @@ def build_bounded_loop_coordinator(
 
     # 1. Build registry and adapters using existing strategy_tool_factory
     ports_dict = {s: ports[s] for s in ports}
-    registry, adapters = build_registry_with_adapters(ports_dict)
+    registry, adapters = build_registry_with_adapters(
+        ports_dict,
+        passage_store=passage_store,
+    )
 
     # 2. Build public DispatchingRetrievalBackend
     dispatcher = DispatchingRetrievalBackend(adapters)
