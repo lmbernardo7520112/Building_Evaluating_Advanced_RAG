@@ -509,19 +509,36 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             RunControllerError,
         )
 
-        controller = RunController()
+        repo_dir = self.sandbox / "dirty_repo"
+        self._create_synthetic_git_repo(repo_dir)
+        (repo_dir / "src_file.py").write_text("# modified", encoding="utf-8")
+
+        controller = RunController(repo_root=repo_dir)
         with self.assertRaises(RunControllerError):
             controller.preflight_git_check(allow_dirty=False)
 
     def test_15_non_empty_staging_rejected(self) -> None:
         """15. Non-empty git staging must be rejected during prepare."""
+        import shutil
+
         self._import_target_module()
         from raglab.agentic.experiments import (
             RunController,
             RunControllerError,
         )
 
-        controller = RunController()
+        repo_dir = self.sandbox / "staged_repo"
+        self._create_synthetic_git_repo(repo_dir)
+        (repo_dir / "staged_file.py").write_text("# staged", encoding="utf-8")
+        git_bin = shutil.which("git") or "git"
+        subprocess.run(
+            [git_bin, "add", "staged_file.py"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+        )
+
+        controller = RunController(repo_root=repo_dir)
         with self.assertRaises(RunControllerError):
             controller.preflight_git_check(allow_staged=False)
 
