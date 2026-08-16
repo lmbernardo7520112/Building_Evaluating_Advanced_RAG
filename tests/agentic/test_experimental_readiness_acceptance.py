@@ -131,6 +131,32 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
         return impl_commit, proto_commit
 
+    def _make_allowed_artifact_root(self, prefix: str = "raglab_acc_") -> Path:
+        """Create an isolated, exclusive artifact root under ~/.cache and register cleanup."""
+        cache_base = Path.home() / ".cache"
+        cache_base.mkdir(parents=True, exist_ok=True)
+        temp_dir = tempfile.TemporaryDirectory(prefix=prefix, dir=cache_base)
+        self.addCleanup(temp_dir.cleanup)
+        return Path(temp_dir.name).resolve()
+
+    def _make_hermetic_run_environment(
+        self, test_name: str
+    ) -> tuple[object, Path, Path, Path]:
+        """Create synthetic git repo, valid protocol, artifact_root under ~/.cache, and RunController."""
+        from raglab.agentic.experiments import RunController
+
+        repo_dir = self.sandbox / f"repo_{test_name}"
+        self._create_synthetic_git_repo(repo_dir)
+        protocol_path = repo_dir / "protocol.json"
+        artifact_root = self._make_allowed_artifact_root(
+            prefix=f"raglab_acc_{test_name}_"
+        )
+        controller = RunController(
+            allowed_roots=[artifact_root],
+            repo_root=repo_dir,
+        )
+        return controller, repo_dir, protocol_path, artifact_root
+
     def _create_valid_run_directory(
         self,
         artifact_root: Path,
@@ -484,18 +510,29 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         """13. Reusing a run_id with existing artifacts must be rejected."""
         self._import_target_module()
         from raglab.agentic.experiments import (
-            RunController,
             RunControllerError,
+            RunState,
         )
 
-        controller = RunController()
-        with self.assertRaises((RunControllerError, ValueError, RuntimeError)):
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_13")
+        )
+        r1 = controller.prepare_run(
+            run_id="duplicate_run_id",
+            slice_id="slice5b",
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+        )
+        self.assertEqual(r1.state, RunState.PREPARED)
+
+        with self.assertRaises(RunControllerError) as ctx:
             controller.prepare_run(
                 run_id="duplicate_run_id",
                 slice_id="slice5b",
-                protocol_path="proto.json",
-                artifact_root=str(self.sandbox),
+                protocol_path=protocol_path,
+                artifact_root=artifact_root,
             )
+        self.assertIn("not empty", str(ctx.exception).lower())
 
     # =========================================================================
     # GIT E PROTOCOLO (Casos 14 a 22)
@@ -710,16 +747,25 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_26_all_inputs_recorded_in_receipt(self) -> None:
         """26. All passed inputs must appear in input_hashes dictionary of receipt."""
         self._import_target_module()
-        from raglab.agentic.experiments import RunController
+        from raglab.agentic.experiments import (
+            compute_file_sha256,
+        )
 
-        controller = RunController()
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_26")
+        )
+        qrels_file = self.sandbox / "qrels.json"
+        qrels_file.write_text('{"q1": ["d1"]}\n', encoding="utf-8")
+        expected_hash = compute_file_sha256(qrels_file)
+
         receipt = controller.prepare_run(
             run_id="test_inputs",
             slice_id="slice5b",
-            protocol_path=str(self.sandbox / "proto.json"),
-            inputs={"qrels": str(self.sandbox / "qrels.json")},
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+            inputs={"qrels": str(qrels_file)},
         )
-        self.assertIn("qrels", receipt.input_hashes)
+        self.assertEqual(receipt.input_hashes, {"qrels": expected_hash})
 
     # =========================================================================
     # RECEIPTS (Casos 27 a 39)
@@ -759,15 +805,18 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_28_prepared_created_as_receipt_000(self) -> None:
         """28. PREPARED state must be persisted in receipts/000_PREPARED.json."""
         self._import_target_module()
-        from raglab.agentic.experiments import RunController
+        from raglab.agentic.experiments import RunState
 
-        controller = RunController()
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_28")
+        )
         receipt = controller.prepare_run(
             run_id="run_000",
             slice_id="slice5b",
-            protocol_path=str(self.sandbox / "proto.json"),
-            artifact_root=str(self.sandbox),
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
         )
+        self.assertEqual(receipt.state, RunState.PREPARED)
         rec_000 = Path(receipt.run_directory) / "receipts" / "000_PREPARED.json"
         self.assertTrue(rec_000.exists())
 
@@ -825,15 +874,18 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_33_allowed_transitions_accepted(self) -> None:
         """33. Allowed transitions (PREPARED->STARTED->COMPLETED->AUDIT_COMPLETED) must succeed."""
         self._import_target_module()
-        from raglab.agentic.experiments import RunController, RunState
+        from raglab.agentic.experiments import RunState
 
-        controller = RunController()
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_33")
+        )
         r1 = controller.prepare_run(
             run_id="run_allowed",
             slice_id="slice5b",
-            protocol_path=str(self.sandbox / "proto.json"),
-            artifact_root=str(self.sandbox),
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
         )
+        self.assertEqual(r1.state, RunState.PREPARED)
         r2 = controller.start_run(r1.run_directory)
         self.assertEqual(r2.state, RunState.RUN_STARTED)
 
@@ -925,24 +977,18 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_40_protocol_snapshot_byte_exact(self) -> None:
         """40. protocol.snapshot.json must be 100% byte-for-byte identical to source protocol."""
         self._import_target_module()
-        from raglab.agentic.experiments import (
-            RunController,
-            compute_file_sha256,
-        )
 
-        controller = RunController()
-        proto_src = self.sandbox / "proto_orig.json"
-        proto_src.write_text('{"id": "p1"}\n', encoding="utf-8")
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_40")
+        )
         receipt = controller.prepare_run(
             run_id="run_snapshot",
             slice_id="slice5b",
-            protocol_path=str(proto_src),
-            artifact_root=str(self.sandbox),
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
         )
         snapshot = Path(receipt.run_directory) / "protocol.snapshot.json"
-        self.assertEqual(
-            compute_file_sha256(proto_src), compute_file_sha256(snapshot)
-        )
+        self.assertEqual(protocol_path.read_bytes(), snapshot.read_bytes())
 
     def test_41_tampered_snapshot_detected(self) -> None:
         """41. Modified protocol.snapshot.json must be detected by verifier."""
@@ -1150,18 +1196,32 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         """54. Run ID collision must not overwrite existing run directory or receipts."""
         self._import_target_module()
         from raglab.agentic.experiments import (
-            RunController,
             RunControllerError,
+            RunState,
         )
 
-        controller = RunController()
-        with self.assertRaises(RunControllerError):
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_54")
+        )
+        r1 = controller.prepare_run(
+            run_id="existing_run",
+            slice_id="slice5b",
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+        )
+        self.assertEqual(r1.state, RunState.PREPARED)
+        rec_000 = Path(r1.run_directory) / "receipts" / "000_PREPARED.json"
+        content_before = rec_000.read_bytes()
+
+        with self.assertRaises(RunControllerError) as ctx:
             controller.prepare_run(
                 run_id="existing_run",
                 slice_id="slice5b",
-                protocol_path=str(self.sandbox / "proto.json"),
-                artifact_root=str(self.sandbox),
+                protocol_path=protocol_path,
+                artifact_root=artifact_root,
             )
+        self.assertIn("not empty", str(ctx.exception).lower())
+        self.assertEqual(rec_000.read_bytes(), content_before)
 
     # =========================================================================
     # VERIFICADOR (Casos 55 a 63)
@@ -1498,18 +1558,23 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         """64. API credentials or keys must never be persisted in receipts."""
         self._import_target_module()
         from raglab.agentic.experiments import (
-            RunController,
             RunControllerError,
         )
 
-        controller = RunController()
-        with self.assertRaises((RunControllerError, ValueError)):
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_64")
+        )
+        with self.assertRaises(RunControllerError) as ctx:
             controller.prepare_run(
                 run_id="sec_run",
                 slice_id="slice5b",
-                protocol_path="proto.json",
+                protocol_path=protocol_path,
+                artifact_root=artifact_root,
                 metadata={"GEMINI_API_KEY": "secret_123"},
             )
+        self.assertIn("Security validation failed", str(ctx.exception))
+        self.assertIn("GEMINI_API_KEY", str(ctx.exception))
+        self.assertFalse((artifact_root / "slice5b" / "sec_run").exists())
 
     def test_65_secret_values_not_persisted(self) -> None:
         """65. Secret value strings must be rejected by receipt sanitizer."""
