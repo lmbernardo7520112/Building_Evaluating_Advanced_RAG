@@ -68,30 +68,50 @@ class AgenticGenerationBridge:
         }
 
         for citation in answer.citations:
-            if (
-                citation.passage_id is None
-                or citation.passage_id not in evidence_by_passage
-            ):
+            cite_id = citation.evidence_id or citation.passage_id or "unknown"
+
+            if citation.passage_id is None:
                 raise CitationProvenanceMismatchError(
-                    citation.evidence_id or citation.passage_id or "unknown"
+                    cite_id,
+                    reason="missing_passage_id",
+                )
+
+            if citation.passage_id not in evidence_by_passage:
+                raise CitationProvenanceMismatchError(
+                    cite_id,
+                    reason="unknown_passage_id",
                 )
 
             ev = evidence_by_passage[citation.passage_id]
 
-            if (
-                citation.passage_id != ev.passage_id
-                or citation.document_id != ev.document_id
-                or citation.chunk_id != ev.chunk_id
-                or citation.content_sha256 != ev.content_sha256
-                or citation.retrieval_rank != ev.rank
-            ):
+            if citation.document_id != ev.document_id:
                 raise CitationProvenanceMismatchError(
-                    citation.evidence_id or citation.passage_id or "unknown"
+                    cite_id,
+                    reason="document_id_mismatch",
+                )
+
+            if citation.chunk_id != ev.chunk_id:
+                raise CitationProvenanceMismatchError(
+                    cite_id,
+                    reason="chunk_id_mismatch",
+                )
+
+            if citation.content_sha256 != ev.content_sha256:
+                raise CitationProvenanceMismatchError(
+                    cite_id,
+                    reason="content_sha256_mismatch",
+                )
+
+            if citation.retrieval_rank != ev.rank:
+                raise CitationProvenanceMismatchError(
+                    cite_id,
+                    reason="retrieval_rank_mismatch",
                 )
 
             if ev.page_number is not None and citation.page_number != ev.page_number:
                 raise CitationProvenanceMismatchError(
-                    citation.evidence_id or citation.passage_id or "unknown"
+                    cite_id,
+                    reason="page_number_mismatch",
                 )
 
         return answer

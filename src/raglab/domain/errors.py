@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 
 class RagLabDomainError(Exception):
     """Base for all domain errors."""
@@ -82,14 +84,32 @@ class ConfigurationError(RagLabDomainError):
         super().__init__(f"Configuration error in '{field}': {reason}")
 
 
+CitationMismatchReason = Literal[
+    "unknown_evidence_id",
+    "missing_passage_id",
+    "unknown_passage_id",
+    "document_id_mismatch",
+    "chunk_id_mismatch",
+    "content_sha256_mismatch",
+    "retrieval_rank_mismatch",
+    "page_number_mismatch",
+]
+
+
 class CitationProvenanceMismatchError(RagLabDomainError):
     """Raised when a cited evidence_id cannot be found in the evidence snapshot."""
 
-    def __init__(self, citation_id: str) -> None:
+    def __init__(
+        self,
+        citation_id: str,
+        *,
+        reason: CitationMismatchReason = "unknown_evidence_id",
+    ) -> None:
         super().__init__(
             f"CITATION_PROVENANCE_MISMATCH: cited evidence_id '{citation_id}' "
             "not present in prompt snapshot"
         )
+        self.reason: CitationMismatchReason = reason
 
 
 def _is_finite(value: float) -> bool:

@@ -222,7 +222,10 @@ class GeminiGeneratorAdapter:
         for cite_id in raw_citations:
             cite_str = str(cite_id).strip()
             if cite_str not in evidence_by_id:
-                raise CitationProvenanceMismatchError(cite_str)
+                raise CitationProvenanceMismatchError(
+                    cite_str,
+                    reason="unknown_evidence_id",
+                )
 
             ev = evidence_by_id[cite_str]
             page_num = _resolve_page_number(ev)
