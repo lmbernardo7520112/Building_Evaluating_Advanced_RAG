@@ -41,6 +41,7 @@ class HermeticRetrievalPort:
     empty: bool = False
     corrupt_hash: bool = False
     custom_text: str | None = None
+    page_number: int | None = 1
 
     def retrieve(self, query: str, top_k: int) -> Sequence[RetrievedEvidence]:
         if self.should_fail:
@@ -67,7 +68,7 @@ class HermeticRetrievalPort:
                 score=0.9,
                 passage_id=f"ps_{self.prefix}_001",
                 content_sha256=sha,
-                page_number=1,
+                page_number=self.page_number,
             )
         ]
 
@@ -453,8 +454,11 @@ class TestConversationSessionRunner(unittest.TestCase):
     def test_14_state_hash_binds_answer_model_and_every_citation_field(self) -> None:
         fixed_clock = lambda: "2026-08-15T12:00:00Z"  # noqa: E731
 
-        def run_with_gen(gen: HermeticGenerator) -> str:
-            runner = self._make_runner(generator=gen, clock=fixed_clock)
+        def run_with_gen(
+            gen: HermeticGenerator,
+            ports: dict[Any, Any] | None = None,
+        ) -> str:
+            runner = self._make_runner(ports=ports, generator=gen, clock=fixed_clock)
             runner.create_conversation("conv_hash")
             turn = runner.execute_turn("conv_hash", "Hash test query")
             return turn.state_hash
@@ -490,12 +494,17 @@ class TestConversationSessionRunner(unittest.TestCase):
         self.assertNotEqual(base_hash, hash_ev_id)
 
         # Variation 5: changed page_number
+        page_42_ports = {
+            PipelineStrategy.BASELINE: HermeticRetrievalPort("base", page_number=42),
+            PipelineStrategy.SENTENCE_WINDOW_RERANK: HermeticRetrievalPort("window", page_number=42),
+        }
         hash_page = run_with_gen(
             HermeticGenerator(
                 model_id="base-model",
                 custom_text="Base text",
                 custom_page_number=42,
-            )
+            ),
+            ports=page_42_ports,
         )
         self.assertNotEqual(base_hash, hash_page)
 
