@@ -98,6 +98,42 @@ class TestSmokeHarness(unittest.TestCase):
         self.assertNotIn("password", serialized_lower)
         self.assertNotIn("gemini_api_key", serialized_lower)
 
+    def test_03_citation_failure_report_preserves_safe_reason_only(self) -> None:
+        """Verify that CitationProvenanceMismatchError report preserves safe reason code without leaking details."""
+        from raglab.agentic.smoke_harness import run_known_canaries
+
+        class FailingReasonGenerator:
+            @property
+            def model_id(self) -> str:
+                return "failing-reason-generator"
+
+            def generate(
+                self,
+                query_id: str,
+                query: str,
+                evidence: Sequence[RetrievedEvidence],
+            ) -> GeneratedAnswer:
+                raise CitationProvenanceMismatchError(
+                    "E99",
+                    reason="unknown_evidence_id",
+                )
+
+        generator = FailingReasonGenerator()
+        report = run_known_canaries(generator, backend="fake")
+
+        serialized = json.dumps(report, ensure_ascii=False)
+        self.assertEqual(report.get("status"), "FAIL")
+        self.assertEqual(
+            report.get("error"),
+            {
+                "type": "CitationProvenanceMismatchError",
+                "reason": "unknown_evidence_id",
+            },
+        )
+        self.assertNotIn("E99", serialized)
+        self.assertNotIn("Traceback", serialized)
+        self.assertNotIn("not present in prompt snapshot", serialized)
+
 
 if __name__ == "__main__":
     unittest.main()

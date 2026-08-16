@@ -182,6 +182,7 @@ def test_semantic_failure_exits_1_and_sanitizes_stdout(
             },
             "error": {
                 "type": "CitationProvenanceMismatchError",
+                "reason": "unknown_evidence_id",
                 "message": error_msg_sentinel,
                 "forbidden_extra": error_extra_sentinel,
             },
@@ -212,7 +213,10 @@ def test_semantic_failure_exits_1_and_sanitizes_stdout(
     assert payload["model_id"] == "fake-generator-v1-no-network"
     assert payload["status"] == "FAIL"
     assert payload["canaries"] == {"direct_supported_fact": {"status": "FAIL"}}
-    assert payload["error"] == {"type": "CitationProvenanceMismatchError"}
+    assert payload["error"] == {
+        "type": "CitationProvenanceMismatchError",
+        "reason": "unknown_evidence_id",
+    }
 
 
 @pytest.mark.parametrize(
@@ -524,3 +528,70 @@ def test_output_file_write_failure_is_inconclusive(
     assert payload["status"] == "INCONCLUSIVE"
     assert payload["canaries"] == {}
     assert payload["error"] == {"type": "OutputWriteError"}
+
+
+@pytest.mark.parametrize(
+    "bad_error_payload, unquoted_marker",
+    [
+        (
+            {"type": "CitationProvenanceMismatchError"},
+            None,
+        ),
+        (
+            {
+                "type": "CitationProvenanceMismatchError",
+                "reason": "unauthorized_arbitrary_reason_marker_xyz",
+            },
+            "unauthorized_arbitrary_reason_marker_xyz",
+        ),
+        (
+            {
+                "type": "CitationProvenanceMismatchError",
+                "reason": 12345,
+            },
+            "12345",
+        ),
+    ],
+)
+def test_citation_failure_with_invalid_reason_fails_closed(
+    bad_error_payload: dict[str, Any],
+    unquoted_marker: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CitationProvenanceMismatchError with missing, unallowed, or non-string reason must fail closed."""
+    if "GEMINI_API_KEY" in os.environ:
+        monkeypatch.delenv("GEMINI_API_KEY")
+
+    cli_mod = _load_cli()
+
+    def _mock_invalid_reason_harness(
+        generator: Any, *, backend: str
+    ) -> dict[str, Any]:
+        return {
+            "backend": backend,
+            "model_id": getattr(
+                generator, "model_id", "fake-generator-v1-no-network"
+            ),
+            "status": "FAIL",
+            "canaries": {"direct_supported_fact": {"status": "FAIL"}},
+            "error": bad_error_payload,
+        }
+
+    monkeypatch.setattr(
+        cli_mod, "run_known_canaries", _mock_invalid_reason_harness, raising=True
+    )
+
+    exit_code, out, err = _run_cli(cli_mod, ["--backend", "fake"], capsys)
+
+    assert exit_code == 1
+    if unquoted_marker:
+        assert unquoted_marker not in out
+        assert unquoted_marker not in err
+
+    payload = _assert_canonical_json_output(out)
+    assert payload["backend"] == "fake"
+    assert payload["model_id"] == "fake-generator-v1-no-network"
+    assert payload["status"] == "FAIL"
+    assert payload["canaries"] == {}
+    assert payload["error"] == {"type": "InvalidSmokeReportError"}
