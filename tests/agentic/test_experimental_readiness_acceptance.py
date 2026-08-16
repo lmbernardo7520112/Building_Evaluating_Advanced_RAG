@@ -620,9 +620,17 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             RunControllerError,
         )
 
-        controller = RunController()
+        repo_dir = self.sandbox / "protocol_modified_repo"
+        self._create_synthetic_git_repo(repo_dir)
+        (repo_dir / "protocol.json").write_text(
+            json.dumps({"protocol_id": "proto_1", "version": "2.0_modified"}),
+            encoding="utf-8",
+        )
+
+        controller = RunController(repo_root=repo_dir)
+        protocol_path = repo_dir / "protocol.json"
         with self.assertRaises(RunControllerError):
-            controller.validate_protocol_unmodified("benchmarks/proto.json")
+            controller.validate_protocol_unmodified(protocol_path)
 
     def test_22_protocol_sha_mismatch_rejected(self) -> None:
         """22. Protocol SHA-256 hash mismatch must be rejected."""
