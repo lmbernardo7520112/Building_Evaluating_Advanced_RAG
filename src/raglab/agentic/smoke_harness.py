@@ -16,6 +16,7 @@ from raglab.agentic.runtime.conversation_session_runner import (
 from raglab.application.ports.generation import GenerationPort
 from raglab.domain.entities import GeneratedAnswer, RetrievedEvidence
 from raglab.domain.enums import PipelineStrategy
+from raglab.domain.errors import CitationProvenanceMismatchError
 from raglab.domain.value_objects import ChunkId
 
 
@@ -315,6 +316,17 @@ def run_known_canaries(
             "status": "PASS",
             "canaries": canaries,
             "error": None,
+        }
+    except CitationProvenanceMismatchError as exc:
+        return {
+            "backend": backend,
+            "model_id": getattr(generator, "model_id", "unknown"),
+            "status": "FAIL",
+            "canaries": canaries,
+            "error": {
+                "type": "CitationProvenanceMismatchError",
+                "reason": exc.reason,
+            },
         }
     except Exception as exc:
         return {

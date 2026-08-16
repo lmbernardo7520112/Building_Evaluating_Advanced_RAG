@@ -41,6 +41,16 @@ _PROVIDER_ERROR_TYPES: Final[frozenset[str]] = frozenset({
     "RetryExhaustedError",
     "NonRetryableError",
 })
+_ALLOWED_CITATION_REASONS: Final[frozenset[str]] = frozenset({
+    "unknown_evidence_id",
+    "missing_passage_id",
+    "unknown_passage_id",
+    "document_id_mismatch",
+    "chunk_id_mismatch",
+    "content_sha256_mismatch",
+    "retrieval_rank_mismatch",
+    "page_number_mismatch",
+})
 
 
 def _emit_json_report(
@@ -191,6 +201,21 @@ def _sanitize_and_validate_report(
             "canaries": sanitized_canaries,
             "error": {"type": clean_error_type},
         }, 2
+
+    if clean_error_type == "CitationProvenanceMismatchError":
+        reason = raw_error.get("reason")
+        if not isinstance(reason, str) or reason not in _ALLOWED_CITATION_REASONS:
+            return fallback_invalid, 1
+        return {
+            "backend": expected_backend,
+            "model_id": expected_model_id,
+            "status": "FAIL",
+            "canaries": sanitized_canaries,
+            "error": {
+                "type": "CitationProvenanceMismatchError",
+                "reason": reason,
+            },
+        }, 1
 
     return {
         "backend": expected_backend,

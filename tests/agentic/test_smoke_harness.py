@@ -82,8 +82,13 @@ class TestSmokeHarness(unittest.TestCase):
         self.assertEqual(report.get("status"), "FAIL")
         error_info = report.get("error")
         self.assertIsInstance(error_info, dict)
-        self.assertEqual(error_info.get("type"), "CitationProvenanceMismatchError")
-        self.assertTrue(set(error_info.keys()).issubset({"type", "message"}))
+        self.assertEqual(
+            error_info,
+            {
+                "type": "CitationProvenanceMismatchError",
+                "reason": "unknown_evidence_id",
+            },
+        )
 
         # Sanitization verification: ensure no raw query or passage text leaks
         self.assertGreater(len(generator.captured_calls), 0)
