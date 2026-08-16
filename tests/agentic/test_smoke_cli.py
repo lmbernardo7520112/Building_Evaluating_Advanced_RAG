@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -325,3 +326,201 @@ def test_output_file_is_byte_identical_to_stdout(
     assert out_file.exists()
     assert out_file.read_bytes() == out.encode("utf-8")
     assert out_file.read_text(encoding="utf-8") == out
+
+
+def test_divergent_model_id_in_harness_report_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Harness report with divergent model_id must fail closed with InvalidSmokeReportError and exit 1."""
+    if "GEMINI_API_KEY" in os.environ:
+        monkeypatch.delenv("GEMINI_API_KEY")
+
+    cli_mod = _load_cli()
+    forged_model_marker = "forged-model-id-marker-xyz"
+
+    def _mock_forged_model_harness(
+        generator: Any, *, backend: str
+    ) -> dict[str, Any]:
+        return {
+            "backend": backend,
+            "model_id": forged_model_marker,
+            "status": "PASS",
+            "canaries": {
+                "direct_supported_fact": {"status": "PASS"},
+                "conversational_ellipsis": {"status": "PASS"},
+                "unsupported_abstention": {"status": "PASS"},
+            },
+            "error": None,
+        }
+
+    monkeypatch.setattr(
+        cli_mod, "run_known_canaries", _mock_forged_model_harness, raising=True
+    )
+
+    exit_code, out, err = _run_cli(cli_mod, ["--backend", "fake"], capsys)
+
+    assert exit_code == 1
+    assert forged_model_marker not in out
+    assert forged_model_marker not in err
+
+    payload = _assert_canonical_json_output(out)
+    assert payload["backend"] == "fake"
+    assert payload["model_id"] == "fake-generator-v1-no-network"
+    assert payload["status"] == "FAIL"
+    assert payload["canaries"] == {}
+    assert payload["error"] == {"type": "InvalidSmokeReportError"}
+
+
+@pytest.mark.parametrize(
+    "defect_mode",
+    ["unknown_canary", "non_mapping_canary"],
+)
+def test_unknown_or_non_mapping_canary_fails_closed(
+    defect_mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Canaries containing unknown keys or non-mapping values must fail closed with InvalidSmokeReportError."""
+    if "GEMINI_API_KEY" in os.environ:
+        monkeypatch.delenv("GEMINI_API_KEY")
+
+    cli_mod = _load_cli()
+    leaked_canary_marker = "unauthorized_sentinel_canary_key"
+
+    def _mock_defective_canary_harness(
+        generator: Any, *, backend: str
+    ) -> dict[str, Any]:
+        if defect_mode == "unknown_canary":
+            return {
+                "backend": backend,
+                "model_id": getattr(
+                    generator, "model_id", "fake-generator-v1-no-network"
+                ),
+                "status": "PASS",
+                "canaries": {
+                    "direct_supported_fact": {"status": "PASS"},
+                    "conversational_ellipsis": {"status": "PASS"},
+                    "unsupported_abstention": {"status": "PASS"},
+                    "unauthorized_canary": {
+                        "status": "PASS",
+                        "leak": leaked_canary_marker,
+                    },
+                },
+                "error": None,
+            }
+        return {
+            "backend": backend,
+            "model_id": getattr(
+                generator, "model_id", "fake-generator-v1-no-network"
+            ),
+            "status": "FAIL",
+            "canaries": {
+                "direct_supported_fact": "not-a-dict",
+            },
+            "error": {
+                "type": "CitationProvenanceMismatchError",
+                "message": "simulated",
+            },
+        }
+
+    monkeypatch.setattr(
+        cli_mod, "run_known_canaries", _mock_defective_canary_harness, raising=True
+    )
+
+    exit_code, out, err = _run_cli(cli_mod, ["--backend", "fake"], capsys)
+
+    assert exit_code == 1
+    assert leaked_canary_marker not in out
+    assert leaked_canary_marker not in err
+
+    payload = _assert_canonical_json_output(out)
+    assert payload["backend"] == "fake"
+    assert payload["model_id"] == "fake-generator-v1-no-network"
+    assert payload["status"] == "FAIL"
+    assert payload["canaries"] == {}
+    assert payload["error"] == {"type": "InvalidSmokeReportError"}
+
+
+def test_model_id_property_exception_fails_closed_without_secondary_access(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Exception on generator.model_id property must be accessed exactly once, emit FAIL without traceback."""
+    if "GEMINI_API_KEY" in os.environ:
+        monkeypatch.delenv("GEMINI_API_KEY")
+
+    cli_mod = _load_cli()
+
+    access_counter = 0
+    property_noise_marker = "MODEL_ID_PROPERTY_INTERNAL_NOISE_XYZ"
+
+    class DefectiveGeneratorAdapter:
+        @property
+        def model_id(self) -> str:
+            nonlocal access_counter
+            access_counter += 1
+            sys.stdout.write(property_noise_marker + "\n")
+            sys.stderr.write(property_noise_marker + "\n")
+            raise RuntimeError("defective_model_id_access")
+
+    monkeypatch.setattr(
+        cli_mod, "FakeGeneratorAdapter", DefectiveGeneratorAdapter, raising=True
+    )
+
+    def _forbidden_harness(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("run_known_canaries must not be called when model_id raises")
+
+    monkeypatch.setattr(
+        cli_mod, "run_known_canaries", _forbidden_harness, raising=True
+    )
+
+    exit_code, out, err = _run_cli(cli_mod, ["--backend", "fake"], capsys)
+
+    assert access_counter == 1
+    assert exit_code == 1
+    assert property_noise_marker not in out
+    assert property_noise_marker not in err
+    assert "Traceback" not in out
+    assert "Traceback" not in err
+
+    payload = _assert_canonical_json_output(out)
+    assert payload["backend"] == "fake"
+    assert payload["model_id"] is None
+    assert payload["status"] == "FAIL"
+    assert payload["canaries"] == {}
+    assert payload["error"] == {"type": "RuntimeError"}
+
+
+def test_output_file_write_failure_is_inconclusive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Failure to write to --output path must fail closed to INCONCLUSIVE exit 2 with OutputWriteError."""
+    if "GEMINI_API_KEY" in os.environ:
+        monkeypatch.delenv("GEMINI_API_KEY")
+
+    cli_mod = _load_cli()
+
+    # Pass an existing directory as --output to induce a deterministic write failure
+    output_dir_target = tmp_path / "blocked_directory_as_output"
+    output_dir_target.mkdir(parents=True, exist_ok=True)
+
+    exit_code, out, err = _run_cli(
+        cli_mod,
+        ["--backend", "fake", "--output", str(output_dir_target)],
+        capsys,
+    )
+
+    assert exit_code == 2
+    assert "PASS" not in out
+    assert err == ""
+    assert output_dir_target.is_dir()
+
+    payload = _assert_canonical_json_output(out)
+    assert payload["backend"] == "fake"
+    assert payload["model_id"] == "fake-generator-v1-no-network"
+    assert payload["status"] == "INCONCLUSIVE"
+    assert payload["canaries"] == {}
+    assert payload["error"] == {"type": "OutputWriteError"}
