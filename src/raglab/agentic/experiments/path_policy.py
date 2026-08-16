@@ -39,7 +39,7 @@ class ExperimentalPathPolicy:
     ) -> None:
         """Initialize path policy with repository_root and optional allowed_roots."""
         if repository_root is None:
-            self.repo_root = Path(__file__).parents[3].resolve()
+            self.repo_root = Path(__file__).parents[4].resolve()
         else:
             self.repo_root = Path(repository_root).resolve()
 
