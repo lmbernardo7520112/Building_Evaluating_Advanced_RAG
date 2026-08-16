@@ -149,7 +149,9 @@ class TestGeminiGeneratorParsingAndCitations:
         monkeypatch.setattr(
             adapter,
             "_call_with_retry",
-            lambda qid, prompt, *args, **kwargs: '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}',
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}'
+            ),
         )
 
         ev1 = RetrievedEvidence(
@@ -178,7 +180,9 @@ class TestGeminiGeneratorParsingAndCitations:
         monkeypatch.setattr(
             adapter,
             "_call_with_retry",
-            lambda qid, prompt, *args, **kwargs: '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}',
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}'
+            ),
         )
 
         ev1 = RetrievedEvidence(
@@ -207,7 +211,9 @@ class TestGeminiGeneratorParsingAndCitations:
         monkeypatch.setattr(
             adapter,
             "_call_with_retry",
-            lambda qid, prompt, *args, **kwargs: '{"status": "ANSWER", "answer": "Prova por indução", "citations": ["E1"]}',
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ANSWER", "answer": "Prova por indução", "citations": ["E1"]}'
+            ),
         )
 
         ev1 = RetrievedEvidence(
@@ -237,7 +243,9 @@ class TestGeminiGeneratorParsingAndCitations:
         monkeypatch.setattr(
             adapter,
             "_call_with_retry",
-            lambda qid, prompt, *args, **kwargs: '{"status": "ABSTAIN", "answer": "", "citations": []}',
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ABSTAIN", "answer": "", "citations": []}'
+            ),
         )
 
         ev1 = RetrievedEvidence(
@@ -378,7 +386,9 @@ class TestGeminiGeneratorPagePrecedence:
         monkeypatch.setattr(
             adapter,
             "_call_with_retry",
-            lambda qid, prompt, *args, **kwargs: '{"status": "ANSWER", "answer": "Resposta de teste", "citations": ["E1"]}',
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ANSWER", "answer": "Resposta de teste", "citations": ["E1"]}'
+            ),
         )
 
         answer = adapter.generate(
