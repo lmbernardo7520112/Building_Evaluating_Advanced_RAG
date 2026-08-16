@@ -13,10 +13,17 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
+from raglab.agentic.runtime.agentic_generation_bridge import (
+    AgenticGenerationBridge,
+)
 from raglab.agentic.runtime.bounded_loop_factory import (
     build_bounded_loop_coordinator,
 )
 from raglab.agentic.runtime.bounded_loop_runner import BoundedLoopResult
+from raglab.agentic.runtime.passage_resolver import VerifiedPassageResolver
+from raglab.agentic.runtime.runtime_passage_store import RuntimePassageStore
+from raglab.application.ports.generation import GenerationPort
+from raglab.domain.entities import GeneratedAnswer
 from raglab.domain.enums import PipelineStrategy
 
 MAX_RETRIEVAL_QUERY_CHARS = 512
@@ -69,6 +76,8 @@ class ConversationTurnResult:
     state_hash: str
     retrieval_query: str
     context_sha256: str
+    generated_answer: GeneratedAnswer | None = None
+    generation_model_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +98,11 @@ class ConversationSessionRunner:
     ports: Mapping[PipelineStrategy, Any]
     max_turns: int = 3
     clock: Callable[[], str] = field(default_factory=lambda: _default_clock)
+    generator: GenerationPort | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
     _sessions: dict[str, ConversationState] = field(
         default_factory=dict, init=False
     )
@@ -160,25 +174,50 @@ class ConversationSessionRunner:
         ).hexdigest()
 
         run_id = f"{conversation_id}_turn_{turn_index}"
+        turn_query_id = f"{run_id}_q"
 
-        # 1. Build a fresh L3A coordinator for this turn
+        # 1. Fresh ephemeral passage store per turn
+        store = RuntimePassageStore()
+
+        # 2. Build a fresh L3A coordinator for this turn with store
         coordinator = build_bounded_loop_coordinator(
             self.ports,
             run_id=run_id,
             clock=self.clock,
+            passage_store=store,
         )
 
-        # 2. Execute 2-step bounded loop
+        # 3. Execute 2-step bounded loop
         # (unexpected exceptions propagate without state mutation)
         bounded_loop_result = coordinator.execute(
-            query_id=f"{run_id}_q",
+            query_id=turn_query_id,
             query_text=user_query,
             top_k=top_k,
             retrieval_query_text=retrieval_query,
         )
 
-        # 3. Calculate canonical SHA-256 turn state hash
-        payload = {
+        # 4. Optional verified generation via bridge
+        generated_answer: GeneratedAnswer | None = None
+        generation_model_id: str | None = None
+
+        if self.generator is not None:
+            resolver = VerifiedPassageResolver(store)
+            bridge = AgenticGenerationBridge(
+                resolver=resolver,
+                generator=self.generator,
+            )
+            generated_answer = bridge.generate(
+                query_id=turn_query_id,
+                query=user_query,
+                evidence_items=bounded_loop_result.evidence_items,
+            )
+            if bounded_loop_result.evidence_items:
+                generation_model_id = bridge.model_id
+            else:
+                generation_model_id = None
+
+        # 5. Calculate canonical SHA-256 turn state hash
+        payload: dict[str, Any] = {
             "conversation_id": conversation_id,
             "turn_index": turn_index,
             "user_query": user_query,
@@ -186,6 +225,26 @@ class ConversationSessionRunner:
             "stop_reason": bounded_loop_result.stop_decision.reason.value,
             "evidence_count": bounded_loop_result.evidence_count,
         }
+        if generated_answer is not None:
+            payload["answer"] = {
+                "query_id": generated_answer.query_id,
+                "text": generated_answer.text,
+                "abstained": generated_answer.abstained,
+                "generation_model_id": generation_model_id,
+                "citations": [
+                    {
+                        "document_id": c.document_id,
+                        "page_number": c.page_number,
+                        "chunk_id": c.chunk_id.value,
+                        "text_span": c.text_span,
+                        "evidence_id": c.evidence_id,
+                        "passage_id": c.passage_id,
+                        "content_sha256": c.content_sha256,
+                        "retrieval_rank": c.retrieval_rank,
+                    }
+                    for c in generated_answer.citations
+                ],
+            }
         canonical_json = json.dumps(
             payload, sort_keys=True, separators=(",", ":")
         )
@@ -201,9 +260,11 @@ class ConversationSessionRunner:
             state_hash=state_hash,
             retrieval_query=retrieval_query,
             context_sha256=context_sha256,
+            generated_answer=generated_answer,
+            generation_model_id=generation_model_id,
         )
 
-        # 4. Atomic state update
+        # 6. Atomic state update
         new_turns = session.turns + (turn_result,)
         new_status = (
             ConversationStatus.EXHAUSTED
