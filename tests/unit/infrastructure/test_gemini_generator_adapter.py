@@ -163,6 +163,37 @@ class TestGeminiGeneratorParsingAndCitations:
         with pytest.raises(CitationProvenanceMismatchError, match="CITATION_PROVENANCE_MISMATCH"):
             adapter.generate(query_id="q1", query="Query?", evidence=[ev1])
 
+    def test_unknown_model_evidence_id_exposes_safe_reason_code(self, monkeypatch):
+        """Citing an unknown evidence_id must raise CitationProvenanceMismatchError with safe reason code."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_key")
+
+        from raglab.domain.entities import RetrievedEvidence
+        from raglab.domain.errors import CitationProvenanceMismatchError
+        from raglab.domain.value_objects import ChunkId
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        adapter = GeminiGeneratorAdapter()
+        monkeypatch.setattr(
+            adapter,
+            "_call_with_retry",
+            lambda qid, prompt: '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}',
+        )
+
+        ev1 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p1_c0"),
+            document_id="doc_p1",
+            text="Evidence 1 text",
+            rank=1,
+            score=0.9,
+        )
+
+        with pytest.raises(CitationProvenanceMismatchError) as exc_info:
+            adapter.generate(query_id="q1", query="Query?", evidence=[ev1])
+
+        assert exc_info.value.reason == "unknown_evidence_id"
+
     def test_valid_json_answer_parsing(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "fake_key")
 

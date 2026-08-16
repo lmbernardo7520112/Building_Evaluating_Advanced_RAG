@@ -438,3 +438,95 @@ class TestAgenticGenerationBridge(unittest.TestCase):
         bridge_bad_sha = AgenticGenerationBridge(resolver, generator_bad_sha)
         with self.assertRaises(CitationProvenanceMismatchError):
             bridge_bad_sha.generate("q_001", "Query?", (item,))
+
+
+@pytest.mark.parametrize(
+    ("case_name", "citation_override", "expected_reason"),
+    [
+        (
+            "missing_passage_id",
+            {"passage_id": None},
+            "missing_passage_id",
+        ),
+        (
+            "unknown_passage_id",
+            {"passage_id": "ps_UNKNOWN_999"},
+            "unknown_passage_id",
+        ),
+        (
+            "document_id",
+            {"document_id": "doc_WRONG_999"},
+            "document_id_mismatch",
+        ),
+        (
+            "chunk_id",
+            {"chunk_id": ChunkId("chunk_WRONG")},
+            "chunk_id_mismatch",
+        ),
+        (
+            "content_sha256",
+            {"content_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
+            "content_sha256_mismatch",
+        ),
+        (
+            "retrieval_rank",
+            {"retrieval_rank": 99},
+            "retrieval_rank_mismatch",
+        ),
+        (
+            "page_number",
+            {"page_number": 99},
+            "page_number_mismatch",
+        ),
+    ],
+)
+def test_provenance_mismatch_exposes_exact_safe_reason_code(
+    case_name: str,
+    citation_override: dict[str, object],
+    expected_reason: str,
+) -> None:
+    """Verify that each citation provenance mismatch exposes its exact safe reason code."""
+    from raglab.agentic.runtime.agentic_generation_bridge import (
+        AgenticGenerationBridge,
+    )
+
+    t1 = "Evidence text one"
+    sha1 = _sha256(t1)
+    ev1 = RetrievedEvidence(
+        chunk_id=ChunkId("c1"),
+        document_id="doc_1",
+        text=t1,
+        rank=1,
+        score=0.9,
+        passage_id="ps_001",
+        content_sha256=sha1,
+        page_number=10,
+    )
+    resolver = MockResolver(resolved_returns=(ev1,))
+
+    base_citation_kwargs: dict[str, object] = {
+        "document_id": "doc_1",
+        "page_number": 10,
+        "chunk_id": ChunkId("c1"),
+        "text_span": t1[:40],
+        "evidence_id": "E1",
+        "passage_id": "ps_001",
+        "content_sha256": sha1,
+        "retrieval_rank": 1,
+    }
+    base_citation_kwargs.update(citation_override)
+
+    bad_answer = GeneratedAnswer(
+        query_id="q_001",
+        text="Ans",
+        abstained=False,
+        citations=(Citation(**base_citation_kwargs),),  # type: ignore[arg-type]
+    )
+    generator = MockGenerator(answer_return=bad_answer)
+    bridge = AgenticGenerationBridge(resolver, generator)
+    item = EvidenceItem("ps_001", "doc_1", 1, 0.9, sha1, "t1", "inv_1")
+
+    with pytest.raises(CitationProvenanceMismatchError) as exc_info:
+        bridge.generate("q_001", "Query?", (item,))
+
+    assert exc_info.value.reason == expected_reason
