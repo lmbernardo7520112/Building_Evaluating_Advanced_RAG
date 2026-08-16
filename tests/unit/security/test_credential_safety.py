@@ -249,6 +249,181 @@ class TestFakeJudgeOffline:
 # 5. Gemini provider not initialized in Slice 3
 # ---------------------------------------------------------------------------
 
+def _scan_source_for_gemini_adapter_violations(
+    source: str, relative_path: Path
+) -> list[str]:
+    """Inspect source AST using reference- and scope-oriented analysis for Gemini adapter policy."""
+    import ast
+
+    violations: list[str] = []
+    try:
+        tree = ast.parse(source, filename=str(relative_path))
+    except SyntaxError as e:
+        return [f"SyntaxError parsing {relative_path}: {e}"]
+
+    authorized_path = Path("raglab/interfaces/cli/agentic_smoke.py")
+    is_authorized_file = relative_path == authorized_path
+
+    # 1. MAPA DE IMPORTS
+    # Maps local name -> canonical adapter name ("GeminiGeneratorAdapter" | "GeminiJudgeAdapter")
+    imported_adapter_names: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.ImportFrom, ast.Import)):
+            for alias in node.names:
+                if alias.name in (
+                    "GeminiGeneratorAdapter",
+                    "GeminiJudgeAdapter",
+                ):
+                    local_name = alias.asname or alias.name
+                    imported_adapter_names[local_name] = alias.name
+
+    # 2. MAPA DE PAIS
+    parent_by_id: dict[int, ast.AST] = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parent_by_id[id(child)] = parent
+
+    # 3. ANOTAÇÕES (Type-only nodes to ignore)
+    annotation_node_ids: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.arg) and node.annotation is not None:
+            annotation_node_ids.update(id(n) for n in ast.walk(node.annotation))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.returns is not None:
+            annotation_node_ids.update(id(n) for n in ast.walk(node.returns))
+        elif isinstance(node, ast.AnnAssign):
+            annotation_node_ids.update(id(n) for n in ast.walk(node.annotation))
+        elif hasattr(ast, "TypeAlias") and isinstance(node, ast.TypeAlias):
+            annotation_node_ids.update(id(n) for n in ast.walk(node.value))
+            for tparam in getattr(node, "type_params", ()):
+                annotation_node_ids.update(id(n) for n in ast.walk(tparam))
+
+    # 4. REFERÊNCIAS RUNTIME
+    valid_direct_generator_calls_in_main = 0
+
+    for node in ast.walk(tree):
+        target_adapter: str | None = None
+        is_direct_canonical_name = False
+
+        if isinstance(node, ast.Name):
+            ctx = getattr(node, "ctx", None)
+            if ctx is None or isinstance(ctx, ast.Load):
+                if node.id in ("GeminiGeneratorAdapter", "GeminiJudgeAdapter"):
+                    target_adapter = node.id
+                    is_direct_canonical_name = True
+                elif node.id in imported_adapter_names:
+                    target_adapter = imported_adapter_names[node.id]
+                    is_direct_canonical_name = False
+        elif isinstance(node, ast.Attribute):
+            ctx = getattr(node, "ctx", None)
+            if (
+                ctx is None or isinstance(ctx, ast.Load)
+            ) and node.attr in ("GeminiGeneratorAdapter", "GeminiJudgeAdapter"):
+                target_adapter = node.attr
+                is_direct_canonical_name = False
+
+        if target_adapter is None:
+            continue
+
+        parent = parent_by_id.get(id(node))
+        is_call_func = isinstance(parent, ast.Call) and parent.func is node
+
+        # Check if reference is inside a type annotation
+        if id(node) in annotation_node_ids:
+            if is_call_func:
+                violations.append(
+                    f"Gemini adapter constructor call prohibited inside type annotation in {relative_path}."
+                )
+            # Pure type annotation references (not called) are ignored
+            continue
+
+        # A & B: If NOT parent.func is node -> uncalled reference / alias / factory
+        if not is_call_func:
+            violations.append(
+                f"Alias or uncalled reference to {target_adapter} prohibited in {relative_path}."
+            )
+            continue
+
+        # 5. REGRAS DE CHAMADA (parent is ast.Call and parent.func is node)
+        if target_adapter == "GeminiJudgeAdapter":
+            violations.append(
+                f"GeminiJudgeAdapter instantiation prohibited in {relative_path}."
+            )
+            continue
+
+        # target_adapter == "GeminiGeneratorAdapter"
+        if not is_authorized_file:
+            violations.append(
+                f"GeminiGeneratorAdapter instantiation prohibited in unauthorized file {relative_path}."
+            )
+            continue
+
+        if not is_direct_canonical_name:
+            violations.append(
+                f"Call in {relative_path} must be direct 'GeminiGeneratorAdapter()', not an alias or attribute."
+            )
+            continue
+
+        # 6. ESCOPO AUTORIZADO (Ascend parent_by_id from Call node)
+        curr = parent
+        enclosing_scopes: list[ast.AST] = []
+        while curr is not None:
+            curr_id = id(curr)
+            curr = parent_by_id.get(curr_id)
+            if isinstance(
+                curr,
+                (
+                    ast.FunctionDef,
+                    ast.AsyncFunctionDef,
+                    ast.Lambda,
+                    ast.ClassDef,
+                ),
+            ):
+                enclosing_scopes.append(curr)
+
+        if len(enclosing_scopes) == 0:
+            violations.append(
+                f"GeminiGeneratorAdapter instantiation in {relative_path} must be inside top-level 'main' (found module scope)."
+            )
+        elif any(isinstance(s, ast.ClassDef) for s in enclosing_scopes):
+            violations.append(
+                f"GeminiGeneratorAdapter instantiation in {relative_path} cannot be inside a class."
+            )
+        elif any(isinstance(s, ast.AsyncFunctionDef) for s in enclosing_scopes):
+            violations.append(
+                f"GeminiGeneratorAdapter instantiation in {relative_path} cannot be inside an async function."
+            )
+        elif any(isinstance(s, ast.Lambda) for s in enclosing_scopes):
+            violations.append(
+                f"GeminiGeneratorAdapter instantiation in {relative_path} cannot be inside a lambda."
+            )
+        elif len(enclosing_scopes) > 1:
+            violations.append(
+                f"GeminiGeneratorAdapter instantiation in {relative_path} cannot be inside a nested function."
+            )
+        elif (
+            isinstance(enclosing_scopes[0], ast.FunctionDef)
+            and enclosing_scopes[0].name != "main"
+        ):
+            violations.append(
+                f"GeminiGeneratorAdapter instantiation in {relative_path} must be inside 'main' function (found in '{enclosing_scopes[0].name}')."
+            )
+        else:
+            valid_direct_generator_calls_in_main += 1
+
+    # 7. CARDINALIDADE (No arquivo autorizado)
+    if is_authorized_file:
+        if valid_direct_generator_calls_in_main == 0:
+            violations.append(
+                f"Authorized composition root {relative_path} must instantiate GeminiGeneratorAdapter directly exactly once in top-level 'main'."
+            )
+        elif valid_direct_generator_calls_in_main > 1:
+            violations.append(
+                f"Authorized composition root {relative_path} instantiates GeminiGeneratorAdapter {valid_direct_generator_calls_in_main} times (expected exactly 1)."
+            )
+
+    return violations
+
+
 class TestGeminiNotInitialized:
     def test_no_gemini_sdk_imported(self):
         """google-generativeai must not be imported at module level."""
@@ -256,16 +431,180 @@ class TestGeminiNotInitialized:
         assert "vertexai" not in sys.modules
 
     def test_no_gemini_adapter_instantiated_by_default(self):
-        """No file in src/ should instantiate a real GeminiAdapter."""
+        """Verify strict AST governance over Gemini adapter instantiations and aliases in src/."""
         src = _PROJECT_ROOT / "src"
-        for py_file in src.rglob("*.py"):
-            text = py_file.read_text(encoding="utf-8", errors="ignore")
-            # Look for actual instantiation (not planned stubs or comments)
-            if "GeminiGeneratorAdapter()" in text or "GeminiJudgeAdapter()" in text:
-                pytest.fail(
-                    f"Real Gemini adapter instantiated in {py_file}. "
-                    "This is PLANNED for a future slice only."
-                )
+
+        all_violations: list[str] = []
+        for py_file in sorted(src.rglob("*.py")):
+            relative_path = py_file.relative_to(src)
+            content = py_file.read_text(encoding="utf-8")
+            violations = _scan_source_for_gemini_adapter_violations(
+                content, relative_path
+            )
+            all_violations.extend(violations)
+
+        if all_violations:
+            pytest.fail(
+                "Gemini adapter governance violations in src/:\n"
+                + "\n".join(f"  - {v}" for v in all_violations)
+            )
+
+    def test_ast_governance_positive_case(self) -> None:
+        """Authorized composition root with exactly 1 direct call in top-level main produces zero violations."""
+        valid_source = (
+            "from raglab.infrastructure.gemini.gemini_generator_adapter import GeminiGeneratorAdapter\n\n"
+            "def main():\n"
+            "    generator = GeminiGeneratorAdapter()\n"
+            "    return generator\n"
+        )
+        violations = _scan_source_for_gemini_adapter_violations(
+            valid_source, Path("raglab/interfaces/cli/agentic_smoke.py")
+        )
+        assert violations == []
+
+    def test_ast_governance_positive_type_annotation_only(self) -> None:
+        """Usage of GeminiGeneratorAdapter strictly as type annotations produces zero violations."""
+        annotation_only_source = (
+            "from raglab.infrastructure.gemini.gemini_generator_adapter import GeminiGeneratorAdapter\n\n"
+            "def inspect_generator(generator: GeminiGeneratorAdapter) -> GeminiGeneratorAdapter:\n"
+            "    typed_var: GeminiGeneratorAdapter | None = None\n"
+            "    return generator\n"
+        )
+        violations = _scan_source_for_gemini_adapter_violations(
+            annotation_only_source, Path("raglab/domain/sample.py")
+        )
+        assert violations == []
+
+    @pytest.mark.parametrize(
+        ("case_name", "source", "rel_path", "expected_violation_fragment"),
+        [
+            (
+                "direct_call_in_unauthorized_file",
+                "def foo():\n    return GeminiGeneratorAdapter()\n",
+                Path("raglab/domain/sample.py"),
+                "instantiation prohibited in unauthorized file",
+            ),
+            (
+                "simple_alias",
+                "def main():\n    gemini_cls = GeminiGeneratorAdapter\n    return gemini_cls()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiGeneratorAdapter",
+            ),
+            (
+                "ann_assign_alias",
+                "def main():\n    gemini_cls: type = GeminiGeneratorAdapter\n    return gemini_cls()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiGeneratorAdapter",
+            ),
+            (
+                "import_alias_call",
+                "from mod import GeminiGeneratorAdapter as GGA\ndef main():\n    return GGA()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "must be direct 'GeminiGeneratorAdapter()'",
+            ),
+            (
+                "attribute_call",
+                "import mod\ndef main():\n    return mod.GeminiGeneratorAdapter()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "must be direct 'GeminiGeneratorAdapter()'",
+            ),
+            (
+                "dict_factory_storage",
+                "def main():\n    factories = {'gemini': GeminiGeneratorAdapter}\n    return factories['gemini']()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiGeneratorAdapter",
+            ),
+            (
+                "functools_partial",
+                "import functools\ndef main():\n    factory = functools.partial(GeminiGeneratorAdapter)\n    return factory()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiGeneratorAdapter",
+            ),
+            (
+                "class_method_main",
+                "class Runner:\n    def main(self):\n        return GeminiGeneratorAdapter()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "cannot be inside a class",
+            ),
+            (
+                "nested_function_in_main",
+                "def main():\n    def helper():\n        return GeminiGeneratorAdapter()\n    return helper()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "cannot be inside a nested function",
+            ),
+            (
+                "two_direct_calls",
+                "def main():\n    g1 = GeminiGeneratorAdapter()\n    g2 = GeminiGeneratorAdapter()\n    return g1, g2\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "expected exactly 1",
+            ),
+            (
+                "gemini_judge_direct",
+                "def main():\n    return GeminiJudgeAdapter()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "GeminiJudgeAdapter instantiation prohibited",
+            ),
+            (
+                "gemini_judge_alias",
+                "def main():\n    judge_cls = GeminiJudgeAdapter\n    return judge_cls()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiJudgeAdapter",
+            ),
+            (
+                "lambda_in_main",
+                "def main():\n    f = lambda: GeminiGeneratorAdapter()\n    return f()\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "cannot be inside a lambda",
+            ),
+            (
+                "function_default_argument",
+                "def foo(g=GeminiGeneratorAdapter):\n    pass\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiGeneratorAdapter",
+            ),
+            (
+                "class_base_inheritance",
+                "class MySubclass(GeminiGeneratorAdapter):\n    pass\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiGeneratorAdapter",
+            ),
+            (
+                "decorator_argument",
+                "def decorator(cls):\n    return cls\n\n@decorator(GeminiGeneratorAdapter)\ndef foo():\n    pass\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiGeneratorAdapter",
+            ),
+            (
+                "boolop_or_ifexp",
+                "def main():\n    g = GeminiGeneratorAdapter if True else None\n    return g\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "Alias or uncalled reference to GeminiGeneratorAdapter",
+            ),
+            (
+                "annotation_constructor_call",
+                "def main(value: GeminiGeneratorAdapter()):\n    return value\n",
+                Path("raglab/interfaces/cli/agentic_smoke.py"),
+                "constructor call prohibited inside type annotation",
+            ),
+        ],
+    )
+    def test_ast_governance_negative_cases(
+        self,
+        case_name: str,
+        source: str,
+        rel_path: Path,
+        expected_violation_fragment: str,
+    ) -> None:
+        """Negative AST patterns must produce specific governance violation fragments."""
+        violations = _scan_source_for_gemini_adapter_violations(
+            source, rel_path
+        )
+        assert any(
+            expected_violation_fragment in violation for violation in violations
+        ), (
+            f"Case '{case_name}' expected violation fragment '{expected_violation_fragment}' "
+            f"in {violations}"
+        )
 
 
 # ---------------------------------------------------------------------------
