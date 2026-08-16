@@ -389,3 +389,129 @@ class TestGeminiGeneratorPagePrecedence:
         assert answer.abstained is False
         assert len(answer.citations) >= 1
         assert answer.citations[0].page_number == expected_page
+
+
+class TestGeminiGeneratorDynamicCitationConstraints:
+    """Micro-RED tests specifying dynamic JSON schema citation constraints for transport."""
+
+    def test_dynamic_citation_constraint_reaches_transport_schema(self, monkeypatch):
+        """Verify GenerateContentConfig enforces response_json_schema with dynamic evidence_ids enum."""
+        from unittest.mock import MagicMock
+
+        import google.genai as genai
+
+        from raglab.domain.entities import RetrievedEvidence
+        from raglab.domain.value_objects import ChunkId
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_offline_key")
+        mock_client = MagicMock()
+        monkeypatch.setattr(genai, "Client", lambda **kwargs: mock_client)
+
+        adapter = GeminiGeneratorAdapter()
+
+        ev1 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p1_c0"),
+            document_id="doc1",
+            text="Evidence text 1",
+            rank=1,
+            score=0.9,
+            passage_id="ps_01",
+        )
+        ev2 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p2_c0"),
+            document_id="doc2",
+            text="Evidence text 2",
+            rank=2,
+            score=0.8,
+            passage_id="ps_02",
+        )
+
+        captured_configs = []
+
+        def mock_generate_content(model, contents, config):
+            captured_configs.append(config)
+            mock_resp = MagicMock()
+            mock_resp.text = (
+                '{"status": "ANSWER", "answer": "Resposta suportada", "citations": ["E1"]}'
+            )
+            return mock_resp
+
+        mock_client.models.generate_content = mock_generate_content
+
+        # 1. Snapshot com 1 evidência
+        ans1 = adapter.generate(query_id="q1", query="Pergunta 1?", evidence=[ev1])
+        assert ans1.abstained is False
+        assert len(captured_configs) == 1
+        cfg1 = captured_configs[0]
+
+        assert cfg1.response_mime_type == "application/json"
+        assert cfg1.response_json_schema is not None
+        schema1 = cfg1.response_json_schema
+        assert isinstance(schema1, dict)
+        assert set(schema1.get("required", [])) == {"status", "answer", "citations"}
+        props1 = schema1.get("properties", {})
+        assert props1.get("status", {}).get("enum") == ["ANSWER", "ABSTAIN"]
+        citations_items1 = props1.get("citations", {}).get("items", {})
+        assert citations_items1.get("enum") == ["E1"]
+
+        # 2. Snapshot com 2 evidências
+        captured_configs.clear()
+        ans2 = adapter.generate(query_id="q2", query="Pergunta 2?", evidence=[ev1, ev2])
+        assert ans2.abstained is False
+        assert len(captured_configs) == 1
+        cfg2 = captured_configs[0]
+
+        assert cfg2.response_mime_type == "application/json"
+        assert cfg2.response_json_schema is not None
+        schema2 = cfg2.response_json_schema
+        props2 = schema2.get("properties", {})
+        citations_items2 = props2.get("citations", {}).get("items", {})
+        assert citations_items2.get("enum") == ["E1", "E2"]
+
+        # Enum dinâmico não pode ser compartilhado ou estático
+        assert citations_items1.get("enum") != citations_items2.get("enum")
+
+    def test_dynamic_citation_constraint_requires_empty_citations_without_evidence(
+        self, monkeypatch
+    ):
+        """Calling generate with empty evidence must constrain schema citations to empty."""
+        from unittest.mock import MagicMock
+
+        import google.genai as genai
+
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_offline_key")
+        mock_client = MagicMock()
+        monkeypatch.setattr(genai, "Client", lambda **kwargs: mock_client)
+
+        adapter = GeminiGeneratorAdapter()
+
+        captured_configs = []
+
+        def mock_generate_content(model, contents, config):
+            captured_configs.append(config)
+            mock_resp = MagicMock()
+            mock_resp.text = '{"status": "ABSTAIN", "answer": "", "citations": []}'
+            return mock_resp
+
+        mock_client.models.generate_content = mock_generate_content
+
+        ans = adapter.generate(query_id="q0", query="Query sem evidencia", evidence=[])
+        assert ans.abstained is True
+        assert ans.text == ""
+        assert ans.citations == ()
+
+        assert len(captured_configs) == 1
+        cfg = captured_configs[0]
+        assert cfg.response_mime_type == "application/json"
+        assert cfg.response_json_schema is not None
+        schema = cfg.response_json_schema
+        props = schema.get("properties", {})
+        citations_prop = props.get("citations", {})
+        assert citations_prop.get("maxItems") == 0
