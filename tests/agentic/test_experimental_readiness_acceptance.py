@@ -164,6 +164,12 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         run_id: str = "valid_run",
     ) -> Path:
         """Create a synthetic valid run directory layout at <artifact_root>/<slice_id>/<run_id>/."""
+        from raglab.agentic.experiments import (
+            RunReceipt,
+            RunReceiptStore,
+            RunState,
+        )
+
         run_dir = artifact_root / slice_id / run_id
         receipts_dir = run_dir / "receipts"
         raw_dir = run_dir / "raw"
@@ -175,46 +181,189 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         derived_dir.mkdir(parents=True, exist_ok=True)
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        (run_dir / "protocol.snapshot.json").write_text(
-            json.dumps({"protocol_id": "proto_1"}), encoding="utf-8"
+        proto_file = run_dir / "protocol.snapshot.json"
+        proto_file.write_text(
+            json.dumps({"protocol_id": "proto_1"}, sort_keys=True),
+            encoding="utf-8",
         )
+        proto_sha = hashlib.sha256(proto_file.read_bytes()).hexdigest()
 
         dummy_artifact = raw_dir / "data.json"
-        dummy_artifact.write_text(json.dumps({"result": 1.0}), encoding="utf-8")
-
+        dummy_artifact.write_text(
+            json.dumps({"result": 1.0}, sort_keys=True), encoding="utf-8"
+        )
         h = hashlib.sha256(dummy_artifact.read_bytes()).hexdigest()
         (run_dir / "hashes.sha256").write_text(
             f"{h}  raw/data.json\n", encoding="utf-8"
         )
 
-        receipt_data = {
-            "schema_version": 1,
-            "run_id": run_id,
-            "slice_id": slice_id,
-            "state": "AUDIT_COMPLETED",
-            "artifact_root": str(artifact_root),
-            "run_directory": str(run_dir),
-            "implementation_commit": "commit_1",
-            "protocol_commit": "commit_2",
-            "protocol_sha256": "proto_sha",
-            "input_hashes": {},
-            "runner_version": "1.0.0",
-            "created_at_utc": "2026-08-10T12:00:00Z",
-            "started_at_utc": "2026-08-10T12:01:00Z",
-            "finished_at_utc": "2026-08-10T12:02:00Z",
-            "exit_code": 0,
-            "artifact_inventory": ["raw/data.json"],
-            "artifact_hashes": {"raw/data.json": h},
-            "previous_receipt_sha256": "sha_prev",
-            "receipt_sha256": "sha_curr",
-        }
-        (run_dir / "run_receipt.json").write_text(
-            json.dumps(receipt_data, indent=2), encoding="utf-8"
+        store = RunReceiptStore(run_dir)
+
+        # 000_PREPARED
+        r0_draft = RunReceipt(
+            schema_version=1,
+            run_id=run_id,
+            slice_id=slice_id,
+            state=RunState.PREPARED,
+            artifact_root=str(artifact_root),
+            run_directory=str(run_dir),
+            implementation_commit="a" * 64,
+            protocol_commit="b" * 64,
+            protocol_sha256=proto_sha,
+            input_hashes={},
+            runner_version="1.0.0",
+            created_at_utc="2026-08-10T12:00:00Z",
+            previous_receipt_sha256=None,
+            receipt_sha256="",
         )
-        (receipts_dir / "000_PREPARED.json").write_text("{}", encoding="utf-8")
-        (receipts_dir / "001_RUN_STARTED.json").write_text("{}", encoding="utf-8")
-        (receipts_dir / "002_RUN_COMPLETED.json").write_text("{}", encoding="utf-8")
-        (receipts_dir / "003_AUDIT_COMPLETED.json").write_text("{}", encoding="utf-8")
+        r0 = RunReceipt(
+            schema_version=r0_draft.schema_version,
+            run_id=r0_draft.run_id,
+            slice_id=r0_draft.slice_id,
+            state=r0_draft.state,
+            artifact_root=r0_draft.artifact_root,
+            run_directory=r0_draft.run_directory,
+            implementation_commit=r0_draft.implementation_commit,
+            protocol_commit=r0_draft.protocol_commit,
+            protocol_sha256=r0_draft.protocol_sha256,
+            input_hashes=r0_draft.input_hashes,
+            runner_version=r0_draft.runner_version,
+            created_at_utc=r0_draft.created_at_utc,
+            previous_receipt_sha256=None,
+            receipt_sha256=r0_draft.compute_hash(),
+        )
+        store.append(r0)
+
+        # 001_RUN_STARTED
+        r1_draft = RunReceipt(
+            schema_version=1,
+            run_id=run_id,
+            slice_id=slice_id,
+            state=RunState.RUN_STARTED,
+            artifact_root=str(artifact_root),
+            run_directory=str(run_dir),
+            implementation_commit="a" * 64,
+            protocol_commit="b" * 64,
+            protocol_sha256=proto_sha,
+            input_hashes={},
+            runner_version="1.0.0",
+            created_at_utc="2026-08-10T12:00:00Z",
+            started_at_utc="2026-08-10T12:01:00Z",
+            previous_receipt_sha256=r0.receipt_sha256,
+            receipt_sha256="",
+        )
+        r1 = RunReceipt(
+            schema_version=r1_draft.schema_version,
+            run_id=r1_draft.run_id,
+            slice_id=r1_draft.slice_id,
+            state=r1_draft.state,
+            artifact_root=r1_draft.artifact_root,
+            run_directory=r1_draft.run_directory,
+            implementation_commit=r1_draft.implementation_commit,
+            protocol_commit=r1_draft.protocol_commit,
+            protocol_sha256=r1_draft.protocol_sha256,
+            input_hashes=r1_draft.input_hashes,
+            runner_version=r1_draft.runner_version,
+            created_at_utc=r1_draft.created_at_utc,
+            started_at_utc=r1_draft.started_at_utc,
+            previous_receipt_sha256=r1_draft.previous_receipt_sha256,
+            receipt_sha256=r1_draft.compute_hash(),
+        )
+        store.append(r1)
+
+        # 002_RUN_COMPLETED
+        r2_draft = RunReceipt(
+            schema_version=1,
+            run_id=run_id,
+            slice_id=slice_id,
+            state=RunState.RUN_COMPLETED,
+            artifact_root=str(artifact_root),
+            run_directory=str(run_dir),
+            implementation_commit="a" * 64,
+            protocol_commit="b" * 64,
+            protocol_sha256=proto_sha,
+            input_hashes={},
+            runner_version="1.0.0",
+            created_at_utc="2026-08-10T12:00:00Z",
+            started_at_utc="2026-08-10T12:01:00Z",
+            finished_at_utc="2026-08-10T12:02:00Z",
+            exit_code=0,
+            artifact_inventory=["raw/data.json"],
+            artifact_hashes={"raw/data.json": h},
+            previous_receipt_sha256=r1.receipt_sha256,
+            receipt_sha256="",
+        )
+        r2 = RunReceipt(
+            schema_version=r2_draft.schema_version,
+            run_id=r2_draft.run_id,
+            slice_id=r2_draft.slice_id,
+            state=r2_draft.state,
+            artifact_root=r2_draft.artifact_root,
+            run_directory=r2_draft.run_directory,
+            implementation_commit=r2_draft.implementation_commit,
+            protocol_commit=r2_draft.protocol_commit,
+            protocol_sha256=r2_draft.protocol_sha256,
+            input_hashes=r2_draft.input_hashes,
+            runner_version=r2_draft.runner_version,
+            created_at_utc=r2_draft.created_at_utc,
+            started_at_utc=r2_draft.started_at_utc,
+            finished_at_utc=r2_draft.finished_at_utc,
+            exit_code=r2_draft.exit_code,
+            artifact_inventory=r2_draft.artifact_inventory,
+            artifact_hashes=r2_draft.artifact_hashes,
+            previous_receipt_sha256=r2_draft.previous_receipt_sha256,
+            receipt_sha256=r2_draft.compute_hash(),
+        )
+        store.append(r2)
+
+        # 003_AUDIT_COMPLETED
+        r3_draft = RunReceipt(
+            schema_version=1,
+            run_id=run_id,
+            slice_id=slice_id,
+            state=RunState.AUDIT_COMPLETED,
+            artifact_root=str(artifact_root),
+            run_directory=str(run_dir),
+            implementation_commit="a" * 64,
+            protocol_commit="b" * 64,
+            protocol_sha256=proto_sha,
+            input_hashes={},
+            runner_version="1.0.0",
+            created_at_utc="2026-08-10T12:00:00Z",
+            started_at_utc="2026-08-10T12:01:00Z",
+            finished_at_utc="2026-08-10T12:02:00Z",
+            exit_code=0,
+            artifact_inventory=["raw/data.json"],
+            artifact_hashes={"raw/data.json": h},
+            previous_receipt_sha256=r2.receipt_sha256,
+            receipt_sha256="",
+        )
+        r3 = RunReceipt(
+            schema_version=r3_draft.schema_version,
+            run_id=r3_draft.run_id,
+            slice_id=r3_draft.slice_id,
+            state=r3_draft.state,
+            artifact_root=r3_draft.artifact_root,
+            run_directory=r3_draft.run_directory,
+            implementation_commit=r3_draft.implementation_commit,
+            protocol_commit=r3_draft.protocol_commit,
+            protocol_sha256=r3_draft.protocol_sha256,
+            input_hashes=r3_draft.input_hashes,
+            runner_version=r3_draft.runner_version,
+            created_at_utc=r3_draft.created_at_utc,
+            started_at_utc=r3_draft.started_at_utc,
+            finished_at_utc=r3_draft.finished_at_utc,
+            exit_code=r3_draft.exit_code,
+            artifact_inventory=r3_draft.artifact_inventory,
+            artifact_hashes=r3_draft.artifact_hashes,
+            previous_receipt_sha256=r3_draft.previous_receipt_sha256,
+            receipt_sha256=r3_draft.compute_hash(),
+        )
+        store.append(r3)
+
+        (run_dir / "run_receipt.json").write_text(
+            json.dumps(r3.to_dict(), indent=2), encoding="utf-8"
+        )
 
         return run_dir
 
@@ -1896,7 +2045,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         input2 = repo_dir / "passages.jsonl"
         input2.write_text('{"id": "p1"}', encoding="utf-8")
 
-        artifact_root = self.sandbox / "external_artifacts"
+        artifact_root = self._make_allowed_artifact_root("raglab_acc_test_75_")
         slice_id = "slice5b"
         run_id = "r1"
 
@@ -1928,7 +2077,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
 
         target_run_dir = artifact_root / slice_id / run_id
         self.assertTrue(target_run_dir.exists())
-        receipt_file = target_run_dir / "run_receipt.json"
+        receipt_file = target_run_dir / "receipts" / "000_PREPARED.json"
         self.assertTrue(receipt_file.exists())
         rec_data = json.loads(receipt_file.read_text(encoding="utf-8"))
         self.assertEqual(rec_data["run_id"], run_id)
@@ -1943,6 +2092,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         )
         repo_dir = self.sandbox / "repo"
         impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
+        artifact_root = self._make_allowed_artifact_root("raglab_acc_test_76_")
 
         # Preflight fails specifically because protocol file path does not exist
         cmd = [
@@ -1951,7 +2101,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             "--repo-root",
             str(repo_dir),
             "--artifact-root",
-            str(self.sandbox / "external_artifacts"),
+            str(artifact_root),
             "--slice-id",
             "slice5b",
             "--run-id",
@@ -1981,7 +2131,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         )
         repo_dir = self.sandbox / "repo"
         impl_commit, proto_commit = self._create_synthetic_git_repo(repo_dir)
-        artifact_root = self.sandbox / "external_artifacts"
+        artifact_root = self._make_allowed_artifact_root("raglab_acc_test_77_")
         slice_id = "slice5b"
         run_id = "r1"
         target_run_dir = artifact_root / slice_id / run_id
