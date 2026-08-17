@@ -14,7 +14,10 @@ Does NOT:
 from __future__ import annotations
 
 from raglab.agentic.contracts import ToolSpecification, _canonical_json, _sha256
-from raglab.agentic.runtime.retrieval_tool_adapter import RetrievalToolAdapter
+from raglab.agentic.runtime.retrieval_tool_adapter import (
+    PassageCapturePort,
+    RetrievalToolAdapter,
+)
 from raglab.agentic.tool_registry import ToolRegistry
 from raglab.domain.enums import PipelineStrategy
 
@@ -60,17 +63,22 @@ def make_tool_spec(strategy: PipelineStrategy) -> ToolSpecification:
 def build_adapter(
     strategy: PipelineStrategy,
     retrieval_port: object,
+    *,
+    passage_store: PassageCapturePort | None = None,
 ) -> RetrievalToolAdapter:
     """Build a RetrievalToolAdapter for a strategy + port pair."""
     suffix = _STRATEGY_TO_TOOL[strategy]
     return RetrievalToolAdapter(
         strategy=suffix,
         retrieval_port=retrieval_port,
+        passage_store=passage_store,
     )
 
 
 def build_registry_with_adapters(
     ports: dict[PipelineStrategy, object],
+    *,
+    passage_store: PassageCapturePort | None = None,
 ) -> tuple[ToolRegistry, dict[str, RetrievalToolAdapter]]:
     """Build a frozen registry and adapter map from strategy→port mapping.
 
@@ -82,7 +90,11 @@ def build_registry_with_adapters(
     for strategy in sorted(ports.keys(), key=lambda s: s.value):
         spec = make_tool_spec(strategy)
         registry.register(spec)
-        adapter = build_adapter(strategy, ports[strategy])
+        adapter = build_adapter(
+            strategy,
+            ports[strategy],
+            passage_store=passage_store,
+        )
         adapters[spec.tool_id] = adapter
 
     registry.freeze()

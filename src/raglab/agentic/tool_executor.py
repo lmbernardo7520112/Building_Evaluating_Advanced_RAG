@@ -91,6 +91,15 @@ def _contains_forbidden_token(text: str) -> str | None:
     return None
 
 
+def validate_query_safety(query: str) -> None:
+    """Raise LeakageDetectedError if query contains forbidden leakage tokens."""
+    found = _contains_forbidden_token(query)
+    if found:
+        raise LeakageDetectedError(
+            f"leakage token '{found}' detected in query: '{query[:100]}'"
+        )
+
+
 class RetrievalBackend(Protocol):
     """Protocol for a retrieval backend that tools invoke."""
 
@@ -196,11 +205,7 @@ class ToolExecutor:
                     )
 
         # 5. Anti-leakage in query text (denylist as secondary defence)
-        found = _contains_forbidden_token(args.query)
-        if found:
-            raise LeakageDetectedError(
-                f"leakage token '{found}' detected in query: '{args.query[:100]}'"
-            )
+        validate_query_safety(args.query)
 
         # 6. Budget check
         if not self._budget.can_consume_logical_call():

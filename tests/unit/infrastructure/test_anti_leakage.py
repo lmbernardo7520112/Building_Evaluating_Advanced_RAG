@@ -102,9 +102,9 @@ class TestAntiLeakageAndPromptSecurity:
         assert "passage_id:" in prompt
 
     def test_system_prompt_demands_json_schema(self):
-        assert "JSON OUTPUT SCHEMAS:" in GENERATION_SYSTEM
-        assert '"status": "ANSWER"' in GENERATION_SYSTEM
-        assert '"status": "ABSTAIN"' in GENERATION_SYSTEM
+        assert "JSON schema" in GENERATION_SYSTEM
+        assert "ANSWER" in GENERATION_SYSTEM
+        assert "ABSTAIN" in GENERATION_SYSTEM
         assert "UNTRUSTED DATA" in GENERATION_SYSTEM
 
     def test_judge_system_prompt_demands_untrusted_data_rules(self):

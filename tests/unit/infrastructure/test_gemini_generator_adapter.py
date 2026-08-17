@@ -13,7 +13,12 @@ The actual Gemini calls are covered by integration tests (Ambiente B only).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
+
+from raglab.domain.entities import RetrievedEvidence
+from raglab.domain.value_objects import ChunkId
 
 
 class TestGeminiGeneratorNoCredential:
@@ -144,7 +149,9 @@ class TestGeminiGeneratorParsingAndCitations:
         monkeypatch.setattr(
             adapter,
             "_call_with_retry",
-            lambda qid, prompt: '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}',
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}'
+            ),
         )
 
         ev1 = RetrievedEvidence(
@@ -157,6 +164,39 @@ class TestGeminiGeneratorParsingAndCitations:
 
         with pytest.raises(CitationProvenanceMismatchError, match="CITATION_PROVENANCE_MISMATCH"):
             adapter.generate(query_id="q1", query="Query?", evidence=[ev1])
+
+    def test_unknown_model_evidence_id_exposes_safe_reason_code(self, monkeypatch):
+        """Citing an unknown evidence_id must raise CitationProvenanceMismatchError with safe reason code."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_key")
+
+        from raglab.domain.entities import RetrievedEvidence
+        from raglab.domain.errors import CitationProvenanceMismatchError
+        from raglab.domain.value_objects import ChunkId
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        adapter = GeminiGeneratorAdapter()
+        monkeypatch.setattr(
+            adapter,
+            "_call_with_retry",
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ANSWER", "answer": "Some answer", "citations": ["E99"]}'
+            ),
+        )
+
+        ev1 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p1_c0"),
+            document_id="doc_p1",
+            text="Evidence 1 text",
+            rank=1,
+            score=0.9,
+        )
+
+        with pytest.raises(CitationProvenanceMismatchError) as exc_info:
+            adapter.generate(query_id="q1", query="Query?", evidence=[ev1])
+
+        assert exc_info.value.reason == "unknown_evidence_id"
 
     def test_valid_json_answer_parsing(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "fake_key")
@@ -171,7 +211,9 @@ class TestGeminiGeneratorParsingAndCitations:
         monkeypatch.setattr(
             adapter,
             "_call_with_retry",
-            lambda qid, prompt: '{"status": "ANSWER", "answer": "Prova por indução", "citations": ["E1"]}',
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ANSWER", "answer": "Prova por indução", "citations": ["E1"]}'
+            ),
         )
 
         ev1 = RetrievedEvidence(
@@ -201,7 +243,9 @@ class TestGeminiGeneratorParsingAndCitations:
         monkeypatch.setattr(
             adapter,
             "_call_with_retry",
-            lambda qid, prompt: '{"status": "ABSTAIN", "answer": "", "citations": []}',
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ABSTAIN", "answer": "", "citations": []}'
+            ),
         )
 
         ev1 = RetrievedEvidence(
@@ -225,3 +269,259 @@ class TestGeminiGeneratorParsingAndCitations:
         source = inspect.getsource(FakeGeneratorAdapter)
         assert "google.genai" not in source
         assert "genai.Client" not in source
+
+
+@dataclass
+class _LegacyEvidenceDouble:
+    """Test double representing legacy evidence with start_page/page attributes."""
+
+    chunk_id: ChunkId
+    document_id: str
+    text: str
+    rank: int
+    score: float
+    page_number: int | None = None
+    start_page: int | None = None
+    page: int | None = None
+    passage_id: str | None = None
+    content_sha256: str | None = None
+
+
+_PAGE_PRECEDENCE_CASES = [
+    # 1. page_number=91, doc_p7 -> 91
+    (
+        RetrievedEvidence(
+            chunk_id=ChunkId("c1"),
+            document_id="doc_p7",
+            text="Evidence text for case 1",
+            rank=1,
+            score=0.9,
+            page_number=91,
+        ),
+        91,
+    ),
+    # 2. page_number=0, doc_p7 -> 0
+    (
+        RetrievedEvidence(
+            chunk_id=ChunkId("c2"),
+            document_id="doc_p7",
+            text="Evidence text for case 2",
+            rank=1,
+            score=0.9,
+            page_number=0,
+        ),
+        0,
+    ),
+    # 3. page_number=None, start_page=33, doc_p7 -> 33
+    (
+        _LegacyEvidenceDouble(
+            chunk_id=ChunkId("c3"),
+            document_id="doc_p7",
+            text="Evidence text for case 3",
+            rank=1,
+            score=0.9,
+            page_number=None,
+            start_page=33,
+        ),
+        33,
+    ),
+    # 4. page_number=None, start_page=None, page=44, doc_p7 -> 44
+    (
+        _LegacyEvidenceDouble(
+            chunk_id=ChunkId("c4"),
+            document_id="doc_p7",
+            text="Evidence text for case 4",
+            rank=1,
+            score=0.9,
+            page_number=None,
+            start_page=None,
+            page=44,
+        ),
+        44,
+    ),
+    # 5. todos explícitos/legados None, doc_p7 -> 7
+    (
+        RetrievedEvidence(
+            chunk_id=ChunkId("c5"),
+            document_id="doc_p7",
+            text="Evidence text for case 5",
+            rank=1,
+            score=0.9,
+            page_number=None,
+        ),
+        7,
+    ),
+    # 6. todos explícitos/legados None, unpaginated_doc -> 0
+    (
+        RetrievedEvidence(
+            chunk_id=ChunkId("c6"),
+            document_id="unpaginated_doc",
+            text="Evidence text for case 6",
+            rank=1,
+            score=0.9,
+            page_number=None,
+        ),
+        0,
+    ),
+]
+
+
+class TestGeminiGeneratorPagePrecedence:
+    """Matrix tests for page number resolution precedence in GeminiGeneratorAdapter."""
+
+    @pytest.mark.parametrize("evidence_item, expected_page", _PAGE_PRECEDENCE_CASES)
+    def test_page_precedence_matrix(self, monkeypatch, evidence_item, expected_page):
+        from unittest.mock import MagicMock
+
+        import google.genai as genai
+
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_offline_key")
+        monkeypatch.setattr(genai, "Client", lambda **kwargs: MagicMock())
+
+        adapter = GeminiGeneratorAdapter()
+        monkeypatch.setattr(
+            adapter,
+            "_call_with_retry",
+            lambda qid, prompt, *, allowed_evidence_ids=(): (
+                '{"status": "ANSWER", "answer": "Resposta de teste", "citations": ["E1"]}'
+            ),
+        )
+
+        answer = adapter.generate(
+            query_id="q_test_prec",
+            query="Qual é a técnica de demonstração?",
+            evidence=[evidence_item],
+        )
+        assert answer.abstained is False
+        assert len(answer.citations) >= 1
+        assert answer.citations[0].page_number == expected_page
+
+
+class TestGeminiGeneratorDynamicCitationConstraints:
+    """Micro-RED tests specifying dynamic JSON schema citation constraints for transport."""
+
+    def test_dynamic_citation_constraint_reaches_transport_schema(self, monkeypatch):
+        """Verify GenerateContentConfig enforces response_json_schema with dynamic evidence_ids enum."""
+        from unittest.mock import MagicMock
+
+        import google.genai as genai
+
+        from raglab.domain.entities import RetrievedEvidence
+        from raglab.domain.value_objects import ChunkId
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_offline_key")
+        mock_client = MagicMock()
+        monkeypatch.setattr(genai, "Client", lambda **kwargs: mock_client)
+
+        adapter = GeminiGeneratorAdapter()
+
+        ev1 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p1_c0"),
+            document_id="doc1",
+            text="Evidence text 1",
+            rank=1,
+            score=0.9,
+            passage_id="ps_01",
+        )
+        ev2 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p2_c0"),
+            document_id="doc2",
+            text="Evidence text 2",
+            rank=2,
+            score=0.8,
+            passage_id="ps_02",
+        )
+
+        captured_configs = []
+
+        def mock_generate_content(model, contents, config):
+            captured_configs.append(config)
+            mock_resp = MagicMock()
+            mock_resp.text = (
+                '{"status": "ANSWER", "answer": "Resposta suportada", "citations": ["E1"]}'
+            )
+            return mock_resp
+
+        mock_client.models.generate_content = mock_generate_content
+
+        # 1. Snapshot com 1 evidência
+        ans1 = adapter.generate(query_id="q1", query="Pergunta 1?", evidence=[ev1])
+        assert ans1.abstained is False
+        assert len(captured_configs) == 1
+        cfg1 = captured_configs[0]
+
+        assert cfg1.response_mime_type == "application/json"
+        assert cfg1.response_json_schema is not None
+        schema1 = cfg1.response_json_schema
+        assert isinstance(schema1, dict)
+        assert set(schema1.get("required", [])) == {"status", "answer", "citations"}
+        props1 = schema1.get("properties", {})
+        assert props1.get("status", {}).get("enum") == ["ANSWER", "ABSTAIN"]
+        citations_items1 = props1.get("citations", {}).get("items", {})
+        assert citations_items1.get("enum") == ["E1"]
+
+        # 2. Snapshot com 2 evidências
+        captured_configs.clear()
+        ans2 = adapter.generate(query_id="q2", query="Pergunta 2?", evidence=[ev1, ev2])
+        assert ans2.abstained is False
+        assert len(captured_configs) == 1
+        cfg2 = captured_configs[0]
+
+        assert cfg2.response_mime_type == "application/json"
+        assert cfg2.response_json_schema is not None
+        schema2 = cfg2.response_json_schema
+        props2 = schema2.get("properties", {})
+        citations_items2 = props2.get("citations", {}).get("items", {})
+        assert citations_items2.get("enum") == ["E1", "E2"]
+
+        # Enum dinâmico não pode ser compartilhado ou estático
+        assert citations_items1.get("enum") != citations_items2.get("enum")
+
+    def test_dynamic_citation_constraint_requires_empty_citations_without_evidence(
+        self, monkeypatch
+    ):
+        """Calling generate with empty evidence must constrain schema citations to empty."""
+        from unittest.mock import MagicMock
+
+        import google.genai as genai
+
+        from raglab.infrastructure.gemini.gemini_generator_adapter import (
+            GeminiGeneratorAdapter,
+        )
+
+        monkeypatch.setenv("GEMINI_API_KEY", "fake_offline_key")
+        mock_client = MagicMock()
+        monkeypatch.setattr(genai, "Client", lambda **kwargs: mock_client)
+
+        adapter = GeminiGeneratorAdapter()
+
+        captured_configs = []
+
+        def mock_generate_content(model, contents, config):
+            captured_configs.append(config)
+            mock_resp = MagicMock()
+            mock_resp.text = '{"status": "ABSTAIN", "answer": "", "citations": []}'
+            return mock_resp
+
+        mock_client.models.generate_content = mock_generate_content
+
+        ans = adapter.generate(query_id="q0", query="Query sem evidencia", evidence=[])
+        assert ans.abstained is True
+        assert ans.text == ""
+        assert ans.citations == ()
+
+        assert len(captured_configs) == 1
+        cfg = captured_configs[0]
+        assert cfg.response_mime_type == "application/json"
+        assert cfg.response_json_schema is not None
+        schema = cfg.response_json_schema
+        props = schema.get("properties", {})
+        citations_prop = props.get("citations", {})
+        assert citations_prop.get("maxItems") == 0

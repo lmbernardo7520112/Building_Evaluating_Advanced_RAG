@@ -8,6 +8,7 @@ from raglab.domain.enums import DatasetSplit, PipelineStrategy, QuestionState
 from raglab.domain.errors import (
     InvalidIdentifierError,
     MissingProvenanceError,
+    NegativePositionError,
 )
 from raglab.domain.value_objects import (
     ChunkId,
@@ -122,6 +123,7 @@ class RetrievedEvidence:
     - chunk_id must be valid (provenance required)
     - rank must be positive
     - score must be finite
+    - page_number must be non-negative if specified
     """
 
     chunk_id: ChunkId
@@ -131,6 +133,7 @@ class RetrievedEvidence:
     score: float
     passage_id: str | None = None
     content_sha256: str | None = None
+    page_number: int | None = None
 
     def __post_init__(self) -> None:
         if not self.document_id or not self.document_id.strip():
@@ -141,6 +144,8 @@ class RetrievedEvidence:
 
         if not math.isfinite(self.score):
             raise ValueError("score must be finite")
+        if self.page_number is not None and self.page_number < 0:
+            raise NegativePositionError("RetrievedEvidence.page_number")
 
 
 @dataclass(frozen=True, slots=True)

@@ -70,6 +70,7 @@ class LocalRerankerAdapter:
                     text=orig.text,
                     rank=rank,
                     score=round(clamped_score, 4),
+                    page_number=orig.page_number,
                 )
             )
             rank += 1

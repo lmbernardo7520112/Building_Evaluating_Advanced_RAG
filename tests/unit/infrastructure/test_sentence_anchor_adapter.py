@@ -108,6 +108,19 @@ class TestSentenceAnchorAdapter:
                 f"Page provenance missing in document_id: {ev.document_id}"
             )
 
+    def test_page_provenance_preserved_explicit_page_number(self):
+        adapter = self._make_anchor_adapter()
+        adapter.index_pages(self._make_pages())
+        # Sentence on page 91: "demonstração por exaustão"
+        results_91 = adapter.retrieve("exaustão", top_k=1)
+        assert len(results_91) == 1
+        assert results_91[0].page_number == 91
+
+        # Sentence on page 92: "demonstração por contradição"
+        results_92 = adapter.retrieve("contradição", top_k=1)
+        assert len(results_92) == 1
+        assert results_92[0].page_number == 92
+
     def test_no_duplicate_chunk_ids(self):
         adapter = self._make_anchor_adapter()
         adapter.index_pages(self._make_pages())

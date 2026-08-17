@@ -82,6 +82,46 @@ class TestGenerationPrompts:
         assert "API_KEY" not in prompt
         assert "sk-" not in prompt
 
+    def test_dynamic_citation_constraint_removes_static_ids_from_system_prompt(self):
+        from raglab.infrastructure.gemini.prompts import GENERATION_SYSTEM
+
+        assert "[E1]" not in GENERATION_SYSTEM
+        assert "[E2]" not in GENERATION_SYSTEM
+        assert '"citations": ["E1", "E2"]' not in GENERATION_SYSTEM
+        assert "E2" not in GENERATION_SYSTEM
+        assert "without brackets" in GENERATION_SYSTEM.lower() or "brackets" in GENERATION_SYSTEM.lower() or "exact" in GENERATION_SYSTEM.lower()
+        assert "JSON OUTPUT SCHEMAS:" not in GENERATION_SYSTEM
+
+    def test_dynamic_citation_constraint_lists_only_snapshot_ids(self):
+        # zero evidências:
+        p0 = build_generation_prompt("pergunta?", [])
+        assert 'ALLOWED_EVIDENCE_IDS: []' in p0
+
+        # uma evidência:
+        ev1 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p1_c0"),
+            document_id="doc1",
+            text="Texto confiavel 1",
+            rank=1,
+            score=0.9,
+            passage_id="pass_01",
+        )
+        p1 = build_generation_prompt("pergunta?", [ev1])
+        assert 'ALLOWED_EVIDENCE_IDS: ["E1"]' in p1
+        assert "E2" not in p1
+
+        # duas evidências:
+        ev2 = RetrievedEvidence(
+            chunk_id=ChunkId("doc_p2_c0"),
+            document_id="doc2",
+            text="Texto confiavel 2",
+            rank=2,
+            score=0.8,
+            passage_id="pass_02",
+        )
+        p2 = build_generation_prompt("pergunta?", [ev1, ev2])
+        assert 'ALLOWED_EVIDENCE_IDS: ["E1", "E2"]' in p2
+
 
 class TestContextRelevancePrompt:
     def test_includes_query_and_context_delimiters(self):

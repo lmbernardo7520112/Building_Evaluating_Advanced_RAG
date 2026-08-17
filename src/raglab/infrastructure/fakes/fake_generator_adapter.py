@@ -38,6 +38,17 @@ def _extract_page(document_id: str) -> int:
         return 0
 
 
+def _resolve_page_number(evidence: object) -> int:
+    """Resolve page number with field precedence."""
+    for field in ("page_number", "start_page", "page"):
+        value = getattr(evidence, field, None)
+        if value is not None:
+            return int(value)
+
+    doc_id = str(getattr(evidence, "document_id", ""))
+    return _extract_page(doc_id)
+
+
 class FakeGeneratorAdapter:
     """Deterministic, network-free generator for offline testing.
 
@@ -85,7 +96,7 @@ class FakeGeneratorAdapter:
             citations = tuple(
                 Citation(
                     document_id=ev.document_id,
-                    page_number=_extract_page(ev.document_id),
+                    page_number=_resolve_page_number(ev),
                     chunk_id=ev.chunk_id,
                     text_span=ev.text[:40],
                     evidence_id=f"E{idx + 1}",

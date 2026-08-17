@@ -159,6 +159,20 @@ class TestH0LeafRetrieval:
             assert ev.document_id, "Evidence must have document_id"
             assert ev.chunk_id.value, "Evidence must have chunk_id"
 
+    def test_h0_provenance_page_number_in_results(self):
+        adapter = HierarchicalRetrievalAdapter(
+            chunk_sizes=[512, 256, 128],
+            auto_merge=False,
+            top_k=6,
+        )
+        adapter.index_pages(_make_pages(4))
+        results = adapter.retrieve("indução matemática", top_k=3)
+        assert len(results) > 0
+        for ev in results:
+            node = adapter.hierarchy_nodes[ev.chunk_id.value]
+            assert ev.page_number is not None
+            assert ev.page_number == node.page_start
+
     def test_h0_no_duplicate_chunk_ids(self):
         adapter = HierarchicalRetrievalAdapter(
             chunk_sizes=[512, 256, 128],

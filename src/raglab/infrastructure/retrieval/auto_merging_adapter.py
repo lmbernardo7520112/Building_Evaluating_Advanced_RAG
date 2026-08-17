@@ -255,6 +255,7 @@ class HierarchicalRetrievalAdapter:
                     text=n.get_content(),
                     rank=rank,
                     score=round(score, 4),
+                    page_number=page_num,
                 )
             )
 

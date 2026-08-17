@@ -81,6 +81,18 @@ class BaseRetrievalContractTests:
             self.assertTrue(item.chunk_id.value)
             self.assertTrue(math.isfinite(item.score))
 
+    def test_provenance_page_number(self) -> None:
+        adapter: object = self.create_adapter()
+        chunks = _make_test_chunks()
+        adapter.index_chunks(chunks)  # type: ignore[attr-defined]
+        chunk_map = {c.chunk_id.value: c for c in chunks}
+
+        results = adapter.retrieve("retrieval", top_k=3)  # type: ignore[attr-defined]
+        self.assertGreater(len(results), 0)
+        for item in results:
+            original_chunk = chunk_map[item.chunk_id.value]
+            self.assertEqual(item.page_number, original_chunk.start_page)
+
     def test_empty_query_returns_empty(self) -> None:
         adapter: object = self.create_adapter()
         chunks = _make_test_chunks()

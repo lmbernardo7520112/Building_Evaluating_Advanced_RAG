@@ -23,7 +23,7 @@ import json
 import logging
 import os
 from collections.abc import Sequence
-from typing import Final
+from typing import Any, Final
 
 from raglab.domain.entities import GeneratedAnswer, RetrievedEvidence
 from raglab.domain.errors import CitationProvenanceMismatchError
@@ -49,6 +49,48 @@ def _extract_page_from_doc_id(document_id: str) -> int:
         return int(document_id.split("_p")[-1])
     except (ValueError, IndexError):
         return 0
+
+
+def _resolve_page_number(evidence: object) -> int:
+    """Resolve page number with field precedence."""
+    for field in ("page_number", "start_page", "page"):
+        value = getattr(evidence, field, None)
+        if value is not None:
+            return int(value)
+
+    doc_id = str(getattr(evidence, "document_id", ""))
+    return _extract_page_from_doc_id(doc_id)
+
+
+def _build_generation_response_json_schema(
+    allowed_evidence_ids: Sequence[str],
+) -> dict[str, Any]:
+    """Build dynamic JSON schema for generation response constraining citations."""
+    citations_schema: dict[str, Any] = {
+        "type": "array",
+        "items": {
+            "type": "string",
+        },
+    }
+    if allowed_evidence_ids:
+        citations_schema["items"]["enum"] = list(allowed_evidence_ids)
+    else:
+        citations_schema["maxItems"] = 0
+
+    return {
+        "type": "object",
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": ["ANSWER", "ABSTAIN"],
+            },
+            "answer": {
+                "type": "string",
+            },
+            "citations": citations_schema,
+        },
+        "required": ["status", "answer", "citations"],
+    }
 
 
 class GeminiGeneratorAdapter:
@@ -118,19 +160,17 @@ class GeminiGeneratorAdapter:
         Returns:
             GeneratedAnswer with text, abstention flag, and citations.
         """
-        if not evidence:
-            logger.info("query_id=%s: no evidence — abstaining", query_id)
-            return GeneratedAnswer(
-                query_id=query_id,
-                text="",
-                abstained=True,
-                citations=(),
-            )
-
         prompt_evidences = PromptEvidence.from_retrieved_sequence(evidence)
+        allowed_evidence_ids: tuple[str, ...] = tuple(
+            pe.evidence_id for pe in prompt_evidences
+        )
         prompt = build_generation_prompt(query, prompt_evidences)
 
-        raw_text = self._call_with_retry(query_id, prompt).strip()
+        raw_text = self._call_with_retry(
+            query_id,
+            prompt,
+            allowed_evidence_ids=allowed_evidence_ids,
+        ).strip()
 
         # Handle legacy raw "ABSTAIN"
         if raw_text.upper() == _ABSTAIN_SIGNAL:
@@ -211,12 +251,13 @@ class GeminiGeneratorAdapter:
         for cite_id in raw_citations:
             cite_str = str(cite_id).strip()
             if cite_str not in evidence_by_id:
-                raise CitationProvenanceMismatchError(cite_str)
+                raise CitationProvenanceMismatchError(
+                    cite_str,
+                    reason="unknown_evidence_id",
+                )
 
             ev = evidence_by_id[cite_str]
-            page_num = getattr(ev, "start_page", getattr(ev, "page", None))
-            if page_num is None:
-                page_num = _extract_page_from_doc_id(ev.document_id)
+            page_num = _resolve_page_number(ev)
 
             ev_passage_id = (
                 getattr(ev, "canonical_passage_id", None)
@@ -255,7 +296,13 @@ class GeminiGeneratorAdapter:
             citations=tuple(citations_list),
         )
 
-    def _call_with_retry(self, query_id: str, prompt: str) -> str:
+    def _call_with_retry(
+        self,
+        query_id: str,
+        prompt: str,
+        *,
+        allowed_evidence_ids: Sequence[str] = (),
+    ) -> str:
         """Execute Gemini API call with quota management and retry logic."""
         import google.genai.types as types
 
@@ -282,6 +329,10 @@ class GeminiGeneratorAdapter:
                     config=types.GenerateContentConfig(
                         temperature=self._temperature,
                         candidate_count=1,
+                        response_mime_type="application/json",
+                        response_json_schema=_build_generation_response_json_schema(
+                            allowed_evidence_ids
+                        ),
                     ),
                 )
                 text: str | None = response.text

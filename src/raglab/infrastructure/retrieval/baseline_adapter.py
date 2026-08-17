@@ -152,6 +152,7 @@ class InMemoryBaselineAdapter:
                     text=chunk.text,
                     rank=rank,
                     score=score,
+                    page_number=chunk.start_page,
                 )
             )
 

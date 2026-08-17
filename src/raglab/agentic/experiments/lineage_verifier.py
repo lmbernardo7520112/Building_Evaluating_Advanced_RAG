@@ -1,0 +1,265 @@
+"""Lineage Verifier Core Module — RAGLab V7 / Experimental Readiness V1.
+
+Provides read-only verification of experimental run lineage, receipt chain integrity,
+protocol snapshot consistency, and input hash verification.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from raglab.agentic.experiments.integrity import compute_file_sha256
+from raglab.agentic.experiments.receipt_store import RunReceiptStore
+from raglab.agentic.experiments.receipts import ReceiptStoreError, RunReceipt
+from raglab.agentic.experiments.run_controller import RunControllerError
+
+
+@dataclass(frozen=True)
+class LineageAuditResult:
+    """Read-only result of a lineage audit."""
+
+    is_valid: bool
+    failure_reasons: tuple[str, ...] = field(default_factory=tuple)
+
+
+class LineageVerifier:
+    """Read-only verifier for experimental run lineage and cryptographic integrity."""
+
+    def __init__(self, *, read_only: bool = True) -> None:
+        if not read_only:
+            raise ValueError(
+                "LineageVerifier must be instantiated with read_only=True"
+            )
+        self._read_only = True
+
+    def is_read_only(self) -> bool:
+        """Return True indicating this verifier is strictly read-only."""
+        return self._read_only
+
+    def verify_input_hashes(
+        self,
+        *,
+        actual_inputs: Mapping[str, Path | str],
+        expected_hashes: Mapping[str, str],
+    ) -> None:
+        """Verify that actual input files exist and match expected SHA-256 hashes.
+
+        Raises RunControllerError or ValueError on mismatch or missing files.
+        """
+        if set(actual_inputs.keys()) != set(expected_hashes.keys()):
+            raise RunControllerError(
+                f"Input name mismatch: actual {set(actual_inputs.keys())} vs "
+                f"expected {set(expected_hashes.keys())}"
+            )
+
+        for name, path_val in actual_inputs.items():
+            p = Path(path_val)
+            if not p.exists() or not p.is_file():
+                raise RunControllerError(
+                    f"Input file for '{name}' does not exist or is not a file: {p}"
+                )
+            expected_hash = expected_hashes[name]
+            actual_hash = compute_file_sha256(p)
+            if actual_hash != expected_hash:
+                raise RunControllerError(
+                    f"Input hash divergence for '{name}': expected '{expected_hash}', "
+                    f"got '{actual_hash}'"
+                )
+
+    def verify_lineage(self, run_directory: Path | str) -> LineageAuditResult:
+        """Audit run directory lineage in a strictly read-only, non-mutating manner."""
+        reasons: list[str] = []
+        target_dir = Path(run_directory).resolve()
+
+        if not target_dir.exists() or not target_dir.is_dir():
+            reasons.append(
+                f"Run directory does not exist or is not a directory: {target_dir}"
+            )
+            return LineageAuditResult(
+                is_valid=False, failure_reasons=tuple(reasons)
+            )
+
+        # 1. Load receipt chain using RunReceiptStore
+        store = RunReceiptStore(target_dir)
+        chain: Sequence[RunReceipt] = ()
+        try:
+            chain = store.load_history_chain()
+        except ReceiptStoreError as r_exc:
+            reasons.append(f"Receipt store unreadable or invalid: {r_exc}")
+
+        if not chain:
+            reasons.append("Receipt chain is empty or missing")
+        else:
+            try:
+                store.verify_chain_integrity()
+            except ReceiptStoreError as r_exc:
+                reasons.append(f"Receipt chain integrity failure: {r_exc}")
+
+            latest = chain[-1]
+            if latest.run_id != target_dir.name:
+                reasons.append(
+                    f"Run directory name '{target_dir.name}' does not match "
+                    f"receipt run_id '{latest.run_id}'"
+                )
+            if latest.slice_id != target_dir.parent.name:
+                reasons.append(
+                    f"Parent directory name '{target_dir.parent.name}' does not match "
+                    f"receipt slice_id '{latest.slice_id}'"
+                )
+
+        # 2. Check protocol.snapshot.json
+        snapshot_path = target_dir / "protocol.snapshot.json"
+        if not snapshot_path.exists() or not snapshot_path.is_file():
+            reasons.append("Missing protocol.snapshot.json")
+        elif chain:
+            latest = chain[-1]
+            try:
+                actual_snapshot_sha = compute_file_sha256(snapshot_path)
+                if actual_snapshot_sha != latest.protocol_sha256:
+                    reasons.append(
+                        "protocol.snapshot.json SHA-256 mismatch: expected "
+                        f"'{latest.protocol_sha256}', got '{actual_snapshot_sha}'"
+                    )
+            except Exception as exc:
+                reasons.append(f"Failed to read protocol.snapshot.json: {exc}")
+
+        # 3. Check declared artifact inventory presence
+        if chain:
+            latest = chain[-1]
+            for rel_path in latest.artifact_inventory:
+                p_rel = Path(rel_path)
+                if p_rel.is_absolute():
+                    reasons.append(f"Artifact path must be relative: {rel_path}")
+                    continue
+                try:
+                    resolved_target = (target_dir / p_rel).resolve()
+                    resolved_target.relative_to(target_dir)
+                except ValueError:
+                    reasons.append(
+                        f"Artifact path escapes run directory: {rel_path}"
+                    )
+                    continue
+
+                if not resolved_target.exists() or not resolved_target.is_file():
+                    reasons.append(f"Missing or non-file artifact: {rel_path}")
+                    continue
+
+                if rel_path not in latest.artifact_hashes:
+                    reasons.append(
+                        f"Missing expected artifact hash entry: {rel_path}"
+                    )
+                    continue
+
+                try:
+                    actual_hash = compute_file_sha256(resolved_target)
+                    expected_hash = latest.artifact_hashes[rel_path]
+                    if actual_hash != expected_hash:
+                        reasons.append(
+                            f"Artifact SHA-256 mismatch for '{rel_path}': "
+                            f"expected '{expected_hash}', got '{actual_hash}'"
+                        )
+                except Exception as exc:
+                    reasons.append(
+                        f"Failed to compute SHA-256 for '{rel_path}': {exc}"
+                    )
+
+        # 4. Check for undeclared regular files under raw/, derived/, and logs/
+        if chain:
+            latest = chain[-1]
+            declared_set = set(latest.artifact_inventory)
+            artifact_subdirs = ("raw", "derived", "logs")
+            for subdir_name in artifact_subdirs:
+                sub_dir = target_dir / subdir_name
+                if sub_dir.exists() and sub_dir.is_dir():
+                    for physical_file in sub_dir.rglob("*"):
+                        if physical_file.is_file():
+                            rel_posix = (
+                                physical_file.relative_to(target_dir).as_posix()
+                            )
+                            if rel_posix not in declared_set:
+                                reasons.append(
+                                    "Undeclared artifact file found in run "
+                                    f"directory: {rel_posix}"
+                                )
+
+        # 5. Check hashes.sha256 manifest file consistency
+        if chain:
+            latest = chain[-1]
+            hashes_path = target_dir / "hashes.sha256"
+            if hashes_path.exists() and hashes_path.is_file():
+                try:
+                    lines = (
+                        hashes_path.read_text(encoding="utf-8").splitlines()
+                    )
+                    manifest_map: dict[str, str] = {}
+                    parse_ok = True
+                    for raw_line in lines:
+                        line = raw_line.strip()
+                        if not line:
+                            continue
+                        parts = raw_line.split("  ", 1)
+                        if len(parts) != 2:
+                            parts = raw_line.split(" ", 1)
+
+                        if len(parts) != 2:
+                            reasons.append(
+                                f"Malformed line in hashes.sha256: '{raw_line}'"
+                            )
+                            parse_ok = False
+                            continue
+
+                        digest, rel_path = parts[0].strip(), parts[1].strip()
+                        if len(digest) != 64 or not all(
+                            c in "0123456789abcdefABCDEF" for c in digest
+                        ):
+                            reasons.append(
+                                f"Invalid SHA-256 digest in hashes.sha256: '{digest}'"
+                            )
+                            parse_ok = False
+                            continue
+
+                        if rel_path in manifest_map:
+                            reasons.append(
+                                f"Duplicate path entry in hashes.sha256: '{rel_path}'"
+                            )
+                            parse_ok = False
+                            continue
+
+                        manifest_map[rel_path] = digest
+
+                    if parse_ok:
+                        inv_set = set(latest.artifact_inventory)
+                        hashes_keys_set = set(latest.artifact_hashes.keys())
+                        manifest_set = set(manifest_map.keys())
+
+                        if manifest_set != inv_set:
+                            reasons.append(
+                                "hashes.sha256 paths do not match artifact_inventory"
+                            )
+
+                        if manifest_set != hashes_keys_set:
+                            reasons.append(
+                                "hashes.sha256 paths do not match artifact_hashes keys"
+                            )
+
+                        for path, manifest_sha in manifest_map.items():
+                            if path in latest.artifact_hashes:
+                                receipt_sha = latest.artifact_hashes[path]
+                                if manifest_sha != receipt_sha:
+                                    reasons.append(
+                                        f"Manifest hash mismatch for '{path}': "
+                                        f"manifest '{manifest_sha}', "
+                                        f"receipt '{receipt_sha}'"
+                                    )
+
+                except Exception as exc:
+                    reasons.append(f"Failed to read hashes.sha256: {exc}")
+            elif latest.artifact_inventory:
+                reasons.append("Missing hashes.sha256 at run root")
+
+        is_valid = len(reasons) == 0
+        return LineageAuditResult(
+            is_valid=is_valid, failure_reasons=tuple(reasons)
+        )
