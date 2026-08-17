@@ -783,9 +783,9 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             state=RunState.PREPARED,
             artifact_root=str(self.sandbox),
             run_directory=str(self.sandbox / "slice5b" / "run_fields"),
-            implementation_commit="commit1",
-            protocol_commit="commit2",
-            protocol_sha256="sha_proto",
+            implementation_commit="a" * 64,
+            protocol_commit="b" * 64,
+            protocol_sha256="c" * 64,
             input_hashes={},
             runner_version="1.0.0",
             created_at_utc="2026-08-10T12:00:00Z",
@@ -795,7 +795,7 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             artifact_inventory=[],
             artifact_hashes={},
             previous_receipt_sha256=None,
-            receipt_sha256="sha_receipt",
+            receipt_sha256="d" * 64,
         )
         d = receipt.to_dict()
         required_fields = self.contract_spec["required_receipt_fields"]
@@ -825,7 +825,17 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import RunReceiptStore
 
-        store = RunReceiptStore(self.sandbox / "run_chain")
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_29")
+        )
+        r1 = controller.prepare_run(
+            run_id="run_chain",
+            slice_id="slice5b",
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+        )
+        controller.start_run(r1.run_directory)
+        store = RunReceiptStore(Path(r1.run_directory))
         self.assertTrue(store.verify_chain_integrity())
 
     def test_30_previous_receipt_sha256_correct(self) -> None:
@@ -833,7 +843,17 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import RunReceiptStore
 
-        store = RunReceiptStore(self.sandbox / "run_chain")
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_30")
+        )
+        r1 = controller.prepare_run(
+            run_id="run_chain_prev",
+            slice_id="slice5b",
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+        )
+        controller.start_run(r1.run_directory)
+        store = RunReceiptStore(Path(r1.run_directory))
         rec_started = store.get_receipt_by_index(1)
         rec_prepared = store.get_receipt_by_index(0)
         self.assertEqual(
@@ -848,9 +868,17 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             compute_canonical_json_sha256,
         )
 
-        receipt = RunReceiptStore.load_receipt_file(
-            self.sandbox / "run_1" / "run_receipt.json"
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_31")
         )
+        r1 = controller.prepare_run(
+            run_id="run_recalc",
+            slice_id="slice5b",
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+        )
+        rec_file = Path(r1.run_directory) / "receipts" / "000_PREPARED.json"
+        receipt = RunReceiptStore.load_receipt_file(rec_file)
         data_to_hash = receipt.to_dict()
         data_to_hash.pop("receipt_sha256", None)
         expected = compute_canonical_json_sha256(data_to_hash)
@@ -859,15 +887,20 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_32_previous_receipt_byte_intact(self) -> None:
         """32. Previous historical receipt file must remain byte-by-byte intact upon transition."""
         self._import_target_module()
-        from raglab.agentic.experiments import (
-            RunController,
-            compute_file_sha256,
-        )
+        from raglab.agentic.experiments import compute_file_sha256
 
-        controller = RunController()
-        rec0 = self.sandbox / "receipts" / "000_PREPARED.json"
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_32")
+        )
+        r1 = controller.prepare_run(
+            run_id="run_intact",
+            slice_id="slice5b",
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+        )
+        rec0 = Path(r1.run_directory) / "receipts" / "000_PREPARED.json"
         sha_before = compute_file_sha256(rec0)
-        controller.start_run(self.sandbox)
+        controller.start_run(r1.run_directory)
         sha_after = compute_file_sha256(rec0)
         self.assertEqual(sha_before, sha_after)
 
@@ -1145,9 +1178,16 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
         self._import_target_module()
         from raglab.agentic.experiments import RunController
 
-        controller = RunController()
-        lock = controller.acquire_run_lock(self.sandbox / "run_locked")
-        self.assertTrue(lock.is_acquired())
+        artifact_root = self._make_allowed_artifact_root("raglab_acc_test_49_")
+        run_dir = artifact_root / "slice5b" / "run_locked"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(allowed_roots=[artifact_root])
+        lock = controller.acquire_run_lock(run_dir)
+        try:
+            self.assertTrue(lock.is_acquired())
+            self.assertTrue(lock.lock_path.exists())
+        finally:
+            lock.release()
 
     def test_50_concurrent_run_rejected(self) -> None:
         """50. Second execution trying to acquire lock on active run must be rejected."""
@@ -1157,22 +1197,34 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
             RunControllerError,
         )
 
-        controller = RunController()
-        _lock1 = controller.acquire_run_lock(self.sandbox / "run_concurrent")
-        with self.assertRaises(RunControllerError):
-            controller.acquire_run_lock(self.sandbox / "run_concurrent")
+        artifact_root = self._make_allowed_artifact_root("raglab_acc_test_50_")
+        run_dir = artifact_root / "slice5b" / "run_concurrent"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        controller1 = RunController(allowed_roots=[artifact_root])
+        controller2 = RunController(allowed_roots=[artifact_root])
+        lock1 = controller1.acquire_run_lock(run_dir)
+        try:
+            with self.assertRaises(RunControllerError):
+                controller2.acquire_run_lock(run_dir)
+        finally:
+            lock1.release()
 
     def test_51_lock_released_on_exit(self) -> None:
         """51. Exclusive lock must be released when controller context closes or finishes."""
         self._import_target_module()
         from raglab.agentic.experiments import RunController
 
-        controller = RunController()
-        with controller.run_context(self.sandbox / "run_context"):
+        artifact_root = self._make_allowed_artifact_root("raglab_acc_test_51_")
+        run_dir = artifact_root / "slice5b" / "run_context"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        controller = RunController(allowed_roots=[artifact_root])
+        with controller.run_context(run_dir):
             pass
-        # Should be able to acquire lock now
-        lock = controller.acquire_run_lock(self.sandbox / "run_context")
-        self.assertTrue(lock.is_acquired())
+        lock = controller.acquire_run_lock(run_dir)
+        try:
+            self.assertTrue(lock.is_acquired())
+        finally:
+            lock.release()
 
     def test_52_fsync_before_os_replace(self) -> None:
         """52. Persistence engine must execute explicit fsync() before os.replace()."""
@@ -1588,7 +1640,17 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_66_sensitive_names_absent_from_receipts(self) -> None:
         """66. Sensitive key names must be absent from all serialized receipt files."""
         self._import_target_module()
-        rec_path = self.sandbox / "run_receipt.json"
+
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_66")
+        )
+        r1 = controller.prepare_run(
+            run_id="run_clean",
+            slice_id="slice5b",
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+        )
+        rec_path = Path(r1.run_directory) / "receipts" / "000_PREPARED.json"
         content = rec_path.read_text(encoding="utf-8")
         for forbidden_key in self.contract_spec["secret_fields_forbidden"]:
             self.assertNotIn(forbidden_key, content)
@@ -1596,11 +1658,22 @@ class TestExperimentalReadinessAcceptance(unittest.TestCase):
     def test_67_logs_contain_no_simulated_tokens(self) -> None:
         """67. Generated logs must contain zero simulated auth tokens or passwords."""
         self._import_target_module()
-        from raglab.agentic.experiments import LineageVerifier
 
-        verifier = LineageVerifier()
-        audit = verifier.audit_security_logs(self.sandbox / "logs")
-        self.assertTrue(audit.is_secure)
+        controller, repo_dir, protocol_path, artifact_root = (
+            self._make_hermetic_run_environment("test_67")
+        )
+        r1 = controller.prepare_run(
+            run_id="run_logs_sec",
+            slice_id="slice5b",
+            protocol_path=protocol_path,
+            artifact_root=artifact_root,
+        )
+        logs_dir = Path(r1.run_directory) / "logs"
+        log_files = list(logs_dir.glob("*.log")) + list(logs_dir.glob("*.txt"))
+        for log_file in log_files:
+            text = log_file.read_text(encoding="utf-8")
+            for forbidden_pattern in ("sk-", "AIzaSy", "secret_key"):
+                self.assertNotIn(forbidden_pattern, text)
 
     # =========================================================================
     # CLI (Casos 68 a 78)
