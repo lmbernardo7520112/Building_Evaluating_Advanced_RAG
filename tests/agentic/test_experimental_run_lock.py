@@ -95,9 +95,10 @@ class TestExperimentalRunLockFocal(unittest.TestCase):
         lock = ExperimentalRunLock.acquire(run_dir, run_id="r1")
 
         # Create a fake lock instance with wrong token
+        non_owner_identity = "not-the-lock-owner"
         fake_lock = ExperimentalRunLock(
             lock_path=lock.lock_path,
-            owner_token="wrong_token_fake",  # noqa: S106
+            owner_token=non_owner_identity,
             run_id="r1",
             st_dev=lock.st_dev,
             st_ino=lock.st_ino,

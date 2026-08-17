@@ -75,7 +75,8 @@ class CanonicalRetrievedItem:
 
     Strict separation:
     - technical_chunk_id: raw retriever occurrence ID (e.g. doc_p91_s0)
-    - anchor_passage_id: authoritative ps_* passage ID from registry if mapped, else None
+    - anchor_passage_id: authoritative ps_* passage ID from registry if mapped,
+      else None
     """
 
     qid: str

@@ -45,7 +45,8 @@ class ParityGateError(Exception):
 
 
 def load_human_qrels(qrels_path: str | Path) -> dict[tuple[str, str], float]:
-    """Load human qrels mapping (qid, passage_id) -> grade strictly from human_qrels_final.jsonl.
+    """Load human qrels mapping (qid, passage_id) -> grade strictly from
+    human_qrels_final.jsonl.
 
     Enforces strict parser rules:
     - Must have question_id or qid
@@ -75,7 +76,8 @@ def load_human_qrels(qrels_path: str | Path) -> dict[tuple[str, str], float]:
 
         if grade is None and "relevance_grade" not in data:
             raise ParityGateError(
-                f"Strict Qrels Parser Error: Line {line_idx} lacks required 'relevance_grade' field"
+                f"Strict Qrels Parser Error: Line {line_idx} lacks required "
+                "'relevance_grade' field"
             )
 
         if qid and pid and grade is not None:
@@ -101,7 +103,9 @@ def build_all_arm_retrievers(
     pages: list[Any],
     embed_model: Any | None = None,
 ) -> dict[str, Any]:
-    """Build and index all 7 consolidated retrieval arms ONCE for efficient query execution."""
+    """Build and index all 7 consolidated retrieval arms ONCE for efficient
+    query execution.
+    """
     # F0
     adapter_f0 = InMemoryBaselineAdapter()
     adapter_f0.index_chunks(chunks)
@@ -176,7 +180,8 @@ def run_parity_gate_evaluation(
     """Run full Parity Gate V3 evaluation across DEV QIDs and 7 fixed arms.
 
     Returns:
-        Tuple of (ParityGateResult, list[ArmRun], human_review_queue, execution_metadata).
+        Tuple of (ParityGateResult, list[ArmRun], human_review_queue,
+        execution_metadata).
     """
     # 1. Load canonical corpus snapshot
     expected_reg_sha = protocol.get("passage_registry_sha256")
@@ -190,7 +195,9 @@ def run_parity_gate_evaluation(
     passage_text_map = {p["passage_id"]: p["text"] for p in raw_passages}
     passage_page_map = {p["passage_id"]: p["page_number"] for p in raw_passages}
     passage_start_map = {p["passage_id"]: p.get("start_char", 0) for p in raw_passages}
-    passage_end_map = {p["passage_id"]: p.get("end_char", len(p["text"])) for p in raw_passages}
+    passage_end_map = {
+        p["passage_id"]: p.get("end_char", len(p["text"])) for p in raw_passages
+    }
 
     chunks = passages_to_chunks(raw_passages)
     pages = passages_to_document_pages(raw_passages)
@@ -343,7 +350,10 @@ def run_parity_gate_evaluation(
                     else None
                 )
 
-                if map_res.mapping_status == CanonicalMappingStatus.AMBIGUOUS_NEEDS_REVIEW:
+                if (
+                    map_res.mapping_status
+                    == CanonicalMappingStatus.AMBIGUOUS_NEEDS_REVIEW
+                ):
                     ambiguous_count += 1
                     mapping_status = MappingStatus.AMBIGUOUS
                 elif canonical_pid is not None and canonical_pid in canonical_set:
@@ -588,7 +598,8 @@ def run_parity_gate_evaluation(
     failure_reasons: list[str] = []
     if ambiguous_count > 0:
         failure_reasons.append(
-            f"Ambiguous canonical projection detected: {ambiguous_count} ambiguous items"
+            f"Ambiguous canonical projection detected: "
+            f"{ambiguous_count} ambiguous items"
         )
     if canonical_coverage < 1.0 or unmapped_count > 0:
         failure_reasons.append(
@@ -661,7 +672,9 @@ def run_parity_gate_evaluation(
         "missing_technical_slots": missing_technical_slots,
         "canonical_occurrences_mapped": canonical_mapped_items,
         "unique_canonical_pairs_count": len(unique_canonical_pairs),
-        "duplicate_projection_count": canonical_mapped_items - len(unique_canonical_pairs),
+        "duplicate_projection_count": (
+            canonical_mapped_items - len(unique_canonical_pairs)
+        ),
         "unmapped_count": unmapped_count,
         "ambiguous_count": ambiguous_count,
         "retrieval_matrix": retrieval_matrix_rows,

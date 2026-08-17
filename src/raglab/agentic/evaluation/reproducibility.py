@@ -72,8 +72,8 @@ def compare_arm_runs(
         r2 = map_2.get(key)
 
         if not r1 or not r2:
-            f_ids = [i.passage_id for i in r1.retrieved_items] if r1 else []
-            s_ids = [i.passage_id for i in r2.retrieved_items] if r2 else []
+            f_ids = [i.passage_id or "" for i in r1.retrieved_items] if r1 else []
+            s_ids = [i.passage_id or "" for i in r2.retrieved_items] if r2 else []
             comparisons.append(
                 ParityComparison(
                     qid=qid,
@@ -89,8 +89,8 @@ def compare_arm_runs(
             all_ranks_matched = False
             continue
 
-        ids_1 = [i.passage_id for i in r1.retrieved_items]
-        ids_2 = [i.passage_id for i in r2.retrieved_items]
+        ids_1 = [i.passage_id or "" for i in r1.retrieved_items]
+        ids_2 = [i.passage_id or "" for i in r2.retrieved_items]
 
         topk_match = (ids_1 == ids_2)
         if topk_match:
